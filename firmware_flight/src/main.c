@@ -63,7 +63,6 @@ static bool sOledOk = false ;
 
 // Timing
 static uint32_t sLastSensorReadMs = 0 ;
-static uint32_t sLastTelemetryMs = 0 ;
 static uint32_t sLastDisplayUpdateMs = 0 ;
 static uint32_t sLastHeartbeatUpdateMs = 0 ;
 static uint32_t sLastSdLogMs = 0 ;
@@ -593,17 +592,19 @@ static void UpdateDisplay(uint32_t inCurrentMs)
 //----------------------------------------------
 static void SendTelemetry(uint32_t inCurrentMs)
 {
-  sLastTelemetryMs = inCurrentMs ;
-
   // Build telemetry packet
   LoRaTelemetryPacket thePacket ;
   uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, &thePacket) ;
 
-  // Send via LoRa (non-blocking)
-  if (LoRa_Send(&sLoRaRadio, (uint8_t *)&thePacket, theLen))
+  // Send via LoRa (blocking to ensure packet completes)
+  if (LoRa_SendBlocking(&sLoRaRadio, (uint8_t *)&thePacket, theLen, 100))
   {
-    // Packet queued for transmission
+    // Mark telemetry as sent (updates timestamp and sequence number)
+    FlightControl_MarkTelemetrySent(&sFlightController, inCurrentMs) ;
   }
+
+  // Return to receive mode for commands
+  LoRa_StartReceive(&sLoRaRadio) ;
 }
 
 //----------------------------------------------

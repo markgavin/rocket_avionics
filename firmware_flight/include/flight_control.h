@@ -264,6 +264,17 @@ bool FlightControl_ShouldSendTelemetry(
   uint32_t inCurrentTimeMs) ;
 
 //----------------------------------------------
+// Function: FlightControl_MarkTelemetrySent
+// Purpose: Mark telemetry as sent (update timestamp)
+// Parameters:
+//   ioController - Controller
+//   inCurrentTimeMs - Current time
+//----------------------------------------------
+void FlightControl_MarkTelemetrySent(
+  FlightController * ioController,
+  uint32_t inCurrentTimeMs) ;
+
+//----------------------------------------------
 // Function: FlightControl_CalculateAltitude
 // Purpose: Calculate altitude from pressure
 // Parameters:

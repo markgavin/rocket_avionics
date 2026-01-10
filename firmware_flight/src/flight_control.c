@@ -485,3 +485,14 @@ bool FlightControl_ShouldSendTelemetry(
   // This allows link verification before arming
   return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 2000 ;
 }
+
+//----------------------------------------------
+// Function: FlightControl_MarkTelemetrySent
+//----------------------------------------------
+void FlightControl_MarkTelemetrySent(
+  FlightController * ioController,
+  uint32_t inCurrentTimeMs)
+{
+  ioController->pLastTelemetryTimeMs = inCurrentTimeMs ;
+  ioController->pTelemetrySequence++ ;
+}
