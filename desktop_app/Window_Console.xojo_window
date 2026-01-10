@@ -482,6 +482,26 @@ End
 		      pLastRssi = theJson.Lookup("rssi", 0)
 		      pLastSnr = theJson.Lookup("snr", 0)
 		      UpdateStats()
+
+		      // Show BMP390 details if enabled
+		      If pShowBMP390Details Then
+		        Var theFlightPress As Double = theJson.Lookup("pres", 0.0)
+		        Var theFlightAlt As Double = theJson.Lookup("alt", 0.0)
+		        Var theFlightTemp As Double = theJson.Lookup("temp", 0.0)
+		        Var theGatewayPress As Double = theJson.Lookup("gpres", 0.0)
+		        Var theGatewayAlt As Double = theJson.Lookup("galt", 0.0)
+		        Var theDiffAlt As Double = theJson.Lookup("dalt", 0.0)
+
+		        Var theBmpInfo As String = "   BMP390 Details:" + EndOfLine
+		        theBmpInfo = theBmpInfo + "     Flight:  Pressure=" + Format(theFlightPress, "#,###.0") + " Pa, "
+		        theBmpInfo = theBmpInfo + "Alt=" + Format(theFlightAlt, "#,##0.00") + " m, "
+		        theBmpInfo = theBmpInfo + "Temp=" + Format(theFlightTemp, "#0.0") + " C" + EndOfLine
+		        theBmpInfo = theBmpInfo + "     Gateway: Pressure=" + Format(theGatewayPress, "#,###.0") + " Pa, "
+		        theBmpInfo = theBmpInfo + "Alt=" + Format(theGatewayAlt, "#,##0.00") + " m" + EndOfLine
+		        theBmpInfo = theBmpInfo + "     Differential Alt=" + Format(theDiffAlt, "#,##0.00") + " m (flight above gateway)"
+
+		        LogMessage(theBmpInfo)
+		      End If
 		    ElseIf theJson.HasKey("type") And theJson.Value("type") = "ack" Then
 		      pRxCount = pRxCount + 1
 		      UpdateStats()
@@ -616,6 +636,10 @@ End
 
 	#tag Property, Flags = &h21
 		Private pHandlersAdded As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pShowBMP390Details As Boolean = False
 	#tag EndProperty
 
 

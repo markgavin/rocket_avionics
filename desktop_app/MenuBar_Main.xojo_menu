@@ -306,6 +306,22 @@ Begin Menu MenuBar_Main
          AutoEnable = True
          Visible = True
       End
+      Begin MenuItem DebugSeparator3
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem DebugShowBMP390Details
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Show BMP390 Details"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
    End
 End
 #tag EndMenu

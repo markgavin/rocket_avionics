@@ -154,6 +154,17 @@ Inherits Application
 	#tag EndMenuHandler
 
 	#tag MenuHandler
+		Function DebugShowBMP390Details() As Boolean Handles DebugShowBMP390Details.Action
+		  // Toggle BMP390 detail display in console
+		  Window_Console.pShowBMP390Details = Not Window_Console.pShowBMP390Details
+		  DebugShowBMP390Details.Checked = Window_Console.pShowBMP390Details
+		  Window_Console.LogMessage("** BMP390 details " + If(Window_Console.pShowBMP390Details, "enabled", "disabled"))
+		  Window_Console.Show
+		  Return True
+		End Function
+	#tag EndMenuHandler
+
+	#tag MenuHandler
 		Function FilePageSetup() As Boolean Handles FilePageSetup.Action
 		  // Show page setup dialog
 		  Module_PrintReport.ShowPageSetup

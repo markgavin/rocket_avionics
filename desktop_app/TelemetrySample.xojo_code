@@ -74,6 +74,18 @@ Protected Class TelemetrySample
 		pSnr As Integer = 0
 	#tag EndProperty
 
+	#tag Property, Flags = &h0
+		pGroundPressurePa As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGroundAltitudeM As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pDifferentialAltitudeM As Double = 0.0
+	#tag EndProperty
+
 
 End Class
 #tag EndClass

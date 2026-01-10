@@ -455,10 +455,25 @@ End
 		  #Pragma Unused inSender
 
 		  // Update live telemetry display
-		  LabelAltitude.Text = "Altitude: " + Format(inSample.pAltitudeM, "0.0") + " m"
+		  // Show differential altitude if available (more accurate), otherwise flight-reported altitude
+		  Var theAltText As String
+		  If inSample.pGroundPressurePa > 0.0 And inSample.pDifferentialAltitudeM <> 0.0 Then
+		    // Have ground reference - show differential altitude (more accurate)
+		    theAltText = "Alt: " + Format(inSample.pDifferentialAltitudeM, "0.0") + " m"
+		  Else
+		    theAltText = "Alt: " + Format(inSample.pAltitudeM, "0.0") + " m"
+		  End If
+		  LabelAltitude.Text = theAltText
+
 		  LabelVelocity.Text = "Velocity: " + Format(inSample.pVelocityMps, "0.0") + " m/s"
 		  LabelState.Text = "State: " + inSample.pState.Uppercase
-		  LabelRssi.Text = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
+
+		  // Show RSSI/SNR and ground station altitude (if available)
+		  Var theRssiText As String = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
+		  If inSample.pGroundAltitudeM <> 0.0 Then
+		    theRssiText = theRssiText + "  Gnd: " + Format(inSample.pGroundAltitudeM, "0") + " m"
+		  End If
+		  LabelRssi.Text = theRssiText
 
 		  // Update state color
 		  Select Case inSample.pState

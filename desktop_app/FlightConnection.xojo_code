@@ -220,8 +220,11 @@ Protected Class FlightConnection
 		      Var theSample As New TelemetrySample
 		      theSample.pTimeMs = theJson.Lookup("t", 0)
 		      theSample.pAltitudeM = theJson.Lookup("alt", 0.0)
+		      theSample.pDifferentialAltitudeM = theJson.Lookup("dalt", 0.0)
 		      theSample.pVelocityMps = theJson.Lookup("vel", 0.0)
 		      theSample.pPressurePa = theJson.Lookup("pres", 0.0)
+		      theSample.pGroundPressurePa = theJson.Lookup("gpres", 0.0)
+		      theSample.pGroundAltitudeM = theJson.Lookup("galt", 0.0)
 		      theSample.pTemperatureC = theJson.Lookup("temp", 0.0)
 		      theSample.pState = theJson.Lookup("state", "")
 		      theSample.pFlags = theJson.Lookup("flags", 0)
