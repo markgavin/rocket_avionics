@@ -11,6 +11,8 @@ The Rocket Avionics system captures flight telemetry data including altitude, ve
 - **10 Hz telemetry** transmitted via LoRa radio (915 MHz)
 - **100 Hz data logging** to SD card with RTC timestamps
 - **Barometric altitude** using BMP390 precision sensor
+- **GPS tracking** with position, speed, and heading
+- **Differential altitude** using ground reference BMP390
 - **Real-time ground station** display via LoRa gateway
 - **Cross-platform apps** for macOS, Windows, Linux, and iOS
 - **Flight state machine** with automatic phase detection
@@ -22,6 +24,7 @@ The Rocket Avionics system captures flight telemetry data including altitude, ve
 C firmware for Adafruit Feather RP2040 with RFM95 LoRa Radio.
 
 - BMP390 barometric pressure/altitude sensor
+- GPS module for position tracking
 - RFM95 LoRa radio for telemetry transmission
 - 128x64 OLED display for status
 - SD card logging with RTC timestamps
@@ -31,6 +34,8 @@ C firmware for Adafruit Feather RP2040 with RFM95 LoRa Radio.
 C firmware for Adafruit Feather RP2040 with RFM95 LoRa Radio.
 
 - LoRa to USB bridge
+- BMP390 for ground pressure reference
+- Calculates differential altitude (flight vs ground)
 - Receives telemetry from flight computer
 - Forwards to desktop application via USB serial
 - Relays commands from desktop to flight computer
@@ -57,6 +62,7 @@ Xojo mobile application for iPhone and iPad.
 |-----------|------------|----------|
 | Feather RP2040 + RFM95 LoRa 915MHz | 5714 | MCU + LoRa radio |
 | BMP390 Barometric Sensor | 4816 | Altitude via STEMMA QT |
+| GPS Module (UART) | varies | Position tracking |
 | Adalogger FeatherWing | 2922 | RTC + SD card |
 | FeatherWing OLED 128x64 | 4650 | Status display |
 | Quad Side-By-Side FeatherWing Kit | 4254 | Mounting |
@@ -65,6 +71,7 @@ Xojo mobile application for iPhone and iPad.
 | Component | Product ID | Function |
 |-----------|------------|----------|
 | Feather RP2040 + RFM95 LoRa 915MHz | 5714 | Gateway MCU + radio |
+| BMP390 Barometric Sensor | 4816 | Ground pressure reference |
 
 ## Quick Start
 
@@ -160,7 +167,7 @@ rocket_avionics/
 - Accelerometer integration (LSM6DS3 or ADXL345)
 - Pyro channel control for ejection charges
 - Dual deployment (drogue at apogee, main at altitude)
-- GPS integration for recovery location
+- Bluetooth LE gateway option for iOS direct connection
 
 ## License
 

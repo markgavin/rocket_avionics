@@ -52,7 +52,7 @@ struct LoRaPacketHeader {
 | Ack | 0x04 | Flight → Ground | Command acknowledgment |
 | Data | 0x05 | Flight → Ground | Bulk data transfer |
 
-### Telemetry Packet (28 bytes)
+### Telemetry Packet (42 bytes)
 
 Sent at 10 Hz during flight.
 
@@ -69,6 +69,11 @@ struct LoRaTelemetryPacket {
     int16_t  accel_x;         // Accelerometer X
     int16_t  accel_y;         // Accelerometer Y
     int16_t  accel_z;         // Accelerometer Z
+    int32_t  latitude;        // Latitude * 1e6 (microdegrees)
+    int32_t  longitude;       // Longitude * 1e6 (microdegrees)
+    uint16_t ground_speed;    // Ground speed (cm/s)
+    uint16_t heading;         // Heading * 10 (decidegrees)
+    uint8_t  satellites;      // GPS satellite count
     uint8_t  state;           // Flight state
     uint8_t  flags;           // Status flags
     uint8_t  crc;             // CRC-8 checksum
@@ -83,7 +88,7 @@ struct LoRaTelemetryPacket {
 | 1 | PYRO2_CONT | Pyro channel 2 continuity OK |
 | 2 | SD_LOGGING | SD card logging active |
 | 3 | LOW_BATTERY | Battery voltage low |
-| 4 | GPS_LOCK | GPS has fix (future) |
+| 4 | GPS_LOCK | GPS has valid fix |
 | 5 | SENSOR_OK | All sensors operational |
 
 ### Flight States
@@ -145,23 +150,51 @@ Sent to desktop at 10 Hz during flight.
 
 ```json
 {
-    "type": "telemetry",
+    "type": "tel",
     "seq": 1234,
-    "t_ms": 5000,
-    "alt_m": 152.5,
-    "vel_mps": 45.2,
-    "pres_pa": 99500,
-    "temp_c": 22.5,
-    "accel": [0, 0, 980],
+    "t": 5000,
+    "alt": 152.5,
+    "dalt": 152.3,
+    "vel": 45.2,
+    "pres": 99500,
+    "gpres": 101325,
+    "galt": 0.2,
+    "temp": 22.5,
+    "lat": 39.938126,
+    "lon": -75.271606,
+    "gspd": 0.5,
+    "hdg": 180.0,
+    "sat": 8,
+    "gps": true,
     "state": "boost",
-    "flags": {
-        "pyro1": true,
-        "pyro2": false,
-        "sd": true,
-        "battery_low": false
-    }
+    "flags": 16,
+    "rssi": -45,
+    "snr": 10
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| type | string | Message type ("tel" for telemetry) |
+| seq | int | Sequence number |
+| t | int | Mission time (milliseconds) |
+| alt | float | Altitude above sea level (meters) |
+| dalt | float | Differential altitude - flight above gateway (meters) |
+| vel | float | Vertical velocity (m/s) |
+| pres | int | Flight computer pressure (Pascals) |
+| gpres | int | Gateway ground pressure (Pascals) |
+| galt | float | Gateway altitude above sea level (meters) |
+| temp | float | Temperature (Celsius) |
+| lat | float | GPS latitude (degrees) |
+| lon | float | GPS longitude (degrees) |
+| gspd | float | GPS ground speed (m/s) |
+| hdg | float | GPS heading (degrees) |
+| sat | int | GPS satellite count |
+| gps | bool | GPS has valid fix |
+| state | string | Flight state |
+| flags | int | Status flags bitmask |
+| rssi | int | LoRa signal strength (dBm) |
+| snr | int | LoRa signal-to-noise ratio (dB) |
 
 ### Status Message
 

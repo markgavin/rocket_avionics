@@ -17,6 +17,7 @@ Both use the same base board (Adafruit Feather RP2040 with RFM95 LoRa) for simpl
 |-----------|------------|----------|---------|
 | Feather RP2040 + RFM95 LoRa 915MHz | 5714 | 1 | Main MCU + LoRa radio |
 | BMP390 Barometric Sensor | 4816 | 1 | Altitude measurement |
+| GPS Module (UART, 9600 baud) | varies | 1 | Position tracking |
 | Adalogger FeatherWing | 2922 | 1 | RTC + SD card logging |
 | FeatherWing OLED 128x64 | 4650 | 1 | Status display |
 | Quad Side-By-Side FeatherWing Kit | 4254 | 1 | Mounting all boards |
@@ -27,7 +28,6 @@ Both use the same base board (Adafruit Feather RP2040 with RFM95 LoRa) for simpl
 | Component | Product ID | Quantity | Purpose |
 |-----------|------------|----------|---------|
 | LSM6DS3 IMU | 4503 | 1 | Accelerometer + Gyroscope |
-| GPS Module | varies | 1 | Recovery location |
 | MOSFET Breakout | varies | 2 | Pyro channel control |
 
 ---
@@ -37,7 +37,10 @@ Both use the same base board (Adafruit Feather RP2040 with RFM95 LoRa) for simpl
 | Component | Product ID | Quantity | Purpose |
 |-----------|------------|----------|---------|
 | Feather RP2040 + RFM95 LoRa 915MHz | 5714 | 1 | Gateway MCU + LoRa radio |
+| BMP390 Barometric Sensor | 4816 | 1 | Ground pressure reference |
 | USB-C Cable | - | 1 | Connection to computer |
+
+The gateway BMP390 provides ground-level pressure readings, enabling differential altitude calculation (height of flight computer above gateway) which is more accurate than absolute altitude from a single sensor.
 
 ---
 
@@ -69,6 +72,19 @@ I2C Devices:
 - BMP390 Barometer: 0x77 (or 0x76)
 - PCF8523 RTC: 0x68
 - SSD1306 OLED: 0x3C
+
+#### GPS Module (UART1) - Flight Computer Only
+
+| Function | GPIO | Notes |
+|----------|------|-------|
+| UART TX | GP4 | To GPS RX |
+| UART RX | GP5 | From GPS TX |
+
+GPS Configuration:
+- Baud Rate: 9600
+- Protocol: NMEA 0183
+- Sentences: GPRMC, GPGGA
+- Update Rate: 1 Hz typical
 
 #### SD Card (Adalogger FeatherWing)
 
@@ -186,6 +202,8 @@ Powered via USB from computer - no battery required.
 
 ## I2C Bus Scan
 
+### Flight Computer
+
 Expected devices on I2C bus:
 
 ```
@@ -200,9 +218,27 @@ Expected devices on I2C bus:
 70: -- -- -- -- -- -- -- 77 -- -- -- -- -- -- -- --  <- BMP390
 ```
 
+### Ground Gateway
+
+Expected devices on I2C bus:
+
+```
+   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+00:          -- -- -- -- -- -- -- -- -- -- -- -- --
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+70: -- -- -- -- -- -- -- 77 -- -- -- -- -- -- -- --  <- BMP390
+```
+
 ---
 
 ## Wiring Diagram
+
+### Flight Computer
 
 ```
                     ┌─────────────────────┐
@@ -220,15 +256,34 @@ Expected devices on I2C bus:
   │   └────┬────┘   │   └─────────┘       │   └─────────┘   │
   │        │        │                     │                 │
   │        │ STEMMA │                     │                 │
-  │        │ QT     │                     │                 │
-  │        │        │                     │                 │
-  │   ┌────┴────┐   │                     │   ┌─────────┐   │
-  │   │ BMP390  │   │                     │   │ Future: │   │
-  │   │Baromet. │   │                     │   │ IMU/GPS │   │
-  │   │ Sensor  │   │                     │   │         │   │
-  │   └─────────┘   │                     │   └─────────┘   │
+  │        │ QT     │    ┌─────────┐      │                 │
+  │        │        │    │   GPS   │──────┼── UART1        │
+  │   ┌────┴────┐   │    │ Module  │      │   GP4/GP5      │
+  │   │ BMP390  │   │    │         │      │                 │
+  │   │Baromet. │   │    └─────────┘      │                 │
+  │   │ Sensor  │   │                     │                 │
+  │   └─────────┘   │                     │                 │
   │                 │                     │                 │
   └─────────────────┴─────────────────────┴─────────────────┘
+```
+
+### Ground Gateway
+
+```
+  ┌─────────────────┐
+  │ Feather RP2040  │
+  │    + RFM95      │
+  │                 │
+  │    [LoRa]       │
+  │                 │
+  └────────┬────────┘
+           │ STEMMA QT
+           │
+     ┌─────┴─────┐
+     │  BMP390   │
+     │ Baromet.  │
+     │  Sensor   │
+     └───────────┘
 ```
 
 ---
@@ -260,3 +315,27 @@ Expected devices on I2C bus:
 2. Check SD card is fully inserted
 3. Verify CS pin (GP10) is correct
 4. Note: Cannot use SD and LoRa simultaneously
+
+### Altitude Reading Stuck or Wrong
+
+1. Check BMP390 I2C connection via STEMMA QT
+2. Verify BMP390 address (0x77 or 0x76)
+3. BMP390 uses forced mode - readings update on each sample
+4. At sea level, expect ~101,000 Pa pressure
+5. If readings are ~85,000 Pa, sensor may not be initializing correctly
+
+### GPS Not Getting Fix
+
+1. GPS requires clear sky view - won't work indoors
+2. Wait 30-60 seconds for initial fix (cold start)
+3. Check UART connections (GP4 TX to GPS RX, GP5 RX from GPS TX)
+4. Verify GPS module baud rate is 9600
+5. Verify GPS module power (3.3V from Feather)
+6. Check for valid NMEA sentences (GPRMC, GPGGA)
+
+### Gateway Ground Pressure Not Working
+
+1. Ensure BMP390 is connected to gateway via STEMMA QT
+2. Check I2C address 0x77
+3. Gateway firmware must be rebuilt with BMP390 support
+4. Ground pressure enables differential altitude calculation

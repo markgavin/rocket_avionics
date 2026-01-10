@@ -11,7 +11,9 @@ This document provides step-by-step procedures for testing the rocket avionics s
 ### Hardware Required
 - [ ] Flight Computer: Feather RP2040 + RFM95 LoRa (Product 5714)
 - [ ] Ground Gateway: Feather RP2040 + RFM95 LoRa (Product 5714)
-- [ ] BMP390 Barometric Sensor (Product 4816) connected via STEMMA QT
+- [ ] BMP390 Barometric Sensor (Product 4816) for flight computer via STEMMA QT
+- [ ] BMP390 Barometric Sensor (Product 4816) for gateway via STEMMA QT
+- [ ] GPS Module (UART, 9600 baud) connected to flight computer
 - [ ] Adalogger FeatherWing with SD card inserted (Product 2922)
 - [ ] FeatherWing OLED 128x64 (Product 4650)
 - [ ] Quad Side-By-Side FeatherWing Kit (Product 4254)
@@ -117,16 +119,38 @@ With the flight computer powered on:
    Alt: 0.0 m
    Vel: 0.0 m/s
    Temp: 25.3 C
+   GPS: No Fix (0 sat)
    ```
 
-### 3.2 Altitude Response Test
+### 3.2 Pressure Value Check
+
+1. Connect to gateway serial port
+2. Observe telemetry JSON output
+3. **Expected Values:**
+   - `pres`: ~101,000 Pa at sea level (varies with weather/elevation)
+   - `gpres`: Similar to `pres` (gateway ground pressure)
+   - `temp`: 15-35°C (indoor temperature)
+
+**Warning:** If pressure reads ~85,000 Pa instead of ~101,000 Pa, the BMP390 may not be initializing correctly. Power cycle and check I2C connections.
+
+### 3.3 Altitude Response Test
 
 1. Note the current altitude reading
-2. Raise the flight computer approximately 1 meter
+2. Raise the flight computer approximately 1 meter above the gateway
 3. Wait 2-3 seconds for reading to stabilize
-4. **Expected**: Altitude increases by approximately 1 meter
+4. **Expected**:
+   - `alt` changes slightly (absolute altitude)
+   - `dalt` increases by approximately 1 meter (differential altitude)
 
-### 3.3 Pressure Seal Test
+### 3.4 Differential Altitude Test
+
+1. Place flight computer and gateway at the same height
+2. Observe `dalt` field in telemetry
+3. **Expected**: `dalt` should be near 0.0 m (±0.5m)
+4. Raise flight computer 2 meters above gateway
+5. **Expected**: `dalt` should read approximately 2.0 m
+
+### 3.5 Pressure Seal Test
 
 1. Cup your hands around the BMP390 sensor (don't touch it)
 2. Breathe gently toward the sensor
@@ -134,15 +158,59 @@ With the flight computer powered on:
 
 **Pass Criteria:**
 - [ ] OLED displays current state and readings
-- [ ] Altitude responds to height changes
-- [ ] Altitude responds to pressure changes
+- [ ] Pressure values are ~101,000 Pa at sea level
+- [ ] Both flight and gateway BMP390 sensors working
+- [ ] Differential altitude (`dalt`) responds to height changes
 - [ ] Temperature reading is reasonable (15-35°C indoors)
 
 ---
 
-## Test 4: LoRa Communication
+## Test 4: GPS Verification
 
-### 4.1 Basic Link Test
+### 4.1 Indoor GPS Test (No Fix Expected)
+
+1. Power on flight computer indoors
+2. Observe OLED display
+3. **Expected**: "GPS: No Fix (0 sat)" or similar
+4. Check telemetry JSON: `"gps":false`, `"sat":0`
+
+### 4.2 Outdoor GPS Test
+
+1. Take flight computer outside with clear sky view
+2. Wait 30-60 seconds for GPS cold start
+3. **Expected**:
+   - OLED shows satellite count increasing
+   - Eventually shows "GPS: Fix (N sat)" where N >= 3
+4. Check telemetry JSON:
+   - `"gps":true`
+   - `"sat":` 3 or higher
+   - `"lat":` valid latitude (e.g., 39.938)
+   - `"lon":` valid longitude (e.g., -75.271)
+   - `"gspd":` ground speed in m/s
+   - `"hdg":` heading in degrees
+
+### 4.3 GPS Movement Test
+
+1. Walk with flight computer (GPS must have fix)
+2. Observe telemetry JSON
+3. **Expected**:
+   - `gspd` shows walking speed (~1-2 m/s)
+   - `hdg` shows direction of travel
+   - `lat`/`lon` update as you move
+
+**Pass Criteria:**
+- [ ] GPS shows no fix indoors (expected)
+- [ ] GPS acquires fix outdoors within 60 seconds
+- [ ] Satellite count is 3 or more with fix
+- [ ] Coordinates are valid for your location
+- [ ] Ground speed responds to movement
+- [ ] Heading responds to direction change
+
+---
+
+## Test 5: LoRa Communication
+
+### 5.1 Basic Link Test
 
 **Setup:**
 - Flight computer powered on (battery or USB)
@@ -168,7 +236,7 @@ With the flight computer powered on:
 - [ ] Sequence numbers incrementing
 - [ ] State shows "idle"
 
-### 4.2 Arm/Disarm Test
+### 5.2 Arm/Disarm Test
 
 1. In the serial terminal, send:
    ```json
@@ -201,21 +269,21 @@ With the flight computer powered on:
 
 ---
 
-## Test 5: SD Card Logging
+## Test 6: SD Card Logging
 
-### 5.1 Verify SD Card Detection
+### 6.1 Verify SD Card Detection
 
 1. Insert FAT32 formatted SD card into Adalogger
 2. Power cycle the flight computer
 3. Check OLED for SD card status indicator
 
-### 5.2 Generate Test Data
+### 6.2 Generate Test Data
 
 1. Arm the flight computer
 2. Wait 30 seconds
 3. Disarm the flight computer
 
-### 5.3 Verify Log Files
+### 6.3 Verify Log Files
 
 1. Power off the flight computer
 2. Remove SD card and insert in computer
@@ -242,16 +310,16 @@ Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State
 
 ---
 
-## Test 6: Range Test
+## Test 7: Range Test
 
-### 6.1 Preparation
+### 7.1 Preparation
 
 - Fully charged batteries in both units
 - Clear line of sight test area
 - Helper with the flight computer
 - You at the gateway with laptop
 
-### 6.2 Test Procedure
+### 8.2 Test Procedure
 
 | Distance | Actions | Expected RSSI |
 |----------|---------|---------------|
@@ -261,7 +329,7 @@ Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State
 | 250m | Walk 250m away, verify telemetry | -75 to -85 dBm |
 | 500m | Walk 500m away, verify telemetry | -85 to -95 dBm |
 
-### 6.3 Link Loss Test
+### 7.3 Link Loss Test
 
 1. Continue walking until telemetry stops
 2. Note the maximum distance achieved
@@ -275,16 +343,16 @@ Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State
 
 ---
 
-## Test 7: Swing Test (Simulated Flight)
+## Test 8: Swing Test (Simulated Flight)
 
-### 7.1 Setup
+### 8.1 Setup
 
 1. Securely attach flight computer to a 2-3 meter rope/string
 2. Ensure all connections are secure (use tape if needed)
 3. Clear area of obstacles
 4. Arm the flight computer
 
-### 7.2 Test Procedure
+### 8.2 Test Procedure
 
 1. Swing the flight computer in a vertical arc
 2. Swing height: approximately 2-3 meters
@@ -296,7 +364,7 @@ Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State
 - Velocity positive during upswing, negative during downswing
 - State may transition to BOOST/COAST if thresholds exceeded
 
-### 7.3 Verification
+### 8.3 Verification
 
 Check SD card log after test:
 - Altitude curve should show oscillating pattern
@@ -311,9 +379,9 @@ Check SD card log after test:
 
 ---
 
-## Test 8: Full System Integration
+## Test 9: Full System Integration
 
-### 8.1 Desktop App Test
+### 9.1 Desktop App Test
 
 1. Open the Rocket Avionics Desktop application
 2. Select the gateway serial port from dropdown
@@ -325,7 +393,7 @@ Check SD card log after test:
    - RSSI/SNR displays
    - Chart shows altitude profile
 
-### 8.2 Command Test via Desktop
+### 9.2 Command Test via Desktop
 
 1. Click "ARM" button
 2. Confirm arm dialog
@@ -353,17 +421,22 @@ Check SD card log after test:
 | 2.2 Gateway Output | ☐ Pass ☐ Fail | |
 | 2.3 Gateway Commands | ☐ Pass ☐ Fail | |
 | 3.1 OLED Display | ☐ Pass ☐ Fail | |
-| 3.2 Altitude Response | ☐ Pass ☐ Fail | |
-| 3.3 Pressure Seal | ☐ Pass ☐ Fail | |
-| 4.1 LoRa Basic Link | ☐ Pass ☐ Fail | RSSI: ___ dBm |
-| 4.2 Arm/Disarm | ☐ Pass ☐ Fail | |
-| 5.1 SD Card Detection | ☐ Pass ☐ Fail | |
-| 5.2 Test Data Generation | ☐ Pass ☐ Fail | |
-| 5.3 Log File Verification | ☐ Pass ☐ Fail | |
-| 6. Range Test | ☐ Pass ☐ Fail | Max: ___ m |
-| 7. Swing Test | ☐ Pass ☐ Fail | |
-| 8.1 Desktop App | ☐ Pass ☐ Fail | |
-| 8.2 Desktop Commands | ☐ Pass ☐ Fail | |
+| 3.2 Pressure Values | ☐ Pass ☐ Fail | Flight: ___ Pa, Gateway: ___ Pa |
+| 3.3 Altitude Response | ☐ Pass ☐ Fail | |
+| 3.4 Differential Altitude | ☐ Pass ☐ Fail | |
+| 3.5 Pressure Seal | ☐ Pass ☐ Fail | |
+| 4.1 GPS Indoor (No Fix) | ☐ Pass ☐ Fail | |
+| 4.2 GPS Outdoor (Fix) | ☐ Pass ☐ Fail | Satellites: ___ |
+| 4.3 GPS Movement | ☐ Pass ☐ Fail | |
+| 5.1 LoRa Basic Link | ☐ Pass ☐ Fail | RSSI: ___ dBm |
+| 5.2 Arm/Disarm | ☐ Pass ☐ Fail | |
+| 6.1 SD Card Detection | ☐ Pass ☐ Fail | |
+| 6.2 Test Data Generation | ☐ Pass ☐ Fail | |
+| 6.3 Log File Verification | ☐ Pass ☐ Fail | |
+| 7. Range Test | ☐ Pass ☐ Fail | Max: ___ m |
+| 8. Swing Test | ☐ Pass ☐ Fail | |
+| 9.1 Desktop App | ☐ Pass ☐ Fail | |
+| 9.2 Desktop Commands | ☐ Pass ☐ Fail | |
 
 **Tested By:** _______________
 **Date:** _______________
@@ -413,9 +486,13 @@ Before any flight operation:
 
 - [ ] Flight computer battery fully charged
 - [ ] SD card inserted and formatted
-- [ ] All sensors responding correctly
+- [ ] BMP390 sensors responding (both flight and gateway)
+- [ ] Pressure readings ~101,000 Pa at sea level
+- [ ] GPS has fix with 3+ satellites
+- [ ] GPS coordinates match launch site location
 - [ ] LoRa link established with gateway
 - [ ] RSSI above -80 dBm at pad
+- [ ] Differential altitude near 0m with devices level
 - [ ] Ground station laptop charged
 - [ ] Desktop app running and connected
 - [ ] Arm command tested and verified
