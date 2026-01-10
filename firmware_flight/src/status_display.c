@@ -339,3 +339,108 @@ void StatusDisplay_ShowSensorReadings(
 
   SSD1306_Update() ;
 }
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowGpsStatus
+//----------------------------------------------
+void StatusDisplay_ShowGpsStatus(
+  bool inHasFix,
+  uint8_t inSatellites,
+  float inLatitude,
+  float inLongitude,
+  float inSpeedMps,
+  float inHeadingDeg)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  SSD1306_DrawStringCentered(0, "GPS STATUS", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[32] ;
+
+  // Fix status
+  snprintf(theBuffer, sizeof(theBuffer), "Fix: %s  Sats: %d",
+    inHasFix ? "YES" : "NO", inSatellites) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  if (inHasFix)
+  {
+    // Latitude
+    snprintf(theBuffer, sizeof(theBuffer), "Lat: %.5f", inLatitude) ;
+    SSD1306_DrawString(0, 26, theBuffer, 1) ;
+
+    // Longitude
+    snprintf(theBuffer, sizeof(theBuffer), "Lon: %.5f", inLongitude) ;
+    SSD1306_DrawString(0, 36, theBuffer, 1) ;
+
+    // Speed and heading
+    snprintf(theBuffer, sizeof(theBuffer), "Spd: %.1f m/s  Hdg: %.0f",
+      inSpeedMps, inHeadingDeg) ;
+    SSD1306_DrawString(0, 48, theBuffer, 1) ;
+  }
+  else
+  {
+    SSD1306_DrawStringCentered(32, "Acquiring...", 1) ;
+  }
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_UpdateCompact
+//----------------------------------------------
+void StatusDisplay_UpdateCompact(
+  FlightState inState,
+  float inAltitudeM,
+  float inVelocityMps,
+  bool inGpsOk,
+  bool inGpsFix,
+  uint8_t inGpsSatellites,
+  bool inLoRaConnected)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // State name at top
+  const char * theStateName = FlightControl_GetStateName(inState) ;
+  SSD1306_DrawStringCentered(0, theStateName, 1) ;
+
+  // Draw separator line
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[32] ;
+
+  // Altitude (smaller than before, single line)
+  snprintf(theBuffer, sizeof(theBuffer), "Alt: %.1f m", inAltitudeM) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  // Velocity
+  snprintf(theBuffer, sizeof(theBuffer), "Vel: %.1f m/s", inVelocityMps) ;
+  SSD1306_DrawString(0, 26, theBuffer, 1) ;
+
+  // GPS status line
+  if (inGpsOk)
+  {
+    if (inGpsFix)
+    {
+      snprintf(theBuffer, sizeof(theBuffer), "GPS: Fix (%d sat)", inGpsSatellites) ;
+    }
+    else
+    {
+      snprintf(theBuffer, sizeof(theBuffer), "GPS: No fix (%d sat)", inGpsSatellites) ;
+    }
+  }
+  else
+  {
+    snprintf(theBuffer, sizeof(theBuffer), "GPS: --") ;
+  }
+  SSD1306_DrawString(0, 40, theBuffer, 1) ;
+
+  // Gateway/LoRa status at bottom
+  SSD1306_DrawString(0, 54, inLoRaConnected ? "GW: Connected" : "GW: --", 1) ;
+
+  SSD1306_Update() ;
+}

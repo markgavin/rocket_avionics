@@ -27,6 +27,7 @@ typedef enum
   kDisplayModeFlightStats ,   // Last flight statistics
   kDisplayModeLoRaStatus ,    // LoRa connection info
   kDisplayModeSensors ,       // Raw sensor readings
+  kDisplayModeGpsStatus ,     // GPS status and position
   kDisplayModeCount           // Number of modes
 } DisplayMode ;
 
@@ -165,3 +166,44 @@ void StatusDisplay_ShowSensorReadings(
   float inPressurePa,
   float inTemperatureC,
   float inAltitudeM) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowGpsStatus
+// Purpose: Show GPS status and position
+// Parameters:
+//   inHasFix - GPS has valid fix
+//   inSatellites - Number of satellites
+//   inLatitude - Latitude in degrees
+//   inLongitude - Longitude in degrees
+//   inSpeedMps - Ground speed in m/s
+//   inHeadingDeg - Heading in degrees
+//----------------------------------------------
+void StatusDisplay_ShowGpsStatus(
+  bool inHasFix,
+  uint8_t inSatellites,
+  float inLatitude,
+  float inLongitude,
+  float inSpeedMps,
+  float inHeadingDeg) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_UpdateCompact
+// Purpose: Update display with compact format showing
+//   altitude, GPS, and gateway status
+// Parameters:
+//   inState - Current flight state
+//   inAltitudeM - Current altitude in meters
+//   inVelocityMps - Current velocity in m/s
+//   inGpsOk - GPS initialized and working
+//   inGpsFix - GPS has valid fix
+//   inGpsSatellites - Number of satellites
+//   inLoRaConnected - LoRa link status (gateway connected)
+//----------------------------------------------
+void StatusDisplay_UpdateCompact(
+  FlightState inState,
+  float inAltitudeM,
+  float inVelocityMps,
+  bool inGpsOk,
+  bool inGpsFix,
+  uint8_t inGpsSatellites,
+  bool inLoRaConnected) ;
