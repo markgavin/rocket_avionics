@@ -469,17 +469,19 @@ bool FlightControl_ShouldSendTelemetry(
   const FlightController * inController,
   uint32_t inCurrentTimeMs)
 {
-  // Always send when in flight
-  if (inController->pState >= kFlightBoost && inController->pState <= kFlightLanded)
+  // During active flight: send at full rate (10 Hz)
+  if (inController->pState >= kFlightBoost && inController->pState <= kFlightDescent)
   {
     return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= kTelemetryIntervalMs ;
   }
 
-  // Send at reduced rate when armed or landed
-  if (inController->pState == kFlightArmed || inController->pState == kFlightLanded)
+  // When armed: send at 1 Hz (ready for launch)
+  if (inController->pState == kFlightArmed)
   {
     return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= (kTelemetryIntervalMs * 10) ;
   }
 
-  return false ;
+  // In idle, landed, or complete: send heartbeat at 0.5 Hz (every 2 seconds)
+  // This allows link verification before arming
+  return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 2000 ;
 }
