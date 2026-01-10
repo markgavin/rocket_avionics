@@ -60,6 +60,27 @@ Begin Window Window_Main
          Visible         =   True
          Width           =   160
       End
+      Begin PushButton ButtonRefreshPorts
+         AutoDeactivate  =   True
+         Bold            =   False
+         Cancel          =   False
+         Caption         =   "↻"
+         Default         =   False
+         Enabled         =   True
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupConnection"
+         Left            =   205
+         LockBottom      =   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Scope           =   2
+         TabIndex        =   1
+         Top             =   50
+         Visible         =   True
+         Width           =   25
+      End
       Begin PushButton ButtonConnect
          AutoDeactivate  =   True
          Bold            =   False
@@ -70,16 +91,16 @@ Begin Window Window_Main
          Height          =   20
          Index           =   -2147483648
          InitialParent   =   "GroupConnection"
-         Left            =   210
+         Left            =   235
          LockBottom      =   False
          LockLeft        =   True
          LockRight       =   False
          LockTop         =   True
          Scope           =   2
-         TabIndex        =   1
+         TabIndex        =   2
          Top             =   50
          Visible         =   True
-         Width           =   80
+         Width           =   55
       End
       Begin Label LabelConnectionStatus
          AutoDeactivate  =   True
@@ -315,15 +336,6 @@ Begin Window Window_Main
       Visible         =   True
       Width           =   660
    End
-   Begin Timer TimerRefreshPorts
-      Enabled         =   True
-      Index           =   -2147483648
-      LockedInPosition=   False
-      Period          =   2000
-      RunMode         =   2
-      Scope           =   2
-      TabPanelIndex   =   0
-   End
    Begin PushButton ButtonConsole
       AutoDeactivate  =   True
       Bold            =   False
@@ -387,49 +399,31 @@ End
 		  // Remember current selection
 		  Var theCurrentSelection As String = ""
 		  If PopupSerialPort.SelectedRowIndex >= 0 Then
-		    theCurrentSelection = PopupSerialPort.SelectedRowText
+		    theCurrentSelection = PopupSerialPort.Text
 		  End If
 
 		  // Get new port list
 		  Var thePorts() As String = FlightConnection.GetSerialPorts()
 
-		  // Check if list has changed by comparing count and rebuilding cache
-		  Var theNeedsRefresh As Boolean = False
-		  If thePorts.Count <> pLastPortCount Then
-		    theNeedsRefresh = True
-		  ElseIf thePorts.Count > 0 Then
-		    // Check if first port changed (quick check)
-		    Var theOldIndex As Integer = PopupSerialPort.SelectedRowIndex
-		    PopupSerialPort.SelectedRowIndex = 0
-		    If PopupSerialPort.SelectedRowText <> thePorts(0) Then
-		      theNeedsRefresh = True
-		    End If
-		    PopupSerialPort.SelectedRowIndex = theOldIndex
+		  // Rebuild list
+		  PopupSerialPort.RemoveAllRows
+
+		  For Each thePort As String In thePorts
+		    PopupSerialPort.AddRow(thePort)
+		  Next
+
+		  If thePorts.Count = 0 Then
+		    PopupSerialPort.AddRow("(No ports found)")
 		  End If
 
-		  pLastPortCount = thePorts.Count
-
-		  // Only rebuild if changed
-		  If theNeedsRefresh Then
-		    PopupSerialPort.RemoveAllRows
-
-		    For Each thePort As String In thePorts
-		      PopupSerialPort.AddRow(thePort)
+		  // Restore selection if port still exists
+		  If theCurrentSelection <> "" And theCurrentSelection <> "(No ports found)" Then
+		    For i As Integer = 0 To PopupSerialPort.LastRowIndex
+		      PopupSerialPort.ListIndex = i
+		      If PopupSerialPort.Text = theCurrentSelection Then
+		        Exit  // Found it, keep selection here
+		      End If
 		    Next
-
-		    If thePorts.Count = 0 Then
-		      PopupSerialPort.AddRow("(No ports found)")
-		    End If
-
-		    // Restore selection if port still exists
-		    If theCurrentSelection <> "" And theCurrentSelection <> "(No ports found)" Then
-		      For i As Integer = 0 To PopupSerialPort.LastRowIndex
-		        PopupSerialPort.SelectedRowIndex = i
-		        If PopupSerialPort.SelectedRowText = theCurrentSelection Then
-		          Exit  // Found it, keep selection here
-		        End If
-		      Next
-		    End If
 		  End If
 		End Sub
 	#tag EndMethod
@@ -576,7 +570,7 @@ End
 		Function GetSelectedPortName() As String
 		  // Return the currently selected port name
 		  If PopupSerialPort.SelectedRowIndex >= 0 Then
-		    Return PopupSerialPort.SelectedRowText
+		    Return PopupSerialPort.Text
 		  Else
 		    Return ""
 		  End If
@@ -592,13 +586,17 @@ End
 		pCurrentFlight As FlightData
 	#tag EndProperty
 
-	#tag Property, Flags = &h21
-		Private pLastPortCount As Integer = -1
-	#tag EndProperty
 
 
 #tag EndWindowCode
 
+#tag Events ButtonRefreshPorts
+	#tag Event
+		Sub Action()
+		  RefreshSerialPorts()
+		End Sub
+	#tag EndEvent
+#tag EndEvents
 #tag Events ButtonConnect
 	#tag Event
 		Sub Action()
@@ -606,7 +604,7 @@ End
 		    pConnection.Disconnect
 		  Else
 		    If PopupSerialPort.SelectedRowIndex >= 0 Then
-		      Var thePort As String = PopupSerialPort.SelectedRowText
+		      Var thePort As String = PopupSerialPort.Text
 		      If thePort <> "(No ports found)" Then
 		        Call pConnection.Connect(thePort)
 		      End If
@@ -643,16 +641,6 @@ End
 		Sub Action()
 		  If pConnection.IsConnected Then
 		    pConnection.SendDownload()
-		  End If
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events TimerRefreshPorts
-	#tag Event
-		Sub Action()
-		  // Only refresh if not connected
-		  If pConnection = Nil Or Not pConnection.IsConnected Then
-		    RefreshSerialPorts()
 		  End If
 		End Sub
 	#tag EndEvent
