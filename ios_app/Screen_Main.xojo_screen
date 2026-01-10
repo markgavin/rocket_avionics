@@ -1,0 +1,365 @@
+#tag MobileScreen
+Begin MobileScreen Screen_Main
+   BackButtonCaption=   ""
+   BackgroundColor =   &cFFFFFF00
+   ControlCount    =   0
+   DefaultBackgroundColor=   11
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   0
+   TabIcon         =   0
+   Title           =   "Rocket Avionics"
+   Begin MobileLabel LabelStatus
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelStatus,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelStatus,3,<Parent>,3,False,+1.00,Standard,=,False,0,10,0.00,1|LabelStatus,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelStatus,8,,0,False,+1.00,Standard,=,False,0,0,30.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   30
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "Disconnected"
+      TextAlignment   =   1
+      TextColor       =   &c99999900
+      TextFont        =   ""
+      TextSize        =   14
+      Top             =   10
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelAltitude
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelAltitude,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelAltitude,3,LabelStatus,4,False,+1.00,Standard,=,False,0,20,0.00,1|LabelAltitude,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelAltitude,8,,0,False,+1.00,Standard,=,False,0,0,50.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   50
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "--- m"
+      TextAlignment   =   1
+      TextColor       =   &c00000000
+      TextFont        =   ""
+      TextSize        =   42
+      Top             =   60
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelAltitudeCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelAltitudeCaption,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelAltitudeCaption,3,LabelAltitude,4,False,+1.00,Standard,=,False,0,5,0.00,1|LabelAltitudeCaption,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelAltitudeCaption,8,,0,False,+1.00,Standard,=,False,0,0,20.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "ALTITUDE"
+      TextAlignment   =   1
+      TextColor       =   &c66666600
+      TextFont        =   ""
+      TextSize        =   12
+      Top             =   115
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelVelocity
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelVelocity,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelVelocity,3,LabelAltitudeCaption,4,False,+1.00,Standard,=,False,0,20,0.00,1|LabelVelocity,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelVelocity,8,,0,False,+1.00,Standard,=,False,0,0,40.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   40
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "--- m/s"
+      TextAlignment   =   1
+      TextColor       =   &c00000000
+      TextFont        =   ""
+      TextSize        =   32
+      Top             =   155
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelVelocityCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelVelocityCaption,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelVelocityCaption,3,LabelVelocity,4,False,+1.00,Standard,=,False,0,5,0.00,1|LabelVelocityCaption,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelVelocityCaption,8,,0,False,+1.00,Standard,=,False,0,0,20.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "VELOCITY"
+      TextAlignment   =   1
+      TextColor       =   &c66666600
+      TextFont        =   ""
+      TextSize        =   12
+      Top             =   200
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelState
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelState,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelState,3,LabelVelocityCaption,4,False,+1.00,Standard,=,False,0,20,0.00,1|LabelState,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelState,8,,0,False,+1.00,Standard,=,False,0,0,35.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   35
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "IDLE"
+      TextAlignment   =   1
+      TextColor       =   &c00660000
+      TextFont        =   ""
+      TextSize        =   24
+      Top             =   240
+      Visible         =   True
+      Width           =   335
+   End
+   Begin MobileLabel LabelRssi
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   LabelRssi,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|LabelRssi,3,LabelState,4,False,+1.00,Standard,=,False,0,15,0.00,1|LabelRssi,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|LabelRssi,8,,0,False,+1.00,Standard,=,False,0,0,20.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   0
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Text            =   "RSSI: --- dBm  SNR: --- dB"
+      TextAlignment   =   1
+      TextColor       =   &c99999900
+      TextFont        =   ""
+      TextSize        =   12
+      Top             =   290
+      Visible         =   True
+      Width           =   335
+   End
+   Begin AltitudeChartView ChartAltitude
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   ChartAltitude,1,<Parent>,1,False,+1.00,Standard,=,False,10,0,0.00,1|ChartAltitude,3,LabelRssi,4,False,+1.00,Standard,=,False,0,20,0.00,1|ChartAltitude,7,<Parent>,7,False,+1.00,Standard,=,False,0,-10,0.00,1|ChartAltitude,8,,0,False,+1.00,Standard,=,False,0,0,200.00,1
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   200
+      Left            =   10
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      Top             =   330
+      Visible         =   True
+      Width           =   355
+   End
+   Begin MobileButton ButtonArm
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   ButtonArm,1,<Parent>,1,False,+1.00,Standard,=,False,20,0,0.00,1|ButtonArm,3,ChartAltitude,4,False,+1.00,Standard,=,False,0,20,0.00,1|ButtonArm,6,,0,False,+1.00,Standard,=,False,0,0,150.00,1|ButtonArm,8,,0,False,+1.00,Standard,=,False,0,0,50.00,1
+      Caption         =   "ARM"
+      ControlCount    =   0
+      Enabled         =   False
+      Height          =   50
+      Left            =   20
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      TextColor       =   &cFFFFFFFF
+      TextFont        =   ""
+      TextSize        =   0
+      TintColor       =   &cFF660000
+      Top             =   550
+      Visible         =   True
+      Width           =   150
+   End
+   Begin MobileButton ButtonDisarm
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   ButtonDisarm,7,<Parent>,7,False,+1.00,Standard,=,False,0,-20,0.00,1|ButtonDisarm,3,ChartAltitude,4,False,+1.00,Standard,=,False,0,20,0.00,1|ButtonDisarm,6,,0,False,+1.00,Standard,=,False,0,0,150.00,1|ButtonDisarm,8,,0,False,+1.00,Standard,=,False,0,0,50.00,1
+      Caption         =   "DISARM"
+      ControlCount    =   0
+      Enabled         =   False
+      Height          =   50
+      Left            =   205
+      LockBottom      =   False
+      LockLeft        =   False
+      LockRight       =   False
+      LockTop         =   False
+      Scope           =   2
+      TextColor       =   &cFFFFFFFF
+      TextFont        =   ""
+      TextSize        =   0
+      TintColor       =   &c00AA0000
+      Top             =   550
+      Visible         =   True
+      Width           =   150
+   End
+End
+#tag EndMobileScreen
+
+#tag MobileScreenCode
+	#tag Event
+		Sub Opening()
+		  // Set up connection handlers
+		  AddHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
+		  AddHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		  AddHandler App.pConnection.LinkStatusChanged, AddressOf HandleLinkStatusChanged
+		  AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		End Sub
+	#tag EndEvent
+
+	#tag Event
+		Sub Closing()
+		  // Clean up handlers
+		  RemoveHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
+		  RemoveHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		  RemoveHandler App.pConnection.LinkStatusChanged, AddressOf HandleLinkStatusChanged
+		  RemoveHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub HandleConnectionChanged(inSender As FlightConnection, inConnected As Boolean)
+		  #Pragma Unused inSender
+
+		  If inConnected Then
+		    LabelStatus.Text = "Connected"
+		    LabelStatus.TextColor = &c00AA00
+		    ButtonArm.Enabled = True
+		    ButtonDisarm.Enabled = True
+		  Else
+		    LabelStatus.Text = "Disconnected"
+		    LabelStatus.TextColor = &c999999
+		    ButtonArm.Enabled = False
+		    ButtonDisarm.Enabled = False
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleTelemetryReceived(inSender As FlightConnection, inSample As TelemetrySample)
+		  #Pragma Unused inSender
+
+		  // Update live telemetry display
+		  LabelAltitude.Text = Format(inSample.pAltitudeM, "0.0") + " m"
+		  LabelVelocity.Text = Format(inSample.pVelocityMps, "0.0") + " m/s"
+		  LabelState.Text = inSample.pState.Uppercase
+		  LabelRssi.Text = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
+
+		  // Update state color
+		  Select Case inSample.pState
+		  Case "armed"
+		    LabelState.TextColor = &cFF6600
+		  Case "boost", "coast"
+		    LabelState.TextColor = &cFF0000
+		  Case "apogee", "descent"
+		    LabelState.TextColor = &c0066FF
+		  Case "landed", "complete"
+		    LabelState.TextColor = &c00AA00
+		  Else
+		    LabelState.TextColor = &c006600
+		  End Select
+
+		  // Add sample to current flight
+		  App.pCurrentFlight.AddSample(inSample)
+
+		  // Update chart
+		  ChartAltitude.SetFlightData(App.pCurrentFlight)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleLinkStatusChanged(inSender As FlightConnection, inConnected As Boolean)
+		  #Pragma Unused inSender
+
+		  If inConnected Then
+		    LabelStatus.Text = "Link Active"
+		    LabelStatus.TextColor = &c00AA00
+		  Else
+		    LabelStatus.Text = "Link Lost"
+		    LabelStatus.TextColor = &cFF0000
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleErrorReceived(inSender As FlightConnection, inCode As String, inMessage As String)
+		  #Pragma Unused inSender
+
+		  MessageBox("Error: " + inCode + " - " + inMessage)
+		End Sub
+	#tag EndMethod
+
+
+#tag EndMobileScreenCode
+
+#tag Events ButtonArm
+	#tag Event
+		Sub Pressed()
+		  // Confirm arm action
+		  Var theDialog As New MobileMessageDialog
+		  theDialog.Title = "Confirm Arm"
+		  theDialog.Message = "ARM the flight computer?" + EndOfLine + EndOfLine + _
+		    "This will put the rocket in armed mode, ready for launch detection."
+		  theDialog.ActionButton.Caption = "ARM"
+		  theDialog.ActionButton.Destructive = True
+		  theDialog.CancelButton.Visible = True
+
+		  theDialog.Show(AddressOf HandleArmConfirm)
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Events ButtonDisarm
+	#tag Event
+		Sub Pressed()
+		  App.pConnection.SendDisarm
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+
+#tag Methods
+	#tag Method, Flags = &h21
+		Private Sub HandleArmConfirm(inResult As MobileMessageDialogButton)
+		  If inResult = MobileMessageDialogButton.Action Then
+		    App.pConnection.SendArm
+		  End If
+		End Sub
+	#tag EndMethod
+#tag EndMethods

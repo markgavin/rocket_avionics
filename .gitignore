@@ -1,0 +1,63 @@
+# Build directories
+build/
+*/build/
+**/build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xojo
+*.xojo_uistate
+Debug*/
+Release*/
+Builds*/
+*.debug
+*.app/
+*.exe
+
+# Compiled firmware (keep .uf2 for releases)
+*.o
+*.a
+*.elf
+*.bin
+*.dis
+*.hex
+*.map
+
+# Pico SDK (symlinked)
+sdk
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+venv/
+.env
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Generated documentation
+docs/_build/
+
+# Dependencies
+_deps/

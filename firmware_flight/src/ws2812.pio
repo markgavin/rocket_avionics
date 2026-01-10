@@ -1,0 +1,54 @@
+;----------------------------------------------
+; File: ws2812.pio
+; Description: PIO program for WS2812 NeoPixel LED
+;   control with precise timing
+; Author: Mark Gavin
+; Created: 2025-12-18
+; Copyright: (c) 2025 by Mark Gavin
+; License: Proprietary - All Rights Reserved
+;
+; Based on Pico SDK ws2812 example
+; WS2812 timing (800kHz):
+;   T0H = 0.4us, T0L = 0.85us
+;   T1H = 0.8us, T1L = 0.45us
+;   Reset = >50us low
+;----------------------------------------------
+
+.program ws2812
+.side_set 1
+
+.define public T1 2
+.define public T2 5
+.define public T3 3
+
+.wrap_target
+bitloop:
+    out x, 1       side 0 [T3 - 1] ; Side-set still in effect from previous iteration
+    jmp !x do_zero side 1 [T1 - 1] ; Branch on bit shifted out, drive high for T1
+do_one:
+    jmp  bitloop   side 1 [T2 - 1] ; Continue driving high for T2 (total T1+T2)
+do_zero:
+    nop            side 0 [T2 - 1] ; Drive low for T2 (T0H already done via T1)
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin, float freq, bool rgbw)
+{
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    pio_sm_config c = ws2812_program_get_default_config(offset);
+    sm_config_set_sideset_pins(&c, pin);
+    sm_config_set_out_shift(&c, false, true, rgbw ? 32 : 24);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    int cycles_per_bit = ws2812_T1 + ws2812_T2 + ws2812_T3;
+    float div = clock_get_hz(clk_sys) / (freq * cycles_per_bit);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
