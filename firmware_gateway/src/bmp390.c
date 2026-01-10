@@ -328,7 +328,7 @@ bool BMP390_ReadPressureTemperature(
   static uint32_t sDebugCounter = 0 ;
   if ((++sDebugCounter % 100) == 1)
   {
-    printf("BMP RAW: P=%lu T=%lu bytes=[%02X %02X %02X %02X %02X %02X]\n",
+    printf("GND BMP RAW: P=%lu T=%lu bytes=[%02X %02X %02X %02X %02X %02X]\n",
       (unsigned long)theRawPress, (unsigned long)theRawTemp,
       theData[0], theData[1], theData[2], theData[3], theData[4], theData[5]) ;
   }
