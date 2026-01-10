@@ -79,6 +79,18 @@
 #define kPinNeoPixel        4   // GP4 - Built-in NeoPixel
 
 //----------------------------------------------
+// GPS (Adafruit Ultimate GPS FeatherWing - PA1616D)
+// Uses UART0 on Feather serial pins (bottom of board)
+//----------------------------------------------
+#define kPinGpsTx           0   // GP0 - UART0 TX (GPS RX)
+#define kPinGpsRx           1   // GP1 - UART0 RX (GPS TX)
+#define kGpsUartPort        uart0
+#define kGpsUartBaudrate    9600  // GPS default baud rate
+// Note: GPS Enable pin is directly connected to GND on FeatherWing (always enabled)
+// If using external enable, uncomment and set pin:
+// #define kPinGpsEnable    11  // Optional GPS enable pin (active low)
+
+//----------------------------------------------
 // Future: Pyro Channels (for ejection charges)
 // Reserve these pins for future use
 //----------------------------------------------

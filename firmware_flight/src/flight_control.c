@@ -9,6 +9,7 @@
 
 #include "flight_control.h"
 #include "pins.h"
+#include "gps.h"
 
 #include "pico/stdlib.h"
 
@@ -153,12 +154,26 @@ void FlightControl_UpdateSensors(
   ioController->pCurrentPressurePa = inPressurePa ;
   ioController->pCurrentTemperatureC = inTemperatureC ;
 
+  // In IDLE mode, use first valid pressure as temporary reference for display
+  // This allows seeing altitude changes before arming
+  float theReferencePressure = ioController->pGroundPressurePa ;
+  if (theReferencePressure <= 0.0f && inPressurePa > 0.0f)
+  {
+    // Use first reading as temporary reference (will be properly set at arming)
+    if (ioController->pState == kFlightIdle)
+    {
+      // Store as temporary reference for IDLE display only
+      ioController->pGroundPressurePa = inPressurePa ;
+      theReferencePressure = inPressurePa ;
+    }
+  }
+
   // Calculate altitude relative to ground
-  if (ioController->pGroundPressurePa > 0.0f)
+  if (theReferencePressure > 0.0f)
   {
     float thePreviousAltitude = ioController->pCurrentAltitudeM ;
     ioController->pCurrentAltitudeM = FlightControl_CalculateAltitude(
-      inPressurePa, ioController->pGroundPressurePa) ;
+      inPressurePa, theReferencePressure) ;
 
     // Calculate velocity
     uint32_t theDeltaMs = inCurrentTimeMs - ioController->pLastSampleTimeMs ;
@@ -448,13 +463,32 @@ uint8_t FlightControl_BuildTelemetryPacket(
   outPacket->pPressurePa = (uint32_t)inController->pCurrentPressurePa ;
   outPacket->pTemperatureC10 = (int16_t)(inController->pCurrentTemperatureC * 10.0f) ;
 
+  // GPS data
+  const GpsData * theGps = GPS_GetData() ;
+  if (theGps != NULL)
+  {
+    // Convert to microdegrees (deg * 1e6) for transmission
+    outPacket->pGpsLatitude = (int32_t)(theGps->pLatitude * 1000000.0f) ;
+    outPacket->pGpsLongitude = (int32_t)(theGps->pLongitude * 1000000.0f) ;
+    outPacket->pGpsSpeedCmps = (int16_t)(theGps->pSpeedMps * 100.0f) ;
+    outPacket->pGpsHeadingDeg10 = (uint16_t)(theGps->pHeadingDeg * 10.0f) ;
+    outPacket->pGpsSatellites = theGps->pSatellites ;
+  }
+
   // Accelerometer data (future)
   outPacket->pAccelX = 0 ;
   outPacket->pAccelY = 0 ;
   outPacket->pAccelZ = 0 ;
 
   outPacket->pState = (uint8_t)inController->pState ;
-  outPacket->pFlags = inController->pStatusFlags ;
+
+  // Build status flags
+  uint8_t theFlags = inController->pStatusFlags ;
+  if (theGps != NULL && theGps->pValid)
+  {
+    theFlags |= kFlagGpsFix ;
+  }
+  outPacket->pFlags = theFlags ;
 
   // Calculate CRC (excluding CRC field itself)
   outPacket->pCrc = CalculateCrc8((const uint8_t *)outPacket, sizeof(LoRaTelemetryPacket) - 1) ;

@@ -64,6 +64,7 @@ add_executable(rocket_avionics_flight
     src/storage.c
     src/heartbeat_led.c
     src/base64.c
+    src/gps.c
 )
 
 # Generate PIO header for WS2812 NeoPixel
@@ -83,6 +84,7 @@ target_link_libraries(rocket_avionics_flight
     hardware_adc
     hardware_i2c
     hardware_spi
+    hardware_uart
     hardware_flash
     hardware_sync
     hardware_timer

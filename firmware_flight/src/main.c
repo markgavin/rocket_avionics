@@ -24,6 +24,7 @@
 #include "heartbeat_led.h"
 #include "rtc_pcf8523.h"
 #include "sd_logger.h"
+#include "gps.h"
 
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
@@ -60,6 +61,7 @@ static bool sLoRaOk = false ;
 static bool sSdOk = false ;
 static bool sRtcOk = false ;
 static bool sOledOk = false ;
+static bool sGpsOk = false ;
 
 // Timing
 static uint32_t sLastSensorReadMs = 0 ;
@@ -135,6 +137,7 @@ int main(void)
   printf("  SD Card: %s\n", sSdOk ? "OK" : "FAIL") ;
   printf("  RTC:     %s\n", sRtcOk ? "OK" : "FAIL") ;
   printf("  OLED:    %s\n", sOledOk ? "OK" : "FAIL") ;
+  printf("  GPS:     %s\n", sGpsOk ? "OK" : "FAIL") ;
   printf("\nEntering main loop...\n\n") ;
 
   // Put LoRa in receive mode to listen for commands
@@ -162,8 +165,23 @@ int main(void)
         float thePressure = 0 ;
         float theTemperature = 0 ;
 
+        // Check data ready before reading
+        bool theDataReady = BMP390_DataReady(&sBmp390) ;
+
         if (BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature))
         {
+          // Debug: show pressure reading every 100 samples (1 second)
+          static uint32_t sDebugCount = 0 ;
+          static float sLastPressure = 0 ;
+          if ((++sDebugCount % 100) == 0)
+          {
+            float theDelta = thePressure - sLastPressure ;
+            printf("BMP: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
+              thePressure, theDelta, theTemperature,
+              sFlightController.pCurrentAltitudeM, theDataReady) ;
+            sLastPressure = thePressure ;
+          }
+
           // Update flight controller with new sensor data
           FlightControl_UpdateSensors(
             &sFlightController,
@@ -171,6 +189,21 @@ int main(void)
             theTemperature,
             theCurrentMs) ;
         }
+        else
+        {
+          // Debug: show read failure
+          static uint32_t sFailCount = 0 ;
+          if ((++sFailCount % 100) == 0)
+          {
+            printf("BMP: Read failed (%lu) rdy=%d\n", (unsigned long)sFailCount, theDataReady) ;
+          }
+        }
+      }
+
+      // Update GPS (reads UART and parses NMEA sentences)
+      if (sGpsOk)
+      {
+        GPS_Update(theCurrentMs) ;
       }
     }
 
@@ -336,6 +369,18 @@ static void InitializeHardware(void)
   else
   {
     printf("WARNING: LoRa radio initialization failed\n") ;
+  }
+
+  // Initialize GPS
+  printf("Initializing GPS...\n") ;
+  if (GPS_Init())
+  {
+    sGpsOk = true ;
+    printf("GPS initialized\n") ;
+  }
+  else
+  {
+    printf("WARNING: GPS initialization failed\n") ;
   }
 
   printf("Hardware initialization complete\n\n") ;
@@ -532,6 +577,11 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     return ;
   }
 
+  // Get GPS data
+  const GpsData * theGps = sGpsOk ? GPS_GetData() : NULL ;
+  bool theGpsFix = (theGps != NULL) && theGps->pValid ;
+  uint8_t theGpsSatellites = (theGps != NULL) ? theGps->pSatellites : 0 ;
+
   // Handle display modes
   switch (theMode)
   {
@@ -546,10 +596,14 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       }
       else
       {
-        StatusDisplay_Update(
+        // Use compact display showing altitude, GPS, and gateway status
+        StatusDisplay_UpdateCompact(
           theState,
           sFlightController.pCurrentAltitudeM,
           sFlightController.pCurrentVelocityMps,
+          sGpsOk,
+          theGpsFix,
+          theGpsSatellites,
           sLoRaOk) ;
       }
       break ;
@@ -582,6 +636,23 @@ static void UpdateDisplay(uint32_t inCurrentMs)
         sFlightController.pCurrentAltitudeM) ;
       break ;
 
+    case kDisplayModeGpsStatus:
+      if (theGps != NULL)
+      {
+        StatusDisplay_ShowGpsStatus(
+          theGpsFix,
+          theGpsSatellites,
+          theGps->pLatitude,
+          theGps->pLongitude,
+          theGps->pSpeedMps,
+          theGps->pHeadingDeg) ;
+      }
+      else
+      {
+        StatusDisplay_ShowGpsStatus(false, 0, 0.0f, 0.0f, 0.0f, 0.0f) ;
+      }
+      break ;
+
     default:
       break ;
   }
@@ -597,10 +668,16 @@ static void SendTelemetry(uint32_t inCurrentMs)
   uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, &thePacket) ;
 
   // Send via LoRa (blocking to ensure packet completes)
-  if (LoRa_SendBlocking(&sLoRaRadio, (uint8_t *)&thePacket, theLen, 100))
+  // Timeout increased to 200ms for 42-byte GPS-enabled packet
+  if (LoRa_SendBlocking(&sLoRaRadio, (uint8_t *)&thePacket, theLen, 200))
   {
     // Mark telemetry as sent (updates timestamp and sequence number)
     FlightControl_MarkTelemetrySent(&sFlightController, inCurrentMs) ;
+    printf("TX: seq=%u len=%u\n", thePacket.pSequence, theLen) ;
+  }
+  else
+  {
+    printf("TX FAIL: len=%u\n", theLen) ;
   }
 
   // Return to receive mode for commands
