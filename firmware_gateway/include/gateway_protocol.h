@@ -24,26 +24,45 @@
 #define kLoRaPacketData         0x05
 
 //----------------------------------------------
-// LoRa Telemetry Packet (binary, 28 bytes)
+// LoRa Telemetry Packet (binary, 42 bytes)
 // Must match flight_control.h exactly!
 //----------------------------------------------
 typedef struct __attribute__((packed))
 {
+  // Header (4 bytes)
   uint8_t pMagic ;                // 0xAF (Avionics Flight)
   uint8_t pPacketType ;           // 0x01 = telemetry
   uint16_t pSequence ;            // Packet sequence number
+
+  // Time (4 bytes)
   uint32_t pTimeMs ;              // Mission time (ms)
-  int32_t pAltitudeCm ;           // Altitude in centimeters
-  int16_t pVelocityCmps ;         // Velocity in cm/s
+
+  // Barometric data (12 bytes)
+  int32_t pAltitudeCm ;           // Barometric altitude in centimeters
+  int16_t pVelocityCmps ;         // Vertical velocity in cm/s
   uint32_t pPressurePa ;          // Pressure (Pa)
   int16_t pTemperatureC10 ;       // Temperature * 10 (0.1C resolution)
+
+  // GPS data (13 bytes)
+  int32_t pGpsLatitude ;          // Latitude in microdegrees (deg * 1e6)
+  int32_t pGpsLongitude ;         // Longitude in microdegrees (deg * 1e6)
+  int16_t pGpsSpeedCmps ;         // GPS ground speed in cm/s
+  uint16_t pGpsHeadingDeg10 ;     // Heading * 10 (0-3600 = 0-360.0 deg)
+  uint8_t pGpsSatellites ;        // Number of satellites in use
+
+  // Accelerometer (6 bytes)
   int16_t pAccelX ;               // Accelerometer X (raw)
   int16_t pAccelY ;               // Accelerometer Y
   int16_t pAccelZ ;               // Accelerometer Z
+
+  // Status (3 bytes)
   uint8_t pState ;                // Flight state enum
   uint8_t pFlags ;                // Status flags
   uint8_t pCrc ;                  // CRC-8
 } LoRaTelemetryPacket ;
+
+// Flags byte bit definitions
+#define kFlagGpsFix             0x10  // GPS has valid fix
 
 //----------------------------------------------
 // USB Command Types (from desktop app)
@@ -85,6 +104,7 @@ void GatewayProtocol_Init(GatewayState * ioState) ;
 //   inPacket - Binary telemetry packet
 //   inRssi - RSSI of received packet
 //   inSnr - SNR of received packet
+//   inGroundPressurePa - Ground barometer pressure (0 if not available)
 //   outJson - Buffer for JSON string
 //   inMaxLen - Maximum JSON length
 // Returns: Length of JSON string
@@ -93,6 +113,7 @@ int GatewayProtocol_TelemetryToJson(
   const LoRaTelemetryPacket * inPacket,
   int16_t inRssi,
   int8_t inSnr,
+  float inGroundPressurePa,
   char * outJson,
   int inMaxLen) ;
 

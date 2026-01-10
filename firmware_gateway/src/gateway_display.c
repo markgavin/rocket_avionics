@@ -48,14 +48,9 @@ static char sPrevMessage[64] = "!" ;
 //----------------------------------------------
 #define HEADER_Y            0
 #define SIGNAL_AREA_Y       50
-#define TELEMETRY_AREA_Y    180
-#define STATS_AREA_Y        250
-#define MESSAGE_AREA_Y      290
-
-#define RSSI_BAR_X          50
-#define SNR_BAR_X           200
-#define SIGNAL_BAR_WIDTH    80
-#define SIGNAL_BAR_HEIGHT   100
+#define TELEMETRY_AREA_Y    120
+#define STATS_AREA_Y        200
+#define MESSAGE_AREA_Y      260
 
 //----------------------------------------------
 // Private: Map value to percentage (0-100)
@@ -141,50 +136,18 @@ static void DrawHeader(bool inForce)
 }
 
 //----------------------------------------------
-// Private: Draw a single signal bar (RSSI or SNR)
+// Private: Get quality string for signal
 //----------------------------------------------
-static void DrawSignalBar(int16_t inX, int16_t inY, const char * inLabel,
-                          int inValue, const char * inUnit, int inMin, int inMax)
+static const char * GetSignalQuality(int inPercent)
 {
-  char theBuffer[32] ;
-
-  // Label (static - no clear needed)
-  HX8357_DrawString(inX, inY, inLabel, HX8357_WHITE, HX8357_BLACK, 2) ;
-
-  // Value text - clear only the value area
-  HX8357_FillRect(inX, inY + 20, 100, 18, HX8357_BLACK) ;
-  snprintf(theBuffer, sizeof(theBuffer), "%d %s", inValue, inUnit) ;
-  HX8357_DrawString(inX, inY + 20, theBuffer, HX8357_CYAN, HX8357_BLACK, 2) ;
-
-  // Bar background and outline
-  int16_t theBarY = inY + 45 ;
-  HX8357_FillRect(inX, theBarY, SIGNAL_BAR_WIDTH, SIGNAL_BAR_HEIGHT, HX8357_DARKGRAY) ;
-  HX8357_DrawRect(inX, theBarY, SIGNAL_BAR_WIDTH, SIGNAL_BAR_HEIGHT, HX8357_WHITE) ;
-
-  // Bar fill
-  int thePercent = MapToPercent(inValue, inMin, inMax) ;
-  int theFillHeight = (SIGNAL_BAR_HEIGHT - 4) * thePercent / 100 ;
-  uint16_t theColor = GetSignalColor(thePercent) ;
-
-  if (theFillHeight > 0)
-  {
-    HX8357_FillRect(inX + 2, theBarY + SIGNAL_BAR_HEIGHT - 2 - theFillHeight,
-                    SIGNAL_BAR_WIDTH - 4, theFillHeight, theColor) ;
-  }
-
-  // Quality label - clear and redraw
-  HX8357_FillRect(inX, theBarY + SIGNAL_BAR_HEIGHT + 5, 70, 12, HX8357_BLACK) ;
-  const char * theQuality ;
-  if (thePercent >= 75) theQuality = "EXCELLENT" ;
-  else if (thePercent >= 50) theQuality = "GOOD" ;
-  else if (thePercent >= 25) theQuality = "FAIR" ;
-  else theQuality = "POOR" ;
-
-  HX8357_DrawString(inX, theBarY + SIGNAL_BAR_HEIGHT + 5, theQuality, theColor, HX8357_BLACK, 1) ;
+  if (inPercent >= 75) return "Excellent" ;
+  if (inPercent >= 50) return "Good" ;
+  if (inPercent >= 25) return "Fair" ;
+  return "Poor" ;
 }
 
 //----------------------------------------------
-// Private: Draw Signal Area (only changed values)
+// Private: Draw Signal Area (simple text display)
 //----------------------------------------------
 static void DrawSignalArea(bool inForce)
 {
@@ -200,44 +163,45 @@ static void DrawSignalArea(bool inForce)
   sPrevRssi = sLastRssi ;
   sPrevSnr = sLastSnr ;
 
-  // Only redraw changed bars
+  char theBuffer[32] ;
+
+  // RSSI value and quality
   if (theRssiChanged)
   {
-    DrawSignalBar(RSSI_BAR_X, SIGNAL_AREA_Y + 15, "RSSI", sLastRssi, "dBm", -120, -30) ;
+    int theRssiPct = MapToPercent(sLastRssi, -120, -30) ;
+    uint16_t theColor = GetSignalColor(theRssiPct) ;
+
+    // Clear and draw RSSI value
+    HX8357_FillRect(60, SIGNAL_AREA_Y + 15, 150, 20, HX8357_BLACK) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%d dBm (%s)", sLastRssi, GetSignalQuality(theRssiPct)) ;
+    HX8357_DrawString(60, SIGNAL_AREA_Y + 15, theBuffer, theColor, HX8357_BLACK, 2) ;
   }
 
+  // SNR value and quality
   if (theSnrChanged)
   {
-    DrawSignalBar(SNR_BAR_X, SIGNAL_AREA_Y + 15, "SNR", sLastSnr, "dB", -20, 15) ;
+    int theSnrPct = MapToPercent(sLastSnr, -20, 15) ;
+    uint16_t theColor = GetSignalColor(theSnrPct) ;
+
+    // Clear and draw SNR value
+    HX8357_FillRect(60, SIGNAL_AREA_Y + 40, 150, 20, HX8357_BLACK) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%d dB (%s)", sLastSnr, GetSignalQuality(theSnrPct)) ;
+    HX8357_DrawString(60, SIGNAL_AREA_Y + 40, theBuffer, theColor, HX8357_BLACK, 2) ;
   }
 
-  // Update overall summary (right side) - always update if either changed
+  // Overall signal quality (right side)
   if (theRssiChanged || theSnrChanged)
   {
     int theRssiPct = MapToPercent(sLastRssi, -120, -30) ;
     int theSnrPct = MapToPercent(sLastSnr, -20, 15) ;
     int theOverallPct = (theRssiPct + theSnrPct) / 2 ;
+    uint16_t theColor = GetSignalColor(theOverallPct) ;
 
-    // Clear and redraw percentage
-    HX8357_FillRect(320, SIGNAL_AREA_Y + 45, 120, 40, HX8357_BLACK) ;
-    char theBuffer[16] ;
-    snprintf(theBuffer, sizeof(theBuffer), "%d%%", theOverallPct) ;
-    HX8357_DrawString(320, SIGNAL_AREA_Y + 45, theBuffer, GetSignalColor(theOverallPct), HX8357_BLACK, 4) ;
-
-    // Update signal bars graphic
-    int16_t theBarBaseX = 320 ;
-    int16_t theBarBaseY = SIGNAL_AREA_Y + 90 ;
-    int theNumBars = (theOverallPct + 19) / 20 ;
-
-    // Clear old bars and redraw
-    HX8357_FillRect(theBarBaseX, theBarBaseY, 130, 55, HX8357_BLACK) ;
-    for (int i = 0 ; i < 5 ; i++)
-    {
-      int16_t theBarHeight = 10 + (i * 8) ;
-      uint16_t theColor = (i < theNumBars) ? GetSignalColor(theOverallPct) : HX8357_DARKGRAY ;
-      HX8357_FillRect(theBarBaseX + (i * 25), theBarBaseY + (50 - theBarHeight),
-                      20, theBarHeight, theColor) ;
-    }
+    // Clear and redraw overall
+    HX8357_FillRect(280, SIGNAL_AREA_Y + 15, 180, 50, HX8357_BLACK) ;
+    snprintf(theBuffer, sizeof(theBuffer), "Signal: %d%%", theOverallPct) ;
+    HX8357_DrawString(280, SIGNAL_AREA_Y + 15, theBuffer, theColor, HX8357_BLACK, 2) ;
+    HX8357_DrawString(280, SIGNAL_AREA_Y + 40, GetSignalQuality(theOverallPct), theColor, HX8357_BLACK, 2) ;
   }
 }
 
@@ -265,23 +229,23 @@ static void DrawTelemetryArea(bool inForce)
   // Altitude - clear value area only
   if (theAltChanged)
   {
-    HX8357_FillRect(70, TELEMETRY_AREA_Y + 15, 100, 18, HX8357_BLACK) ;
+    HX8357_FillRect(60, TELEMETRY_AREA_Y + 15, 100, 20, HX8357_BLACK) ;
     snprintf(theBuffer, sizeof(theBuffer), "%.1f m", sLastAltitude) ;
-    HX8357_DrawString(70, TELEMETRY_AREA_Y + 15, theBuffer, HX8357_CYAN, HX8357_BLACK, 2) ;
+    HX8357_DrawString(60, TELEMETRY_AREA_Y + 15, theBuffer, HX8357_CYAN, HX8357_BLACK, 2) ;
   }
 
   // Velocity - clear value area only
   if (theVelChanged)
   {
-    HX8357_FillRect(240, TELEMETRY_AREA_Y + 15, 100, 18, HX8357_BLACK) ;
+    HX8357_FillRect(230, TELEMETRY_AREA_Y + 15, 100, 20, HX8357_BLACK) ;
     snprintf(theBuffer, sizeof(theBuffer), "%.1f m/s", sLastVelocity) ;
-    HX8357_DrawString(240, TELEMETRY_AREA_Y + 15, theBuffer, HX8357_CYAN, HX8357_BLACK, 2) ;
+    HX8357_DrawString(230, TELEMETRY_AREA_Y + 15, theBuffer, HX8357_CYAN, HX8357_BLACK, 2) ;
   }
 
   // Flight State - clear value area only
   if (theStateChanged)
   {
-    HX8357_FillRect(90, TELEMETRY_AREA_Y + 40, 100, 18, HX8357_BLACK) ;
+    HX8357_FillRect(420, TELEMETRY_AREA_Y + 15, 60, 20, HX8357_BLACK) ;
 
     uint16_t theStateColor = HX8357_WHITE ;
     if (strcmp(sFlightState, "boost") == 0) theStateColor = HX8357_RED ;
@@ -292,7 +256,7 @@ static void DrawTelemetryArea(bool inForce)
     else if (strcmp(sFlightState, "armed") == 0) theStateColor = HX8357_MAGENTA ;
     else if (strcmp(sFlightState, "idle") == 0) theStateColor = HX8357_CYAN ;
 
-    HX8357_DrawString(90, TELEMETRY_AREA_Y + 40, sFlightState, theStateColor, HX8357_BLACK, 2) ;
+    HX8357_DrawString(420, TELEMETRY_AREA_Y + 15, sFlightState, theStateColor, HX8357_BLACK, 2) ;
   }
 }
 
@@ -317,24 +281,24 @@ static void DrawStatsArea(bool inForce)
   // Packets received - clear value area only
   if (theRxChanged)
   {
-    HX8357_FillRect(50, STATS_AREA_Y + 5, 80, 18, HX8357_BLACK) ;
-    snprintf(theBuffer, sizeof(theBuffer), "%lu", sPacketsReceived) ;
-    HX8357_DrawString(50, STATS_AREA_Y + 5, theBuffer, HX8357_GREEN, HX8357_BLACK, 2) ;
+    HX8357_FillRect(50, STATS_AREA_Y + 15, 80, 20, HX8357_BLACK) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%lu", (unsigned long)sPacketsReceived) ;
+    HX8357_DrawString(50, STATS_AREA_Y + 15, theBuffer, HX8357_GREEN, HX8357_BLACK, 2) ;
   }
 
   // Packets lost - clear value area only
   if (theLostChanged)
   {
-    HX8357_FillRect(210, STATS_AREA_Y + 5, 80, 18, HX8357_BLACK) ;
-    snprintf(theBuffer, sizeof(theBuffer), "%lu", sPacketsLost) ;
+    HX8357_FillRect(210, STATS_AREA_Y + 15, 80, 20, HX8357_BLACK) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%lu", (unsigned long)sPacketsLost) ;
     uint16_t theLostColor = (sPacketsLost > 0) ? HX8357_RED : HX8357_GREEN ;
-    HX8357_DrawString(210, STATS_AREA_Y + 5, theBuffer, theLostColor, HX8357_BLACK, 2) ;
+    HX8357_DrawString(210, STATS_AREA_Y + 15, theBuffer, theLostColor, HX8357_BLACK, 2) ;
   }
 
   // Packet success rate - update if either changed
   if (theRxChanged || theLostChanged)
   {
-    HX8357_FillRect(320, STATS_AREA_Y + 5, 140, 18, HX8357_BLACK) ;
+    HX8357_FillRect(320, STATS_AREA_Y + 15, 140, 20, HX8357_BLACK) ;
     if (sPacketsReceived > 0)
     {
       uint32_t theTotal = sPacketsReceived + sPacketsLost ;
@@ -342,7 +306,7 @@ static void DrawStatsArea(bool inForce)
       snprintf(theBuffer, sizeof(theBuffer), "%d%% success", theSuccessRate) ;
       uint16_t theRateColor = (theSuccessRate >= 95) ? HX8357_GREEN :
                               (theSuccessRate >= 80) ? HX8357_YELLOW : HX8357_RED ;
-      HX8357_DrawString(320, STATS_AREA_Y + 5, theBuffer, theRateColor, HX8357_BLACK, 2) ;
+      HX8357_DrawString(320, STATS_AREA_Y + 15, theBuffer, theRateColor, HX8357_BLACK, 2) ;
     }
   }
 }
@@ -374,22 +338,26 @@ static void DrawMessageArea(bool inForce)
 static void DrawStaticLabels(void)
 {
   // Section title - Signal
-  HX8357_DrawString(10, SIGNAL_AREA_Y, "SIGNAL STRENGTH", HX8357_GRAY, HX8357_BLACK, 1) ;
+  HX8357_DrawString(10, SIGNAL_AREA_Y, "SIGNAL", HX8357_GRAY, HX8357_BLACK, 1) ;
 
-  // "OVERALL" label
-  HX8357_DrawString(320, SIGNAL_AREA_Y + 15, "OVERALL", HX8357_WHITE, HX8357_BLACK, 2) ;
+  // Signal labels
+  HX8357_DrawString(10, SIGNAL_AREA_Y + 15, "RSSI:", HX8357_WHITE, HX8357_BLACK, 2) ;
+  HX8357_DrawString(10, SIGNAL_AREA_Y + 40, "SNR:", HX8357_WHITE, HX8357_BLACK, 2) ;
 
   // Section title - Telemetry
-  HX8357_DrawString(10, TELEMETRY_AREA_Y, "LAST TELEMETRY", HX8357_GRAY, HX8357_BLACK, 1) ;
+  HX8357_DrawString(10, TELEMETRY_AREA_Y, "TELEMETRY", HX8357_GRAY, HX8357_BLACK, 1) ;
 
   // Telemetry labels
   HX8357_DrawString(10, TELEMETRY_AREA_Y + 15, "ALT:", HX8357_WHITE, HX8357_BLACK, 2) ;
   HX8357_DrawString(180, TELEMETRY_AREA_Y + 15, "VEL:", HX8357_WHITE, HX8357_BLACK, 2) ;
-  HX8357_DrawString(10, TELEMETRY_AREA_Y + 40, "STATE:", HX8357_WHITE, HX8357_BLACK, 2) ;
+  HX8357_DrawString(350, TELEMETRY_AREA_Y + 15, "STATE:", HX8357_WHITE, HX8357_BLACK, 2) ;
+
+  // Section title - Stats
+  HX8357_DrawString(10, STATS_AREA_Y, "PACKETS", HX8357_GRAY, HX8357_BLACK, 1) ;
 
   // Stats labels
-  HX8357_DrawString(10, STATS_AREA_Y + 5, "RX:", HX8357_GRAY, HX8357_BLACK, 2) ;
-  HX8357_DrawString(150, STATS_AREA_Y + 5, "LOST:", HX8357_GRAY, HX8357_BLACK, 2) ;
+  HX8357_DrawString(10, STATS_AREA_Y + 15, "RX:", HX8357_WHITE, HX8357_BLACK, 2) ;
+  HX8357_DrawString(150, STATS_AREA_Y + 15, "LOST:", HX8357_WHITE, HX8357_BLACK, 2) ;
 }
 
 //----------------------------------------------

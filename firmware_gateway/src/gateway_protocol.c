@@ -13,6 +13,35 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+
+//----------------------------------------------
+// Barometric Constants
+//----------------------------------------------
+#define kSeaLevelPressurePa     101325.0f   // Standard sea level pressure
+#define kSeaLevelTempK          288.15f     // Standard temperature at sea level (K)
+#define kTempLapseRate          0.0065f     // Temperature lapse rate (K/m)
+#define kGasConstant            8.31447f    // Universal gas constant (J/(mol*K))
+#define kMolarMass              0.0289644f  // Molar mass of air (kg/mol)
+#define kGravity                9.80665f    // Gravitational acceleration (m/s^2)
+
+//----------------------------------------------
+// Internal: Calculate altitude from pressure
+//----------------------------------------------
+static float CalculateAltitude(float inPressurePa, float inReferencePressurePa)
+{
+  if (inReferencePressurePa <= 0.0f || inPressurePa <= 0.0f)
+  {
+    return 0.0f ;
+  }
+
+  float theExponent = (kGasConstant * kTempLapseRate) / (kGravity * kMolarMass) ;
+  float theRatio = inPressurePa / inReferencePressurePa ;
+  float theAltitude = (kSeaLevelTempK / kTempLapseRate) * (1.0f - powf(theRatio, theExponent)) ;
+
+  return theAltitude ;
+}
 
 //----------------------------------------------
 // Flight State Names (must match flight_control.h)
@@ -52,31 +81,59 @@ int GatewayProtocol_TelemetryToJson(
   const LoRaTelemetryPacket * inPacket,
   int16_t inRssi,
   int8_t inSnr,
+  float inGroundPressurePa,
   char * outJson,
   int inMaxLen)
 {
-  if (inPacket == NULL || outJson == NULL || inMaxLen < 64) return 0 ;
+  if (inPacket == NULL || outJson == NULL || inMaxLen < 128) return 0 ;
 
   // Validate magic byte
   if (inPacket->pMagic != kLoRaMagic) return 0 ;
 
-  // Convert units
+  // Convert barometric units
   float theAltitudeM = inPacket->pAltitudeCm / 100.0f ;
   float theVelocityMps = inPacket->pVelocityCmps / 100.0f ;
   float theTemperatureC = inPacket->pTemperatureC10 / 10.0f ;
 
+  // Convert GPS units
+  float theLatitude = inPacket->pGpsLatitude / 1000000.0f ;
+  float theLongitude = inPacket->pGpsLongitude / 1000000.0f ;
+  float theGpsSpeedMps = inPacket->pGpsSpeedCmps / 100.0f ;
+  float theHeadingDeg = inPacket->pGpsHeadingDeg10 / 10.0f ;
+  bool theHasGpsFix = (inPacket->pFlags & kFlagGpsFix) != 0 ;
+
   // Get state name
   const char * theStateName = GatewayProtocol_GetStateName(inPacket->pState) ;
 
-  // Build JSON telemetry message
+  // Calculate ground altitude (using sea level reference) and differential altitude
+  float theGroundAltitudeM = CalculateAltitude(inGroundPressurePa, kSeaLevelPressurePa) ;
+
+  // Calculate differential altitude: flight computer relative to ground station
+  // This is more accurate than the flight computer's self-referenced altitude
+  float theDiffAltitudeM = 0.0f ;
+  if (inGroundPressurePa > 0.0f && inPacket->pPressurePa > 0)
+  {
+    theDiffAltitudeM = CalculateAltitude((float)inPacket->pPressurePa, inGroundPressurePa) ;
+  }
+
+  // Build JSON telemetry message with GPS data and ground reference
   int theLen = snprintf(outJson, inMaxLen,
     "{\"type\":\"tel\","
     "\"seq\":%u,"
     "\"t\":%lu,"
     "\"alt\":%.2f,"
+    "\"dalt\":%.2f,"
     "\"vel\":%.2f,"
     "\"pres\":%lu,"
+    "\"gpres\":%.0f,"
+    "\"galt\":%.1f,"
     "\"temp\":%.1f,"
+    "\"lat\":%.6f,"
+    "\"lon\":%.6f,"
+    "\"gspd\":%.2f,"
+    "\"hdg\":%.1f,"
+    "\"sat\":%u,"
+    "\"gps\":%s,"
     "\"state\":\"%s\","
     "\"flags\":%u,"
     "\"rssi\":%d,"
@@ -84,9 +141,18 @@ int GatewayProtocol_TelemetryToJson(
     inPacket->pSequence,
     (unsigned long)inPacket->pTimeMs,
     theAltitudeM,
+    theDiffAltitudeM,
     theVelocityMps,
     (unsigned long)inPacket->pPressurePa,
+    inGroundPressurePa,
+    theGroundAltitudeM,
     theTemperatureC,
+    theLatitude,
+    theLongitude,
+    theGpsSpeedMps,
+    theHeadingDeg,
+    inPacket->pGpsSatellites,
+    theHasGpsFix ? "true" : "false",
     theStateName,
     inPacket->pFlags,
     inRssi,

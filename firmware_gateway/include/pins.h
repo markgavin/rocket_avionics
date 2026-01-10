@@ -18,6 +18,20 @@
 #pragma once
 
 #include "hardware/spi.h"
+#include "hardware/i2c.h"
+
+//----------------------------------------------
+// I2C Bus (STEMMA QT) - BMP390 Barometric Sensor
+//----------------------------------------------
+#define kPinI2cSda          2   // GP2 - I2C SDA (Feather default)
+#define kPinI2cScl          3   // GP3 - I2C SCL (Feather default)
+#define kI2cPort            i2c1  // Feather uses I2C1 on these pins
+#define kI2cBaudrate        400000  // 400 kHz
+
+//----------------------------------------------
+// I2C Device Addresses
+//----------------------------------------------
+#define kI2cAddrBMP390      0x77  // Barometric sensor (or 0x76 if SDO to GND)
 
 //----------------------------------------------
 // SPI1 - Shared by LoRa Radio and TFT Display

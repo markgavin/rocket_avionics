@@ -35,6 +35,7 @@ add_executable(rocket_gateway
   src/gateway_protocol.c
   src/hx8357.c
   src/gateway_display.c
+  src/bmp390.c
 )
 
 # Include directories
@@ -48,6 +49,7 @@ target_link_libraries(rocket_gateway
   pico_stdlib
   hardware_spi
   hardware_gpio
+  hardware_i2c
 )
 
 # Enable USB serial output (disable UART)

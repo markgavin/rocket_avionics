@@ -16,11 +16,13 @@
 #include "lora_radio.h"
 #include "gateway_protocol.h"
 #include "gateway_display.h"
+#include "bmp390.h"
 
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
+#include "hardware/i2c.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -35,15 +37,22 @@
 #define kUsbLineBufferSize      256
 #define kStartupDelayMs         1000
 #define kDisplayUpdateIntervalMs 100
+#define kBmp390ReadIntervalMs   100   // 10 Hz sensor reading
 
 //----------------------------------------------
 // Module State
 //----------------------------------------------
 static LoRa_Radio sLoRaRadio ;
 static GatewayState sGatewayState ;
+static BMP390 sBmp390 ;
 static bool sLoRaOk = false ;
 static bool sDisplayOk = false ;
 static bool sUsbConnected = false ;
+static bool sBmp390Ok = false ;
+
+// Ground barometer data
+static float sGroundPressurePa = 0.0f ;
+static float sGroundTemperatureC = 0.0f ;
 
 // LED timing
 static uint32_t sLastLedToggleMs = 0 ;
@@ -52,6 +61,7 @@ static bool sLedState = false ;
 // Display timing
 static uint32_t sLastDisplayUpdateMs = 0 ;
 static uint32_t sLastUsbCheckMs = 0 ;
+static uint32_t sLastBmp390ReadMs = 0 ;
 
 // USB input buffer
 static char sUsbLineBuffer[kUsbLineBufferSize] ;
@@ -61,11 +71,13 @@ static int sUsbLinePos = 0 ;
 // Forward Declarations
 //----------------------------------------------
 static void InitializeHardware(void) ;
+static void InitializeI2C(void) ;
 static void InitializeSPI(void) ;
 static void ProcessLoRaPackets(uint32_t inCurrentMs) ;
 static void ProcessUsbInput(uint32_t inCurrentMs) ;
 static void UpdateLed(uint32_t inCurrentMs) ;
 static void UpdateDisplay(uint32_t inCurrentMs) ;
+static void ReadGroundBarometer(uint32_t inCurrentMs) ;
 
 //----------------------------------------------
 // Function: main
@@ -93,6 +105,7 @@ int main(void)
   printf("Gateway ready:\n") ;
   printf("  LoRa: %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  Display: %s\n", sDisplayOk ? "OK" : "FAIL") ;
+  printf("  BMP390: %s\n", sBmp390Ok ? "OK" : "FAIL") ;
   printf("  Frequency: %lu Hz\n", (unsigned long)kLoRaFrequency) ;
   printf("  Sync Word: 0x%02X\n", kLoRaSyncWord) ;
   printf("\nListening for telemetry...\n\n") ;
@@ -119,6 +132,12 @@ int main(void)
     if (sLoRaOk)
     {
       ProcessLoRaPackets(theCurrentMs) ;
+    }
+
+    // Read ground barometer
+    if (sBmp390Ok)
+    {
+      ReadGroundBarometer(theCurrentMs) ;
     }
 
     // Process USB serial input
@@ -164,6 +183,9 @@ static void InitializeHardware(void)
 {
   printf("Initializing hardware...\n") ;
 
+  // Initialize I2C bus
+  InitializeI2C() ;
+
   // Initialize SPI bus
   InitializeSPI() ;
 
@@ -171,6 +193,25 @@ static void InitializeHardware(void)
   gpio_init(kPinLed) ;
   gpio_set_dir(kPinLed, GPIO_OUT) ;
   gpio_put(kPinLed, 0) ;
+
+  // Initialize BMP390 barometric sensor
+  printf("Initializing BMP390...\n") ;
+  if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+  {
+    // Configure for barometric reference
+    BMP390_Configure(
+      &sBmp390,
+      BMP390_OSR_8X,      // Pressure oversampling
+      BMP390_OSR_2X,      // Temperature oversampling
+      BMP390_ODR_50_HZ,   // 50 Hz output rate
+      BMP390_IIR_COEF_3) ; // Light filtering
+    sBmp390Ok = true ;
+    printf("BMP390 initialized\n") ;
+  }
+  else
+  {
+    printf("WARNING: BMP390 initialization failed\n") ;
+  }
 
   // Initialize LoRa radio
   printf("Initializing LoRa radio...\n") ;
@@ -204,6 +245,22 @@ static void InitializeHardware(void)
   }
 
   printf("Hardware initialization complete\n\n") ;
+}
+
+//----------------------------------------------
+// Function: InitializeI2C
+//----------------------------------------------
+static void InitializeI2C(void)
+{
+  printf("Initializing I2C bus...\n") ;
+
+  i2c_init(kI2cPort, kI2cBaudrate) ;
+  gpio_set_function(kPinI2cSda, GPIO_FUNC_I2C) ;
+  gpio_set_function(kPinI2cScl, GPIO_FUNC_I2C) ;
+  gpio_pull_up(kPinI2cSda) ;
+  gpio_pull_up(kPinI2cScl) ;
+
+  printf("I2C initialized at %d Hz\n", kI2cBaudrate) ;
 }
 
 //----------------------------------------------
@@ -247,6 +304,45 @@ static void InitializeSPI(void)
 }
 
 //----------------------------------------------
+// Function: ReadGroundBarometer
+//----------------------------------------------
+static void ReadGroundBarometer(uint32_t inCurrentMs)
+{
+  // Read at fixed interval
+  if ((inCurrentMs - sLastBmp390ReadMs) < kBmp390ReadIntervalMs)
+  {
+    return ;
+  }
+  sLastBmp390ReadMs = inCurrentMs ;
+
+  // Read pressure and temperature
+  float thePressure = 0 ;
+  float theTemperature = 0 ;
+
+  if (BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature))
+  {
+    sGroundPressurePa = thePressure ;
+    sGroundTemperatureC = theTemperature ;
+
+    // Debug: show reading every second
+    static uint32_t sDebugCount = 0 ;
+    if ((++sDebugCount % 10) == 0)
+    {
+      printf("GND BMP: P=%.0f Pa T=%.1f C\n", sGroundPressurePa, sGroundTemperatureC) ;
+    }
+  }
+  else
+  {
+    // Debug: show read failure
+    static uint32_t sFailCount = 0 ;
+    if ((++sFailCount % 10) == 0)
+    {
+      printf("GND BMP: Read failed (%u)\n", sFailCount) ;
+    }
+  }
+}
+
+//----------------------------------------------
 // Function: ProcessLoRaPackets
 //----------------------------------------------
 static void ProcessLoRaPackets(uint32_t inCurrentMs)
@@ -276,15 +372,28 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
     }
   }
 
+  // Debug: show received packet info
+  printf("RX: len=%u magic=0x%02X\n", theLen, theBuffer[0]) ;
+
   // Validate packet
   if (theLen < 3 || theBuffer[0] != kLoRaMagic)
   {
+    printf("RX: Invalid packet (len=%u, magic=0x%02X)\n", theLen, theBuffer[0]) ;
     return ;
   }
 
   uint8_t thePacketType = theBuffer[1] ;
 
   // Handle telemetry packets
+  if (thePacketType == kLoRaPacketTelemetry && theLen >= sizeof(LoRaTelemetryPacket))
+  {
+    printf("RX: Telemetry packet, expected size=%u\n", (unsigned)sizeof(LoRaTelemetryPacket)) ;
+  }
+  else if (thePacketType == kLoRaPacketTelemetry)
+  {
+    printf("RX: Telemetry packet too small (got %u, need %u)\n", theLen, (unsigned)sizeof(LoRaTelemetryPacket)) ;
+  }
+
   if (thePacketType == kLoRaPacketTelemetry && theLen >= sizeof(LoRaTelemetryPacket))
   {
     LoRaTelemetryPacket * thePacket = (LoRaTelemetryPacket *)theBuffer ;
@@ -295,6 +404,7 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
       thePacket,
       sGatewayState.pLastRssi,
       sGatewayState.pLastSnr,
+      sGroundPressurePa,
       theJson,
       sizeof(theJson)) ;
 
