@@ -210,6 +210,39 @@ bool GatewayProtocol_ParseCommand(
   {
     *outCommandType = kUsbCmdPing ;
   }
+  else if (strncmp(theCmdStart, "info", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdInfo ;
+  }
+  else if (strncmp(theCmdStart, "gw_info", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdGatewayInfo ;
+  }
+  // Storage commands
+  else if (strncmp(theCmdStart, "sd_list", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdSdList ;
+  }
+  else if (strncmp(theCmdStart, "sd_read", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdSdRead ;
+  }
+  else if (strncmp(theCmdStart, "sd_delete", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdSdDelete ;
+  }
+  else if (strncmp(theCmdStart, "flash_list", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdFlashList ;
+  }
+  else if (strncmp(theCmdStart, "flash_read", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdFlashRead ;
+  }
+  else if (strncmp(theCmdStart, "flash_delete", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdFlashDelete ;
+  }
   else
   {
     return false ;
@@ -244,22 +277,32 @@ int GatewayProtocol_BuildLoRaCommand(
   switch (inCommandType)
   {
     case kUsbCmdArm:
-      outPacket[2] = 0x01 ;
+      outPacket[2] = kCmdArm ;
       break ;
     case kUsbCmdDisarm:
-      outPacket[2] = 0x02 ;
+      outPacket[2] = kCmdDisarm ;
       break ;
     case kUsbCmdStatus:
-      outPacket[2] = 0x03 ;
+      outPacket[2] = kCmdStatus ;
       break ;
     case kUsbCmdReset:
-      outPacket[2] = 0x04 ;
+      outPacket[2] = kCmdReset ;
       break ;
     case kUsbCmdDownload:
-      outPacket[2] = 0x05 ;
+      outPacket[2] = kCmdDownload ;
       break ;
     case kUsbCmdPing:
-      outPacket[2] = 0x06 ;
+      outPacket[2] = kCmdPing ;
+      break ;
+    case kUsbCmdInfo:
+      outPacket[2] = kCmdInfo ;
+      break ;
+    // Storage commands (simple, no parameters)
+    case kUsbCmdSdList:
+      outPacket[2] = kCmdSdList ;
+      break ;
+    case kUsbCmdFlashList:
+      outPacket[2] = kCmdFlashList ;
       break ;
     default:
       return 0 ;
@@ -268,6 +311,91 @@ int GatewayProtocol_BuildLoRaCommand(
   outPacket[3] = 0 ;  // Reserved / CRC placeholder
 
   return 4 ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildStorageReadCommand
+// Purpose: Build LoRa command for sd_read or flash_read
+//----------------------------------------------
+int GatewayProtocol_BuildStorageReadCommand(
+  UsbCommandType inCommandType,
+  const char * inFilename,
+  uint32_t inOffset,
+  uint8_t * outPacket,
+  int inMaxLen)
+{
+  if (outPacket == NULL || inFilename == NULL || inMaxLen < 72) return 0 ;
+
+  outPacket[0] = kLoRaMagic ;
+  outPacket[1] = kLoRaPacketCommand ;
+
+  if (inCommandType == kUsbCmdSdRead)
+  {
+    outPacket[2] = kCmdSdRead ;
+  }
+  else if (inCommandType == kUsbCmdFlashRead)
+  {
+    outPacket[2] = kCmdFlashRead ;
+  }
+  else
+  {
+    return 0 ;
+  }
+
+  outPacket[3] = 0 ;  // Reserved
+
+  // Add offset (4 bytes, little-endian)
+  outPacket[4] = (uint8_t)(inOffset & 0xFF) ;
+  outPacket[5] = (uint8_t)((inOffset >> 8) & 0xFF) ;
+  outPacket[6] = (uint8_t)((inOffset >> 16) & 0xFF) ;
+  outPacket[7] = (uint8_t)((inOffset >> 24) & 0xFF) ;
+
+  // Add filename (up to 63 chars + null)
+  int theNameLen = strlen(inFilename) ;
+  if (theNameLen > 63) theNameLen = 63 ;
+  memcpy(&outPacket[8], inFilename, theNameLen) ;
+  outPacket[8 + theNameLen] = '\0' ;
+
+  return 8 + theNameLen + 1 ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildStorageDeleteCommand
+// Purpose: Build LoRa command for sd_delete or flash_delete
+//----------------------------------------------
+int GatewayProtocol_BuildStorageDeleteCommand(
+  UsbCommandType inCommandType,
+  const char * inFilename,
+  uint8_t * outPacket,
+  int inMaxLen)
+{
+  if (outPacket == NULL || inFilename == NULL || inMaxLen < 68) return 0 ;
+
+  outPacket[0] = kLoRaMagic ;
+  outPacket[1] = kLoRaPacketCommand ;
+
+  if (inCommandType == kUsbCmdSdDelete)
+  {
+    outPacket[2] = kCmdSdDelete ;
+  }
+  else if (inCommandType == kUsbCmdFlashDelete)
+  {
+    outPacket[2] = kCmdFlashDelete ;
+  }
+  else
+  {
+    return 0 ;
+  }
+
+  outPacket[3] = 0 ;  // Reserved
+
+  // Add filename (up to 63 chars + null)
+  int theNameLen = strlen(inFilename) ;
+  if (theNameLen > 63) theNameLen = 63 ;
+  memcpy(&outPacket[4], inFilename, theNameLen) ;
+  outPacket[4 + theNameLen] = '\0' ;
+
+  return 4 + theNameLen + 1 ;
 }
 
 //----------------------------------------------
@@ -325,4 +453,159 @@ const char * GatewayProtocol_GetStateName(uint8_t inState)
 {
   if (inState > 7) return "unknown" ;
   return sFlightStateNames[inState] ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseStorageParams
+//----------------------------------------------
+bool GatewayProtocol_ParseStorageParams(
+  const char * inJson,
+  char * outFilename,
+  uint32_t * outOffset)
+{
+  if (inJson == NULL || outFilename == NULL || outOffset == NULL) return false ;
+
+  outFilename[0] = '\0' ;
+  *outOffset = 0 ;
+
+  // Find filename: "file":"..."
+  const char * theFileStart = strstr(inJson, "\"file\":\"") ;
+  if (theFileStart != NULL)
+  {
+    theFileStart += 8 ;  // Skip past "file":"
+    const char * theFileEnd = strchr(theFileStart, '"') ;
+    if (theFileEnd != NULL)
+    {
+      int theLen = theFileEnd - theFileStart ;
+      if (theLen > 63) theLen = 63 ;
+      memcpy(outFilename, theFileStart, theLen) ;
+      outFilename[theLen] = '\0' ;
+    }
+  }
+
+  // Find offset: "offset":123
+  const char * theOffsetStart = strstr(inJson, "\"offset\":") ;
+  if (theOffsetStart != NULL)
+  {
+    theOffsetStart += 9 ;  // Skip past "offset":
+    *outOffset = (uint32_t)strtoul(theOffsetStart, NULL, 10) ;
+  }
+
+  return (outFilename[0] != '\0') ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_StorageListToJson
+// Packet format: magic, type, count, then for each file:
+//   name_len(1), name(n), size(4), year(2), month(1), day(1), hour(1), minute(1)
+//----------------------------------------------
+int GatewayProtocol_StorageListToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  bool inIsSd,
+  char * outJson,
+  int inMaxLen)
+{
+  if (inPacket == NULL || outJson == NULL || inLen < 3 || inMaxLen < 64) return 0 ;
+
+  uint8_t theCount = inPacket[2] ;
+  int theOffset = 3 ;
+
+  // Start JSON array
+  int theJsonLen = snprintf(outJson, inMaxLen,
+    "{\"type\":\"%s_list\",\"files\":[",
+    inIsSd ? "sd" : "flash") ;
+
+  // Parse each file entry
+  for (uint8_t i = 0 ; i < theCount && theOffset < inLen ; i++)
+  {
+    // Get name length
+    uint8_t theNameLen = inPacket[theOffset++] ;
+    if (theOffset + theNameLen + 10 > inLen) break ;
+
+    // Get filename
+    char theName[65] ;
+    if (theNameLen > 64) theNameLen = 64 ;
+    memcpy(theName, &inPacket[theOffset], theNameLen) ;
+    theName[theNameLen] = '\0' ;
+    theOffset += theNameLen ;
+
+    // Get size (4 bytes, little-endian)
+    uint32_t theSize = inPacket[theOffset] |
+                       (inPacket[theOffset + 1] << 8) |
+                       (inPacket[theOffset + 2] << 16) |
+                       (inPacket[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    // Get date (year=2 bytes, month, day, hour, minute)
+    uint16_t theYear = inPacket[theOffset] | (inPacket[theOffset + 1] << 8) ;
+    theOffset += 2 ;
+    uint8_t theMonth = inPacket[theOffset++] ;
+    uint8_t theDay = inPacket[theOffset++] ;
+    uint8_t theHour = inPacket[theOffset++] ;
+    uint8_t theMinute = inPacket[theOffset++] ;
+
+    // Add file entry to JSON
+    if (i > 0) theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, ",") ;
+    theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen,
+      "{\"name\":\"%s\",\"size\":%lu,\"date\":\"%04u-%02u-%02u %02u:%02u\"}",
+      theName,
+      (unsigned long)theSize,
+      theYear, theMonth, theDay, theHour, theMinute) ;
+  }
+
+  // Close JSON
+  theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "]}\n") ;
+
+  return theJsonLen ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_StorageDataToJson
+// Packet format: magic, type, offset(4), total(4), chunk_len(2), data(n)
+//----------------------------------------------
+int GatewayProtocol_StorageDataToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  bool inIsSd,
+  char * outJson,
+  int inMaxLen)
+{
+  if (inPacket == NULL || outJson == NULL || inLen < 12 || inMaxLen < 64) return 0 ;
+
+  // Parse header
+  uint32_t theOffset = inPacket[2] |
+                       (inPacket[3] << 8) |
+                       (inPacket[4] << 16) |
+                       (inPacket[5] << 24) ;
+
+  uint32_t theTotal = inPacket[6] |
+                      (inPacket[7] << 8) |
+                      (inPacket[8] << 16) |
+                      (inPacket[9] << 24) ;
+
+  uint16_t theChunkLen = inPacket[10] | (inPacket[11] << 8) ;
+
+  // Verify chunk length matches packet
+  if (theChunkLen > inLen - 12) theChunkLen = inLen - 12 ;
+
+  // Base64 encode the chunk data (for JSON transport)
+  // For simplicity, output as hex string
+  int theJsonLen = snprintf(outJson, inMaxLen,
+    "{\"type\":\"%s_data\",\"offset\":%lu,\"total\":%lu,\"len\":%u,\"data\":\"",
+    inIsSd ? "sd" : "flash",
+    (unsigned long)theOffset,
+    (unsigned long)theTotal,
+    theChunkLen) ;
+
+  // Encode data as hex
+  const uint8_t * theData = &inPacket[12] ;
+  for (uint16_t i = 0 ; i < theChunkLen && theJsonLen < inMaxLen - 10 ; i++)
+  {
+    theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "%02X", theData[i]) ;
+  }
+
+  theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "\"}\n") ;
+
+  return theJsonLen ;
 }

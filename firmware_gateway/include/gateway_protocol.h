@@ -22,6 +22,28 @@
 #define kLoRaPacketCommand      0x03
 #define kLoRaPacketAck          0x04
 #define kLoRaPacketData         0x05
+#define kLoRaPacketStorageList  0x06  // Storage list response
+#define kLoRaPacketStorageData  0x07  // Storage data chunk
+#define kLoRaPacketInfo         0x08  // Device info response
+
+//----------------------------------------------
+// Command IDs (sent in kLoRaPacketCommand)
+//----------------------------------------------
+#define kCmdArm             0x01
+#define kCmdDisarm          0x02
+#define kCmdStatus          0x03
+#define kCmdReset           0x04
+#define kCmdDownload        0x05
+#define kCmdPing            0x06
+#define kCmdInfo            0x07  // Request device info
+
+// Storage commands
+#define kCmdSdList          0x10
+#define kCmdSdRead          0x11
+#define kCmdSdDelete        0x12
+#define kCmdFlashList       0x20
+#define kCmdFlashRead       0x21
+#define kCmdFlashDelete     0x22
 
 //----------------------------------------------
 // LoRa Telemetry Packet (binary, 42 bytes)
@@ -74,7 +96,16 @@ typedef enum
   kUsbCmdStatus ,
   kUsbCmdDownload ,
   kUsbCmdReset ,
-  kUsbCmdPing
+  kUsbCmdPing ,
+  kUsbCmdInfo ,        // Request flight computer device info
+  kUsbCmdGatewayInfo , // Request gateway device info
+  // Storage commands (10+)
+  kUsbCmdSdList = 10 ,
+  kUsbCmdSdRead ,
+  kUsbCmdSdDelete ,
+  kUsbCmdFlashList = 20 ,
+  kUsbCmdFlashRead ,
+  kUsbCmdFlashDelete
 } UsbCommandType ;
 
 //----------------------------------------------
@@ -185,3 +216,87 @@ int GatewayProtocol_BuildAckJson(
 // Returns: State name string
 //----------------------------------------------
 const char * GatewayProtocol_GetStateName(uint8_t inState) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildStorageReadCommand
+// Purpose: Build LoRa command for sd_read or flash_read
+// Parameters:
+//   inCommandType - kUsbCmdSdRead or kUsbCmdFlashRead
+//   inFilename - Filename to read
+//   inOffset - Byte offset to start reading
+//   outPacket - Buffer for packet data
+//   inMaxLen - Maximum packet length
+// Returns: Packet length
+//----------------------------------------------
+int GatewayProtocol_BuildStorageReadCommand(
+  UsbCommandType inCommandType,
+  const char * inFilename,
+  uint32_t inOffset,
+  uint8_t * outPacket,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildStorageDeleteCommand
+// Purpose: Build LoRa command for sd_delete or flash_delete
+// Parameters:
+//   inCommandType - kUsbCmdSdDelete or kUsbCmdFlashDelete
+//   inFilename - Filename to delete
+//   outPacket - Buffer for packet data
+//   inMaxLen - Maximum packet length
+// Returns: Packet length
+//----------------------------------------------
+int GatewayProtocol_BuildStorageDeleteCommand(
+  UsbCommandType inCommandType,
+  const char * inFilename,
+  uint8_t * outPacket,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseStorageParams
+// Purpose: Parse filename and offset from JSON command
+// Parameters:
+//   inJson - JSON string to parse
+//   outFilename - Buffer for filename (64 bytes)
+//   outOffset - Pointer to offset value
+// Returns: true if parameters found
+//----------------------------------------------
+bool GatewayProtocol_ParseStorageParams(
+  const char * inJson,
+  char * outFilename,
+  uint32_t * outOffset) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_StorageListToJson
+// Purpose: Convert storage list LoRa packet to JSON
+// Parameters:
+//   inPacket - Binary packet data
+//   inLen - Packet length
+//   inIsSd - true for SD card, false for flash
+//   outJson - Buffer for JSON string
+//   inMaxLen - Maximum JSON length
+// Returns: Length of JSON string
+//----------------------------------------------
+int GatewayProtocol_StorageListToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  bool inIsSd,
+  char * outJson,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_StorageDataToJson
+// Purpose: Convert storage data chunk LoRa packet to JSON
+// Parameters:
+//   inPacket - Binary packet data
+//   inLen - Packet length
+//   inIsSd - true for SD card, false for flash
+//   outJson - Buffer for JSON string
+//   inMaxLen - Maximum JSON length
+// Returns: Length of JSON string
+//----------------------------------------------
+int GatewayProtocol_StorageDataToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  bool inIsSd,
+  char * outJson,
+  int inMaxLen) ;

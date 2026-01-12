@@ -305,3 +305,106 @@ int SdLogger_GetFlightCount(void)
   f_closedir(&theDir) ;
   return theCount ;
 }
+
+//----------------------------------------------
+// Function: SdLogger_GetFileList
+//----------------------------------------------
+int SdLogger_GetFileList(SdFileInfo * outFiles, int inMaxCount)
+{
+  if (!sSdAvailable || outFiles == NULL || inMaxCount <= 0) return 0 ;
+
+  DIR theDir ;
+  FILINFO theFileInfo ;
+  int theCount = 0 ;
+
+  FRESULT theResult = f_opendir(&theDir, "flights") ;
+  if (theResult != FR_OK) return 0 ;
+
+  while (theCount < inMaxCount)
+  {
+    theResult = f_readdir(&theDir, &theFileInfo) ;
+    if (theResult != FR_OK || theFileInfo.fname[0] == 0) break ;
+
+    // Skip directories
+    if (theFileInfo.fattrib & AM_DIR) continue ;
+
+    // Check for .csv extension
+    size_t theLen = strlen(theFileInfo.fname) ;
+    if (theLen > 4 && strcmp(&theFileInfo.fname[theLen - 4], ".csv") == 0)
+    {
+      strncpy(outFiles[theCount].pFilename, theFileInfo.fname, sizeof(outFiles[theCount].pFilename) - 1) ;
+      outFiles[theCount].pFilename[sizeof(outFiles[theCount].pFilename) - 1] = '\0' ;
+      outFiles[theCount].pSize = theFileInfo.fsize ;
+
+      // Extract date/time from FILINFO
+      // FatFs date format: bits 15-9 = year since 1980, bits 8-5 = month, bits 4-0 = day
+      outFiles[theCount].pYear = ((theFileInfo.fdate >> 9) & 0x7F) + 1980 ;
+      outFiles[theCount].pMonth = (theFileInfo.fdate >> 5) & 0x0F ;
+      outFiles[theCount].pDay = theFileInfo.fdate & 0x1F ;
+
+      // FatFs time format: bits 15-11 = hour, bits 10-5 = minute, bits 4-0 = second/2
+      outFiles[theCount].pHour = (theFileInfo.ftime >> 11) & 0x1F ;
+      outFiles[theCount].pMinute = (theFileInfo.ftime >> 5) & 0x3F ;
+
+      theCount++ ;
+    }
+  }
+
+  f_closedir(&theDir) ;
+  return theCount ;
+}
+
+//----------------------------------------------
+// Function: SdLogger_ReadFile
+//----------------------------------------------
+uint32_t SdLogger_ReadFile(
+  const char * inFilename,
+  uint8_t * outBuffer,
+  uint32_t inOffset,
+  uint32_t inMaxLen)
+{
+  if (!sSdAvailable || inFilename == NULL || outBuffer == NULL) return 0 ;
+
+  char thePath[80] ;
+  snprintf(thePath, sizeof(thePath), "flights/%s", inFilename) ;
+
+  FIL theFile ;
+  FRESULT theResult = f_open(&theFile, thePath, FA_READ) ;
+  if (theResult != FR_OK) return 0 ;
+
+  // Seek to offset
+  if (inOffset > 0)
+  {
+    theResult = f_lseek(&theFile, inOffset) ;
+    if (theResult != FR_OK)
+    {
+      f_close(&theFile) ;
+      return 0 ;
+    }
+  }
+
+  // Read data
+  UINT theBytesRead = 0 ;
+  theResult = f_read(&theFile, outBuffer, inMaxLen, &theBytesRead) ;
+  f_close(&theFile) ;
+
+  if (theResult != FR_OK) return 0 ;
+  return theBytesRead ;
+}
+
+//----------------------------------------------
+// Function: SdLogger_GetFileSize
+//----------------------------------------------
+uint32_t SdLogger_GetFileSize(const char * inFilename)
+{
+  if (!sSdAvailable || inFilename == NULL) return 0 ;
+
+  char thePath[80] ;
+  snprintf(thePath, sizeof(thePath), "flights/%s", inFilename) ;
+
+  FILINFO theFileInfo ;
+  FRESULT theResult = f_stat(thePath, &theFileInfo) ;
+  if (theResult != FR_OK) return 0 ;
+
+  return theFileInfo.fsize ;
+}

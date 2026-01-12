@@ -110,3 +110,52 @@ const char * SdLogger_GetLastFilename(void) ;
 // Returns: Number of flight files
 //----------------------------------------------
 int SdLogger_GetFlightCount(void) ;
+
+//----------------------------------------------
+// SD File Info Structure
+//----------------------------------------------
+typedef struct
+{
+  char pFilename[64] ;
+  uint32_t pSize ;
+  uint16_t pYear ;
+  uint8_t pMonth ;
+  uint8_t pDay ;
+  uint8_t pHour ;
+  uint8_t pMinute ;
+} SdFileInfo ;
+
+//----------------------------------------------
+// Function: SdLogger_GetFileList
+// Purpose: Get list of flight files with info
+// Parameters:
+//   outFiles - Array to store file info
+//   inMaxCount - Maximum number of files
+// Returns: Number of files found
+//----------------------------------------------
+int SdLogger_GetFileList(SdFileInfo * outFiles, int inMaxCount) ;
+
+//----------------------------------------------
+// Function: SdLogger_ReadFile
+// Purpose: Read file contents
+// Parameters:
+//   inFilename - Name of file to read
+//   outBuffer - Buffer for file data
+//   inOffset - Offset in file to start reading
+//   inMaxLen - Maximum bytes to read
+// Returns: Number of bytes read (0 on error)
+//----------------------------------------------
+uint32_t SdLogger_ReadFile(
+  const char * inFilename,
+  uint8_t * outBuffer,
+  uint32_t inOffset,
+  uint32_t inMaxLen) ;
+
+//----------------------------------------------
+// Function: SdLogger_GetFileSize
+// Purpose: Get size of a file
+// Parameters:
+//   inFilename - Name of file
+// Returns: File size in bytes (0 on error)
+//----------------------------------------------
+uint32_t SdLogger_GetFileSize(const char * inFilename) ;

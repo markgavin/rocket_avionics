@@ -730,11 +730,166 @@ static void LogToSdCard(uint32_t inCurrentMs)
 }
 
 //----------------------------------------------
+// Function: SendDeviceInfo
+// Purpose: Send device information over LoRa
+//----------------------------------------------
+static void SendDeviceInfo(void)
+{
+  // Build info packet with device details
+  uint8_t thePacket[128] ;
+  int theOffset = 0 ;
+
+  thePacket[theOffset++] = kLoRaMagic ;
+  thePacket[theOffset++] = kLoRaPacketInfo ;
+
+  // Firmware version string
+  const char * theVersion = FIRMWARE_VERSION_STRING ;
+  uint8_t theVersionLen = strlen(theVersion) ;
+  thePacket[theOffset++] = theVersionLen ;
+  memcpy(&thePacket[theOffset], theVersion, theVersionLen) ;
+  theOffset += theVersionLen ;
+
+  // Build date
+  const char * theBuildDate = __DATE__ " " __TIME__ ;
+  uint8_t theBuildLen = strlen(theBuildDate) ;
+  thePacket[theOffset++] = theBuildLen ;
+  memcpy(&thePacket[theOffset], theBuildDate, theBuildLen) ;
+  theOffset += theBuildLen ;
+
+  // Hardware status flags
+  uint8_t theFlags = 0 ;
+  if (sBmp390Ok) theFlags |= 0x01 ;
+  if (sLoRaOk) theFlags |= 0x02 ;
+  if (sSdOk) theFlags |= 0x04 ;
+  if (sRtcOk) theFlags |= 0x08 ;
+  if (sOledOk) theFlags |= 0x10 ;
+  if (sGpsOk) theFlags |= 0x20 ;
+  thePacket[theOffset++] = theFlags ;
+
+  // Current flight state
+  thePacket[theOffset++] = (uint8_t)sFlightController.pState ;
+
+  // Sample count (current flight)
+  thePacket[theOffset++] = (sFlightController.pSampleCount) & 0xFF ;
+  thePacket[theOffset++] = (sFlightController.pSampleCount >> 8) & 0xFF ;
+  thePacket[theOffset++] = (sFlightController.pSampleCount >> 16) & 0xFF ;
+  thePacket[theOffset++] = (sFlightController.pSampleCount >> 24) & 0xFF ;
+
+  // SD free space (KB)
+  uint32_t theFreeKb = SdLogger_GetFreeSpace() / 1024 ;
+  thePacket[theOffset++] = (theFreeKb) & 0xFF ;
+  thePacket[theOffset++] = (theFreeKb >> 8) & 0xFF ;
+  thePacket[theOffset++] = (theFreeKb >> 16) & 0xFF ;
+  thePacket[theOffset++] = (theFreeKb >> 24) & 0xFF ;
+
+  // Flight count on SD
+  thePacket[theOffset++] = (uint8_t)SdLogger_GetFlightCount() ;
+
+  printf("LoRa: Sending device info (%d bytes)\n", theOffset) ;
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
+}
+
+//----------------------------------------------
+// Function: SendSdListResponse
+// Purpose: Send SD card file list over LoRa
+//----------------------------------------------
+static void SendSdListResponse(void)
+{
+  SdFileInfo theFiles[16] ;
+  int theCount = SdLogger_GetFileList(theFiles, 16) ;
+
+  printf("LoRa: Sending SD list (%d files)\n", theCount) ;
+
+  // Build response packet with file list
+  // Format: magic, type, count, then for each file: name_len, name, size(4), date(4)
+  uint8_t thePacket[200] ;
+  int theOffset = 0 ;
+
+  thePacket[theOffset++] = kLoRaMagic ;
+  thePacket[theOffset++] = kLoRaPacketStorageList ;
+  thePacket[theOffset++] = 0x01 ;  // SD storage type
+  thePacket[theOffset++] = (uint8_t)theCount ;
+
+  for (int i = 0 ; i < theCount && theOffset < 180 ; i++)
+  {
+    uint8_t theNameLen = strlen(theFiles[i].pFilename) ;
+    if (theOffset + theNameLen + 9 > 200) break ;  // Don't overflow
+
+    thePacket[theOffset++] = theNameLen ;
+    memcpy(&thePacket[theOffset], theFiles[i].pFilename, theNameLen) ;
+    theOffset += theNameLen ;
+
+    // Size (4 bytes, little endian)
+    thePacket[theOffset++] = (theFiles[i].pSize) & 0xFF ;
+    thePacket[theOffset++] = (theFiles[i].pSize >> 8) & 0xFF ;
+    thePacket[theOffset++] = (theFiles[i].pSize >> 16) & 0xFF ;
+    thePacket[theOffset++] = (theFiles[i].pSize >> 24) & 0xFF ;
+
+    // Date: YYYYMMDD as 4 bytes
+    uint32_t theDate = theFiles[i].pYear * 10000 + theFiles[i].pMonth * 100 + theFiles[i].pDay ;
+    thePacket[theOffset++] = (theDate) & 0xFF ;
+    thePacket[theOffset++] = (theDate >> 8) & 0xFF ;
+    thePacket[theOffset++] = (theDate >> 16) & 0xFF ;
+    thePacket[theOffset++] = (theDate >> 24) & 0xFF ;
+  }
+
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
+}
+
+//----------------------------------------------
+// Function: SendSdFileChunk
+// Purpose: Send a chunk of a file over LoRa
+//----------------------------------------------
+static void SendSdFileChunk(const char * inFilename, uint32_t inOffset)
+{
+  uint8_t thePacket[200] ;
+  uint8_t theData[180] ;
+
+  uint32_t theFileSize = SdLogger_GetFileSize(inFilename) ;
+  if (theFileSize == 0)
+  {
+    printf("LoRa: File not found: %s\n", inFilename) ;
+    return ;
+  }
+
+  uint32_t theBytesRead = SdLogger_ReadFile(inFilename, theData, inOffset, 180) ;
+
+  printf("LoRa: Sending %s chunk offset=%lu len=%lu\n",
+         inFilename, (unsigned long)inOffset, (unsigned long)theBytesRead) ;
+
+  // Build response: magic, type, offset(4), total_size(4), chunk_len, data
+  int theIdx = 0 ;
+  thePacket[theIdx++] = kLoRaMagic ;
+  thePacket[theIdx++] = kLoRaPacketStorageData ;
+
+  // Offset (4 bytes)
+  thePacket[theIdx++] = (inOffset) & 0xFF ;
+  thePacket[theIdx++] = (inOffset >> 8) & 0xFF ;
+  thePacket[theIdx++] = (inOffset >> 16) & 0xFF ;
+  thePacket[theIdx++] = (inOffset >> 24) & 0xFF ;
+
+  // Total size (4 bytes)
+  thePacket[theIdx++] = (theFileSize) & 0xFF ;
+  thePacket[theIdx++] = (theFileSize >> 8) & 0xFF ;
+  thePacket[theIdx++] = (theFileSize >> 16) & 0xFF ;
+  thePacket[theIdx++] = (theFileSize >> 24) & 0xFF ;
+
+  // Chunk length
+  thePacket[theIdx++] = (uint8_t)theBytesRead ;
+
+  // Data
+  memcpy(&thePacket[theIdx], theData, theBytesRead) ;
+  theIdx += theBytesRead ;
+
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theIdx, 500) ;
+}
+
+//----------------------------------------------
 // Function: ProcessLoRaCommands
 //----------------------------------------------
 static void ProcessLoRaCommands(void)
 {
-  uint8_t theBuffer[64] ;
+  uint8_t theBuffer[128] ;
   uint8_t theLen = LoRa_Receive(&sLoRaRadio, theBuffer, sizeof(theBuffer)) ;
 
   if (theLen == 0) return ;
@@ -750,24 +905,75 @@ static void ProcessLoRaCommands(void)
 
     switch (theCommand)
     {
-      case 0x01:  // Arm
+      case kCmdArm:
         printf("LoRa: Arm command received\n") ;
         FlightControl_Arm(&sFlightController) ;
         break ;
 
-      case 0x02:  // Disarm
+      case kCmdDisarm:
         printf("LoRa: Disarm command received\n") ;
         FlightControl_Disarm(&sFlightController) ;
         break ;
 
-      case 0x03:  // Status request
+      case kCmdStatus:
         printf("LoRa: Status request received\n") ;
         // Send status response
         break ;
 
-      case 0x04:  // Reset
+      case kCmdReset:
         printf("LoRa: Reset command received\n") ;
         FlightControl_Reset(&sFlightController) ;
+        break ;
+
+      case kCmdSdList:
+        printf("LoRa: SD list command received\n") ;
+        SendSdListResponse() ;
+        break ;
+
+      case kCmdSdRead:
+        // Format: cmd, filename_len, filename, offset(4)
+        if (theLen >= 8)
+        {
+          uint8_t theNameLen = theBuffer[3] ;
+          if (theNameLen < 64 && theLen >= 4 + theNameLen + 4)
+          {
+            char theFilename[64] ;
+            memcpy(theFilename, &theBuffer[4], theNameLen) ;
+            theFilename[theNameLen] = '\0' ;
+
+            uint32_t theOffset = theBuffer[4 + theNameLen] |
+                                (theBuffer[5 + theNameLen] << 8) |
+                                (theBuffer[6 + theNameLen] << 16) |
+                                (theBuffer[7 + theNameLen] << 24) ;
+
+            printf("LoRa: SD read command - %s offset %lu\n", theFilename, (unsigned long)theOffset) ;
+            SendSdFileChunk(theFilename, theOffset) ;
+          }
+        }
+        break ;
+
+      case kCmdSdDelete:
+        // Format: cmd, filename_len, filename
+        if (theLen >= 5)
+        {
+          uint8_t theNameLen = theBuffer[3] ;
+          if (theNameLen < 64 && theLen >= 4 + theNameLen)
+          {
+            char theFilename[64] ;
+            memcpy(theFilename, &theBuffer[4], theNameLen) ;
+            theFilename[theNameLen] = '\0' ;
+
+            printf("LoRa: SD delete command - %s\n", theFilename) ;
+            bool theResult = SdLogger_DeleteFlight(theFilename) ;
+            printf("LoRa: Delete %s\n", theResult ? "OK" : "FAILED") ;
+            // TODO: Send ack packet
+          }
+        }
+        break ;
+
+      case kCmdInfo:
+        printf("LoRa: Info request received\n") ;
+        SendDeviceInfo() ;
         break ;
 
       default:

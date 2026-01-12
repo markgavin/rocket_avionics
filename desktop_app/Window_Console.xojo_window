@@ -431,6 +431,9 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Open()
+		  // Restore window position
+		  Module_WindowSettings.LoadWindowPosition(Self, "Window_Console")
+
 		  // Set up handlers for raw message logging and debug output
 		  // Only add handlers if not already added
 		  If Window_Main.pConnection <> Nil And Not pHandlersAdded Then
@@ -447,6 +450,9 @@ End
 
 	#tag Event
 		Sub Close()
+		  // Save window position
+		  Module_WindowSettings.SaveWindowPosition(Self, "Window_Console")
+
 		  // Remove handlers
 		  If Window_Main.pConnection <> Nil And pHandlersAdded Then
 		    RemoveHandler Window_Main.pConnection.RawMessageReceived, AddressOf HandleRawMessage

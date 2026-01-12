@@ -426,6 +426,114 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
       GatewayDisplay_UpdateTelemetry(theAltitudeM, theVelocityMps, theStateName) ;
     }
   }
+  // Handle storage list response (SD or Flash)
+  else if (thePacketType == kLoRaPacketStorageList && theLen >= 3)
+  {
+    printf("RX: Storage list packet, len=%u\n", theLen) ;
+
+    // Determine if this is SD or Flash based on a flag in the packet
+    // For now, assume SD (we can add a storage type byte later)
+    char theJson[1024] ;
+    int theJsonLen = GatewayProtocol_StorageListToJson(
+      theBuffer, theLen, true, theJson, sizeof(theJson)) ;
+
+    if (theJsonLen > 0)
+    {
+      printf("%s", theJson) ;
+    }
+  }
+  // Handle storage data chunk (SD or Flash)
+  else if (thePacketType == kLoRaPacketStorageData && theLen >= 12)
+  {
+    printf("RX: Storage data packet, len=%u\n", theLen) ;
+
+    char theJson[1024] ;
+    int theJsonLen = GatewayProtocol_StorageDataToJson(
+      theBuffer, theLen, true, theJson, sizeof(theJson)) ;
+
+    if (theJsonLen > 0)
+    {
+      printf("%s", theJson) ;
+    }
+  }
+  // Handle device info response
+  else if (thePacketType == kLoRaPacketInfo && theLen >= 5)
+  {
+    printf("RX: Device info packet, len=%u\n", theLen) ;
+
+    // Parse info packet
+    int theOffset = 2 ;
+
+    // Version string
+    uint8_t theVersionLen = theBuffer[theOffset++] ;
+    char theVersion[64] = "" ;
+    if (theVersionLen < 64 && theOffset + theVersionLen <= theLen)
+    {
+      memcpy(theVersion, &theBuffer[theOffset], theVersionLen) ;
+      theVersion[theVersionLen] = '\0' ;
+      theOffset += theVersionLen ;
+    }
+
+    // Build date string
+    uint8_t theBuildLen = theBuffer[theOffset++] ;
+    char theBuild[64] = "" ;
+    if (theBuildLen < 64 && theOffset + theBuildLen <= theLen)
+    {
+      memcpy(theBuild, &theBuffer[theOffset], theBuildLen) ;
+      theBuild[theBuildLen] = '\0' ;
+      theOffset += theBuildLen ;
+    }
+
+    // Hardware flags
+    uint8_t theFlags = theBuffer[theOffset++] ;
+
+    // Flight state
+    uint8_t theState = theBuffer[theOffset++] ;
+
+    // Sample count
+    uint32_t theSamples = theBuffer[theOffset] |
+                          (theBuffer[theOffset + 1] << 8) |
+                          (theBuffer[theOffset + 2] << 16) |
+                          (theBuffer[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    // SD free space (KB)
+    uint32_t theFreeKb = theBuffer[theOffset] |
+                         (theBuffer[theOffset + 1] << 8) |
+                         (theBuffer[theOffset + 2] << 16) |
+                         (theBuffer[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    // Flight count
+    uint8_t theFlightCount = theBuffer[theOffset++] ;
+
+    // Build JSON response
+    printf("{\"type\":\"fc_info\","
+           "\"version\":\"%s\","
+           "\"build\":\"%s\","
+           "\"bmp390\":%s,"
+           "\"lora\":%s,"
+           "\"sd\":%s,"
+           "\"rtc\":%s,"
+           "\"oled\":%s,"
+           "\"gps\":%s,"
+           "\"state\":\"%s\","
+           "\"samples\":%lu,"
+           "\"sd_free_kb\":%lu,"
+           "\"flight_count\":%u}\n",
+           theVersion,
+           theBuild,
+           (theFlags & 0x01) ? "true" : "false",
+           (theFlags & 0x02) ? "true" : "false",
+           (theFlags & 0x04) ? "true" : "false",
+           (theFlags & 0x08) ? "true" : "false",
+           (theFlags & 0x10) ? "true" : "false",
+           (theFlags & 0x20) ? "true" : "false",
+           GatewayProtocol_GetStateName(theState),
+           (unsigned long)theSamples,
+           (unsigned long)theFreeKb,
+           theFlightCount) ;
+  }
 
   // Return to receive mode
   LoRa_StartReceive(&sLoRaRadio) ;
@@ -467,14 +575,115 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             GatewayProtocol_BuildStatusJson(&sGatewayState, theCommandId, theResponse, sizeof(theResponse)) ;
             printf("%s", theResponse) ;
           }
-          // Forward other commands to flight computer
+          // Handle gateway info locally
+          else if (theCommandType == kUsbCmdGatewayInfo)
+          {
+            // Build gateway device info JSON response
+            printf("{\"type\":\"gw_info\","
+                   "\"version\":\"%s\","
+                   "\"build\":\"%s %s\","
+                   "\"lora\":%s,"
+                   "\"bmp390\":%s,"
+                   "\"display\":%s,"
+                   "\"connected\":%s,"
+                   "\"rx\":%lu,"
+                   "\"tx\":%lu,"
+                   "\"rssi\":%d,"
+                   "\"snr\":%d,"
+                   "\"ground_pres\":%.0f,"
+                   "\"ground_temp\":%.1f}\n",
+                   FIRMWARE_VERSION_STRING,
+                   __DATE__, __TIME__,
+                   sLoRaOk ? "true" : "false",
+                   sBmp390Ok ? "true" : "false",
+                   sDisplayOk ? "true" : "false",
+                   sGatewayState.pConnected ? "true" : "false",
+                   (unsigned long)sGatewayState.pPacketsReceived,
+                   (unsigned long)sGatewayState.pPacketsSent,
+                   sGatewayState.pLastRssi,
+                   sGatewayState.pLastSnr,
+                   sGroundPressurePa,
+                   sGroundTemperatureC) ;
+          }
+          // Handle storage read commands (need filename and offset)
+          else if ((theCommandType == kUsbCmdSdRead || theCommandType == kUsbCmdFlashRead) && sLoRaOk)
+          {
+            char theFilename[64] ;
+            uint32_t theOffset = 0 ;
+
+            if (GatewayProtocol_ParseStorageParams(sUsbLineBuffer, theFilename, &theOffset))
+            {
+              uint8_t thePacket[80] ;
+              int theLen = GatewayProtocol_BuildStorageReadCommand(
+                theCommandType, theFilename, theOffset, thePacket, sizeof(thePacket)) ;
+
+              if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+              {
+                sGatewayState.pPacketsSent++ ;
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+              }
+              else
+              {
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+              }
+              LoRa_StartReceive(&sLoRaRadio) ;
+            }
+            else
+            {
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+            }
+          }
+          // Handle storage delete commands (need filename)
+          else if ((theCommandType == kUsbCmdSdDelete || theCommandType == kUsbCmdFlashDelete) && sLoRaOk)
+          {
+            char theFilename[64] ;
+            uint32_t theOffset = 0 ;
+
+            if (GatewayProtocol_ParseStorageParams(sUsbLineBuffer, theFilename, &theOffset))
+            {
+              uint8_t thePacket[72] ;
+              int theLen = GatewayProtocol_BuildStorageDeleteCommand(
+                theCommandType, theFilename, thePacket, sizeof(thePacket)) ;
+
+              if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+              {
+                sGatewayState.pPacketsSent++ ;
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+              }
+              else
+              {
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+              }
+              LoRa_StartReceive(&sLoRaRadio) ;
+            }
+            else
+            {
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+            }
+          }
+          // Forward other commands to flight computer (arm, disarm, reset, sd_list, flash_list, info, etc.)
           else if (sLoRaOk)
           {
+            printf("CMD: Forwarding command type %d to flight computer\n", theCommandType) ;
             uint8_t thePacket[8] ;
             int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, thePacket, sizeof(thePacket)) ;
+            printf("CMD: Built LoRa packet, len=%d\n", theLen) ;
 
             if (theLen > 0)
             {
+              printf("CMD: Sending via LoRa...\n") ;
               if (LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
               {
                 sGatewayState.pPacketsSent++ ;

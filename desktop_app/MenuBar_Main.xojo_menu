@@ -7,6 +7,48 @@ Begin Menu MenuBar_Main
       AutoEnabled = True
       AutoEnable = True
       Visible = True
+      Begin MenuItem FileExportCSV
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Export Flight as CSV..."
+         ShortcutKey = "E"
+         Shortcut = "Cmd+E"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem FileExportJSON
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Export Flight as JSON..."
+         ShortcutKey = "E"
+         Shortcut = "Cmd+Shift+E"
+         MenuModifier = True
+         AltMenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem FileImportJSON
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Import Flight from JSON..."
+         ShortcutKey = "I"
+         Shortcut = "Cmd+I"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem FileSeparator0
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
       Begin MenuItem FilePageSetup
          SpecialMenu = 0
          Index = -2147483648
@@ -144,6 +186,49 @@ Begin Menu MenuBar_Main
          AutoEnable = True
          Visible = True
       End
+      Begin MenuItem EditSeparator3
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem AppPreferences
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Preferences..."
+         ShortcutKey = ","
+         Shortcut = "Cmd+,"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+   End
+   Begin MenuItem ViewMenu
+      SpecialMenu = 0
+      Index = -2147483648
+      Text = "&View"
+      AutoEnabled = True
+      AutoEnable = True
+      Visible = True
+      Begin MenuItem ViewGatewayInfo
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Gateway Device Info"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem ViewFlightComputerInfo
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Flight Computer Info"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
    End
    Begin MenuItem FlightMenu
       SpecialMenu = 0
@@ -199,6 +284,25 @@ Begin Menu MenuBar_Main
          Text = "Save Current Flight..."
          ShortcutKey = "S"
          Shortcut = "Cmd+S"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem FlightSeparator2
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem FlightDeviceStorage
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Device Storage..."
+         ShortcutKey = "4"
+         Shortcut = "Cmd+4"
          MenuModifier = True
          AutoEnabled = True
          AutoEnable = True
@@ -318,6 +422,41 @@ Begin Menu MenuBar_Main
          SpecialMenu = 0
          Index = -2147483648
          Text = "Show BMP390 Details"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+   End
+   Begin MenuItem HelpMenu
+      SpecialMenu = 0
+      Index = -2147483648
+      Text = "&Help"
+      AutoEnabled = True
+      AutoEnable = True
+      Visible = True
+      Begin MenuItem HelpUserGuide
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "User Guide"
+         ShortcutKey = "?"
+         Shortcut = "Cmd+?"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem HelpSeparator1
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem HelpAbout
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "About Rocket Avionics"
          AutoEnabled = True
          AutoEnable = True
          Visible = True

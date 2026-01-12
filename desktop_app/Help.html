@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rocket Avionics Ground Station - User Guide</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 { color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        h2 { color: #444; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        h3 { color: #666; margin-top: 20px; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+        .shortcut { background: #e8e8e8; padding: 2px 8px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+        .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 15px; margin: 15px 0; }
+        .warning { background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px 15px; margin: 15px 0; }
+        .tip { background: #d4edda; border-left: 4px solid #28a745; padding: 10px 15px; margin: 15px 0; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f4f4f4; }
+        ul { margin: 10px 0; }
+        li { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Rocket Avionics Ground Station User Guide</h1>
+    <p>Version 1.0 - Desktop Application for Model Rocket Flight Computer Telemetry</p>
+
+    <h2>Table of Contents</h2>
+    <ul>
+        <li><a href="#overview">System Overview</a></li>
+        <li><a href="#getting-started">Getting Started</a></li>
+        <li><a href="#connecting">Connecting to the Gateway</a></li>
+        <li><a href="#main-window">Main Window</a></li>
+        <li><a href="#flight-operations">Flight Operations</a></li>
+        <li><a href="#flight-history">Flight History</a></li>
+        <li><a href="#device-storage">Device Storage</a></li>
+        <li><a href="#export-import">Export &amp; Import</a></li>
+        <li><a href="#preferences">Preferences</a></li>
+        <li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+    </ul>
+
+    <h2 id="overview">System Overview</h2>
+    <p>The Rocket Avionics system consists of three main components:</p>
+    <ul>
+        <li><strong>Flight Computer</strong> - Installed in the rocket, measures altitude, velocity, and flight state using a BMP390 barometric sensor. Transmits telemetry via LoRa radio at 10 Hz.</li>
+        <li><strong>Ground Gateway</strong> - USB-connected device that receives LoRa telemetry from the flight computer and forwards it to the desktop application via serial JSON protocol.</li>
+        <li><strong>Ground Station Software</strong> - This desktop application that displays live telemetry, records flight data, and provides flight history analysis.</li>
+    </ul>
+
+    <h3>Hardware Components</h3>
+    <table>
+        <tr><th>Component</th><th>Description</th></tr>
+        <tr><td>Feather RP2040 + RFM95</td><td>Flight computer and gateway microcontroller with LoRa radio</td></tr>
+        <tr><td>BMP390</td><td>High-precision barometric pressure sensor for altitude measurement</td></tr>
+        <tr><td>Adalogger FeatherWing</td><td>SD card logging and real-time clock</td></tr>
+        <tr><td>OLED Display</td><td>128x64 display for on-device status</td></tr>
+    </table>
+
+    <h2 id="getting-started">Getting Started</h2>
+
+    <h3>System Requirements</h3>
+    <ul>
+        <li>macOS 11.0 or later</li>
+        <li>USB port for gateway connection</li>
+        <li>Ground gateway hardware with compatible firmware</li>
+    </ul>
+
+    <h3>First Launch</h3>
+    <ol>
+        <li>Connect the ground gateway to your Mac via USB</li>
+        <li>Launch the Rocket Avionics Ground Station application</li>
+        <li>Select the serial port from the dropdown (typically <code>/dev/cu.usbmodem...</code>)</li>
+        <li>Click <strong>Connect</strong></li>
+    </ol>
+
+    <h2 id="connecting">Connecting to the Gateway</h2>
+
+    <h3>Serial Port Selection</h3>
+    <p>The gateway appears as a USB serial device. Common port names:</p>
+    <ul>
+        <li>macOS: <code>/dev/cu.usbmodem14101</code> or similar</li>
+        <li>Windows: <code>COM3</code> or similar</li>
+        <li>Linux: <code>/dev/ttyACM0</code> or similar</li>
+    </ul>
+
+    <div class="tip">
+        <strong>Tip:</strong> Click the refresh button next to the port dropdown to scan for newly connected devices.
+    </div>
+
+    <h3>Connection Status</h3>
+    <table>
+        <tr><th>Status</th><th>Color</th><th>Description</th></tr>
+        <tr><td>Disconnected</td><td>Gray</td><td>Not connected to gateway</td></tr>
+        <tr><td>Connected</td><td>Green</td><td>Connected to gateway, awaiting telemetry</td></tr>
+        <tr><td>Link Active</td><td>Green</td><td>Receiving telemetry from flight computer</td></tr>
+        <tr><td>Link Lost</td><td>Red</td><td>Gateway connected but no telemetry (flight computer out of range)</td></tr>
+    </table>
+
+    <h2 id="main-window">Main Window</h2>
+    <p>The main window displays real-time telemetry and flight controls:</p>
+
+    <h3>Connection Panel</h3>
+    <ul>
+        <li><strong>Port Selection</strong> - Choose the gateway serial port</li>
+        <li><strong>Refresh Button</strong> - Rescan for available ports</li>
+        <li><strong>Connect/Disconnect</strong> - Toggle connection to gateway</li>
+        <li><strong>Status</strong> - Current connection state</li>
+    </ul>
+
+    <h3>Live Telemetry Panel</h3>
+    <ul>
+        <li><strong>Altitude</strong> - Current altitude above ground level in meters</li>
+        <li><strong>Velocity</strong> - Current vertical velocity in meters per second</li>
+        <li><strong>State</strong> - Current flight state (Idle, Armed, Boost, Coast, Apogee, Descent, Landed)</li>
+        <li><strong>RSSI/SNR</strong> - Radio signal strength and signal-to-noise ratio</li>
+    </ul>
+
+    <h3>Commands Panel</h3>
+    <ul>
+        <li><strong>ARM</strong> - Arm the flight computer for launch detection</li>
+        <li><strong>DISARM</strong> - Return flight computer to idle state</li>
+        <li><strong>Download Flight Data</strong> - Request stored flight data from device</li>
+    </ul>
+
+    <h3>Altitude Chart</h3>
+    <p>Real-time graph showing altitude vs. time with apogee marker.</p>
+
+    <h2 id="flight-operations">Flight Operations</h2>
+
+    <div class="warning">
+        <strong>Safety Warning:</strong> Always follow NAR/TRA safety codes when flying model rockets. Ensure the flight computer is properly secured and the recovery system is correctly configured before flight.
+    </div>
+
+    <h3>Pre-Flight Checklist</h3>
+    <ol>
+        <li>Power on the flight computer and verify it displays "IDLE" on the OLED</li>
+        <li>Power on the ground gateway and connect to the desktop application</li>
+        <li>Verify telemetry is being received (Link Active status)</li>
+        <li>Check RSSI signal strength (should be > -90 dBm)</li>
+        <li>Install flight computer in rocket</li>
+        <li>Place rocket on launch pad</li>
+    </ol>
+
+    <h3>Flight States</h3>
+    <table>
+        <tr><th>State</th><th>Color</th><th>Description</th></tr>
+        <tr><td>Idle</td><td>Green</td><td>Pre-flight, waiting for arm command</td></tr>
+        <tr><td>Armed</td><td>Orange</td><td>Armed and monitoring for launch</td></tr>
+        <tr><td>Boost</td><td>Red</td><td>Motor burning, rapid acceleration detected</td></tr>
+        <tr><td>Coast</td><td>Red</td><td>Motor burnout, still climbing</td></tr>
+        <tr><td>Apogee</td><td>Blue</td><td>Peak altitude reached</td></tr>
+        <tr><td>Descent</td><td>Blue</td><td>Falling under recovery system</td></tr>
+        <tr><td>Landed</td><td>Green</td><td>On ground, flight complete</td></tr>
+    </table>
+
+    <h3>Launch Procedure</h3>
+    <ol>
+        <li>Click <strong>ARM</strong> in the desktop application (confirm when prompted)</li>
+        <li>Verify flight computer shows "ARMED" on OLED</li>
+        <li>Proceed with normal launch countdown</li>
+        <li>Flight computer automatically detects launch and transitions through states</li>
+        <li>After landing, flight data is automatically saved to history</li>
+    </ol>
+
+    <h3>Auto-Save Feature</h3>
+    <p>When the flight computer transitions to "Landed" or "Complete" state, the flight data is automatically saved to the local database. You'll see a confirmation in the debug console.</p>
+
+    <h2 id="flight-history">Flight History</h2>
+    <p>Access via <strong>Flight &gt; Flight History</strong> (<span class="shortcut">Cmd+2</span>)</p>
+
+    <p>The Flight History window shows all recorded flights with:</p>
+    <ul>
+        <li>Date and time of flight</li>
+        <li>Maximum altitude achieved</li>
+        <li>Maximum velocity</li>
+        <li>Flight duration</li>
+        <li>Number of data samples</li>
+    </ul>
+
+    <h3>Flight Details</h3>
+    <p>Select a flight to view its altitude curve. Select multiple flights to compare their altitude profiles on the same chart.</p>
+
+    <h3>Flight Comparison</h3>
+    <p>Access via <strong>Flight &gt; Compare Flights</strong> (<span class="shortcut">Cmd+3</span>)</p>
+    <p>Load two flights to overlay their altitude curves for comparison analysis.</p>
+
+    <h3>Printing Reports</h3>
+    <p>Select one or more flights in the history window and use <strong>File &gt; Print</strong> (<span class="shortcut">Cmd+P</span>) to generate a flight report.</p>
+
+    <h2 id="device-storage">Device Storage</h2>
+    <p>Access via <strong>Flight &gt; Device Storage</strong> (<span class="shortcut">Cmd+4</span>)</p>
+
+    <p>Browse and manage data stored on the flight computer:</p>
+
+    <h3>Flash Memory</h3>
+    <ul>
+        <li>View flights stored in flash memory</li>
+        <li>Download individual flights</li>
+        <li>Delete flights to free space</li>
+    </ul>
+
+    <h3>SD Card</h3>
+    <ul>
+        <li>Browse high-resolution flight logs (100 Hz)</li>
+        <li>Download CSV files for detailed analysis</li>
+        <li>Manage SD card contents</li>
+    </ul>
+
+    <div class="note">
+        <strong>Note:</strong> Flash memory stores compressed telemetry at 10 Hz. SD card stores full-resolution data at 100 Hz for detailed post-flight analysis.
+    </div>
+
+    <h2 id="export-import">Export &amp; Import</h2>
+
+    <h3>Exporting Flight Data</h3>
+    <p>Flight data can be exported in two formats for analysis or archival:</p>
+    <ul>
+        <li><strong>CSV Format</strong> (<span class="shortcut">Cmd+E</span>) - Comma-separated values with header comments containing flight metadata. Compatible with Excel, Numbers, and other spreadsheet applications.</li>
+        <li><strong>JSON Format</strong> (<span class="shortcut">Cmd+Shift+E</span>) - Full flight data including all telemetry samples. Can be imported back into the application.</li>
+    </ul>
+
+    <p>To export a flight:</p>
+    <ol>
+        <li>View the flight in the Main Window (current flight) or select it in Flight History</li>
+        <li>Choose <strong>File &gt; Export Flight as CSV...</strong> or <strong>File &gt; Export Flight as JSON...</strong></li>
+        <li>Select a save location and filename</li>
+    </ol>
+
+    <h3>Importing Flight Data</h3>
+    <p>Previously exported JSON files can be imported back into the database:</p>
+    <ol>
+        <li>Choose <strong>File &gt; Import Flight from JSON...</strong> (<span class="shortcut">Cmd+I</span>)</li>
+        <li>Select the JSON file to import</li>
+        <li>The flight will be added to your Flight History</li>
+    </ol>
+
+    <div class="tip">
+        <strong>Tip:</strong> Use JSON export for backup and data transfer between computers. Use CSV export for analysis in spreadsheet applications.
+    </div>
+
+    <h2 id="preferences">Preferences</h2>
+    <p>Access via <strong>Edit &gt; Preferences</strong> (<span class="shortcut">Cmd+,</span>)</p>
+
+    <h3>Units</h3>
+    <ul>
+        <li><strong>Altitude</strong> - Choose between Meters or Feet</li>
+        <li><strong>Velocity</strong> - Choose between Meters/sec, Feet/sec, or MPH</li>
+    </ul>
+
+    <h3>Display Options</h3>
+    <ul>
+        <li><strong>Show grid lines</strong> - Display grid lines on the altitude chart</li>
+        <li><strong>Show apogee marker</strong> - Highlight the apogee point on the altitude chart</li>
+        <li><strong>Auto-save flights</strong> - Automatically save flight data when landing is detected</li>
+    </ul>
+
+    <h3>Default Flight Info</h3>
+    <p>Set default pilot name and rocket name to be automatically applied to new flights.</p>
+
+    <h2 id="keyboard-shortcuts">Keyboard Shortcuts</h2>
+    <table>
+        <tr><th>Shortcut</th><th>Action</th></tr>
+        <tr><td><span class="shortcut">Cmd+1</span></td><td>Main Window</td></tr>
+        <tr><td><span class="shortcut">Cmd+2</span></td><td>Flight History</td></tr>
+        <tr><td><span class="shortcut">Cmd+3</span></td><td>Compare Flights</td></tr>
+        <tr><td><span class="shortcut">Cmd+4</span></td><td>Device Storage</td></tr>
+        <tr><td><span class="shortcut">Cmd+S</span></td><td>Save Current Flight</td></tr>
+        <tr><td><span class="shortcut">Cmd+E</span></td><td>Export as CSV</td></tr>
+        <tr><td><span class="shortcut">Cmd+Shift+E</span></td><td>Export as JSON</td></tr>
+        <tr><td><span class="shortcut">Cmd+I</span></td><td>Import from JSON</td></tr>
+        <tr><td><span class="shortcut">Cmd+D</span></td><td>Debug Console</td></tr>
+        <tr><td><span class="shortcut">Cmd+P</span></td><td>Print</td></tr>
+        <tr><td><span class="shortcut">Cmd+,</span></td><td>Preferences</td></tr>
+        <tr><td><span class="shortcut">Cmd+W</span></td><td>Close Window</td></tr>
+        <tr><td><span class="shortcut">Cmd+?</span></td><td>User Guide (this document)</td></tr>
+    </table>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <h3>Cannot Connect to Gateway</h3>
+    <ul>
+        <li>Verify the gateway is powered on (LED should be blinking)</li>
+        <li>Check the USB cable connection</li>
+        <li>Click the refresh button to rescan for ports</li>
+        <li>Try a different USB port or cable</li>
+        <li>Check that no other application is using the serial port</li>
+    </ul>
+
+    <h3>No Telemetry Received (Link Lost)</h3>
+    <ul>
+        <li>Verify the flight computer is powered on</li>
+        <li>Check that flight computer and gateway are within LoRa range (typically 500m+ line of sight)</li>
+        <li>Ensure both devices are using the same LoRa frequency (915 MHz)</li>
+        <li>Check for obstructions between flight computer and gateway</li>
+        <li>Move the gateway to a higher location with better line of sight</li>
+    </ul>
+
+    <h3>Altitude Readings Incorrect</h3>
+    <ul>
+        <li>Allow the flight computer to stabilize for 30 seconds after power-on</li>
+        <li>Verify the BMP390 sensor is functioning (check Device Info)</li>
+        <li>The flight computer calibrates ground pressure on startup - restart if altitude is offset</li>
+    </ul>
+
+    <h3>Flight Not Auto-Saved</h3>
+    <ul>
+        <li>Ensure the flight had more than 10 telemetry samples</li>
+        <li>Verify the flight transitioned to "Landed" or "Complete" state</li>
+        <li>Check the debug console for error messages</li>
+        <li>Manually save using <strong>Flight &gt; Save Current Flight</strong></li>
+    </ul>
+
+    <h3>Debug Console</h3>
+    <p>Access via <strong>Debug &gt; Console</strong> (<span class="shortcut">Cmd+D</span>)</p>
+    <p>The debug console shows all raw messages between the application and gateway, useful for diagnosing communication issues.</p>
+
+    <hr>
+    <p style="color: #666; font-size: 0.9em;">
+        &copy; 2026 Mark Gavin. All rights reserved.<br>
+        Rocket Avionics Ground Station Desktop Application
+    </p>
+</body>
+</html>

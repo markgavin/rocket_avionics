@@ -122,6 +122,26 @@ typedef struct __attribute__((packed))
 #define kLoRaPacketCommand      0x03
 #define kLoRaPacketAck          0x04
 #define kLoRaPacketData         0x05
+#define kLoRaPacketStorageList  0x06  // Storage list response
+#define kLoRaPacketStorageData  0x07  // Storage data chunk
+#define kLoRaPacketInfo         0x08  // Device info response
+
+// Command IDs (sent in kLoRaPacketCommand)
+#define kCmdArm             0x01
+#define kCmdDisarm          0x02
+#define kCmdStatus          0x03
+#define kCmdReset           0x04
+#define kCmdDownload        0x05
+#define kCmdPing            0x06
+#define kCmdInfo            0x07  // Request device info
+
+// Storage commands
+#define kCmdSdList          0x10
+#define kCmdSdRead          0x11
+#define kCmdSdDelete        0x12
+#define kCmdFlashList       0x20
+#define kCmdFlashRead       0x21
+#define kCmdFlashDelete     0x22
 
 // Flags byte bit definitions
 #define kFlagPyro1Continuity    0x01

@@ -440,12 +440,16 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Close()
-		  // Clean up
+		  // Save window position
+		  Module_WindowSettings.SaveWindowPosition(Self, "Window_History")
 		End Sub
 	#tag EndEvent
 
 	#tag Event
 		Sub Open()
+		  // Restore window position
+		  Module_WindowSettings.LoadWindowPosition(Self, "Window_History")
+
 		  // Use the shared database from App
 		  pDatabase = App.pDatabase
 

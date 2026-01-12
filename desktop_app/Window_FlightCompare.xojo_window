@@ -311,7 +311,17 @@ End
 
 #tag WindowCode
 	#tag Event
+		Sub Close()
+		  // Save window position
+		  Module_WindowSettings.SaveWindowPosition(Self, "Window_FlightCompare")
+		End Sub
+	#tag EndEvent
+
+	#tag Event
 		Sub Open()
+		  // Restore window position
+		  Module_WindowSettings.LoadWindowPosition(Self, "Window_FlightCompare")
+
 		  // Check for dark mode
 		  #If TargetMacOS Then
 		    pIsDarkMode = Color.IsDarkMode

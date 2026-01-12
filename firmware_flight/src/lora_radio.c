@@ -14,6 +14,7 @@
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 
+#include <stdio.h>
 #include <string.h>
 
 //----------------------------------------------
@@ -104,11 +105,15 @@ bool LoRa_Init(LoRa_Radio * outRadio)
 {
   memset(outRadio, 0, sizeof(LoRa_Radio)) ;
 
+  printf("LoRa: SPI pins SCK=%d MOSI=%d MISO=%d CS=%d RST=%d\n",
+    kPinSpiSck, kPinSpiMosi, kPinSpiMiso, kPinLoRaCs, kPinLoRaReset) ;
+
   // Note: SPI and GPIO pins already initialized in main.c InitializeSPI()
   // Just ensure CS is deselected
   gpio_put(kPinLoRaCs, 1) ;
 
   // Reset the radio
+  printf("LoRa: Resetting radio...\n") ;
   gpio_put(kPinLoRaReset, 0) ;
   sleep_ms(10) ;
   gpio_put(kPinLoRaReset, 1) ;
@@ -116,8 +121,10 @@ bool LoRa_Init(LoRa_Radio * outRadio)
 
   // Check version register
   uint8_t theVersion = ReadRegister(RFM95_REG_VERSION) ;
+  printf("LoRa: Version register = 0x%02X (expected 0x12)\n", theVersion) ;
   if (theVersion != 0x12)
   {
+    printf("LoRa: FAIL - wrong version, radio not responding\n") ;
     return false ;  // Not an RFM95/SX1276
   }
 

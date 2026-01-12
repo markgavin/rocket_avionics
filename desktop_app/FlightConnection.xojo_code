@@ -257,6 +257,70 @@ Protected Class FlightConnection
 		      Var theMessage As String = theJson.Lookup("message", "")
 		      RaiseEvent ErrorReceived(theCode, theMessage)
 
+		    Case "sd_list", "flash_list"
+		      // Storage file list response
+		      Var theIsSd As Boolean = (theType = "sd_list")
+		      Var theFiles() As Dictionary
+
+		      If theJson.HasKey("files") Then
+		        Var theFilesArray As JSONItem = theJson.Value("files")
+		        For i As Integer = 0 To theFilesArray.Count - 1
+		          Var theFileJson As JSONItem = theFilesArray.ValueAt(i)
+		          Var theFile As New Dictionary
+		          theFile.Value("name") = theFileJson.Lookup("name", "")
+		          theFile.Value("size") = theFileJson.Lookup("size", 0)
+		          theFile.Value("date") = theFileJson.Lookup("date", "")
+		          theFiles.Add(theFile)
+		        Next
+		      End If
+
+		      RaiseEvent StorageListReceived(theIsSd, theFiles)
+
+		    Case "sd_data", "flash_data"
+		      // Storage data chunk response
+		      Var theIsSd As Boolean = (theType = "sd_data")
+		      Var theOffset As Integer = theJson.Lookup("offset", 0)
+		      Var theTotal As Integer = theJson.Lookup("total", 0)
+		      Var theHexData As String = theJson.Lookup("data", "")
+
+		      RaiseEvent StorageDataReceived(theIsSd, theOffset, theTotal, theHexData)
+
+		    Case "fc_info"
+		      // Flight computer device info
+		      Var theInfo As New Dictionary
+		      theInfo.Value("version") = theJson.Lookup("version", "")
+		      theInfo.Value("build") = theJson.Lookup("build", "")
+		      theInfo.Value("bmp390") = theJson.Lookup("bmp390", False)
+		      theInfo.Value("lora") = theJson.Lookup("lora", False)
+		      theInfo.Value("sd") = theJson.Lookup("sd", False)
+		      theInfo.Value("rtc") = theJson.Lookup("rtc", False)
+		      theInfo.Value("oled") = theJson.Lookup("oled", False)
+		      theInfo.Value("gps") = theJson.Lookup("gps", False)
+		      theInfo.Value("state") = theJson.Lookup("state", "")
+		      theInfo.Value("samples") = theJson.Lookup("samples", 0)
+		      theInfo.Value("sd_free_kb") = theJson.Lookup("sd_free_kb", 0)
+		      theInfo.Value("flight_count") = theJson.Lookup("flight_count", 0)
+		      RaiseEvent DeviceInfoReceived(False, theInfo)
+
+		    Case "gw_info"
+		      // Gateway device info
+		      LogMessage("Parsing gw_info message", "DEBUG")
+		      Var theInfo As New Dictionary
+		      theInfo.Value("version") = theJson.Lookup("version", "")
+		      theInfo.Value("build") = theJson.Lookup("build", "")
+		      theInfo.Value("lora") = theJson.Lookup("lora", False)
+		      theInfo.Value("bmp390") = theJson.Lookup("bmp390", False)
+		      theInfo.Value("display") = theJson.Lookup("display", False)
+		      theInfo.Value("connected") = theJson.Lookup("connected", False)
+		      theInfo.Value("rx") = theJson.Lookup("rx", 0)
+		      theInfo.Value("tx") = theJson.Lookup("tx", 0)
+		      theInfo.Value("rssi") = theJson.Lookup("rssi", 0)
+		      theInfo.Value("snr") = theJson.Lookup("snr", 0)
+		      theInfo.Value("ground_pres") = theJson.Lookup("ground_pres", 0.0)
+		      theInfo.Value("ground_temp") = theJson.Lookup("ground_temp", 0.0)
+		      LogMessage("Raising DeviceInfoReceived for gateway", "DEBUG")
+		      RaiseEvent DeviceInfoReceived(True, theInfo)
+
 		    End Select
 
 		  Catch theError As JSONException
@@ -382,22 +446,6 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
-	#tag Method, Flags = &h21
-		Private Sub SendCommand(inCmd As String)
-		  // Send JSON command with command ID
-		  If Not IsConnected Then
-		    LogMessage("Cannot send command - not connected", "WARN")
-		    Return
-		  End If
-
-		  Var theId As Integer = pNextCommandId
-		  pNextCommandId = pNextCommandId + 1
-
-		  Var theJson As String = "{""cmd"":""" + inCmd + """,""id"":" + Str(theId) + "}" + EndOfLine
-		  SendData(theJson)
-		End Sub
-	#tag EndMethod
-
 	#tag Method, Flags = &h0
 		Sub SendArm()
 		  // Send arm command to flight computer
@@ -451,6 +499,70 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h0
+		Sub SendCommand(inCmd As String, inParam As Variant = Nil)
+		  // Send JSON command with optional parameter
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = inCmd
+		  theJson.Value("id") = theId
+
+		  If inParam <> Nil Then
+		    theJson.Value("param") = inParam
+		  End If
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendStorageRead(inIsSd As Boolean, inFilename As String, inOffset As Integer)
+		  // Send storage read command with filename and offset
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = If(inIsSd, "sd_read", "flash_read")
+		  theJson.Value("id") = theId
+		  theJson.Value("file") = inFilename
+		  theJson.Value("offset") = inOffset
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendStorageDelete(inIsSd As Boolean, inFilename As String)
+		  // Send storage delete command with filename
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = If(inIsSd, "sd_delete", "flash_delete")
+		  theJson.Value("id") = theId
+		  theJson.Value("file") = inFilename
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
 
 	#tag Hook, Flags = &h0
 		Event ConnectionChanged(inConnected As Boolean)
@@ -482,6 +594,22 @@ Protected Class FlightConnection
 
 	#tag Hook, Flags = &h0
 		Event RawMessageReceived(inMessage As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event StorageListReceived(inIsSd As Boolean, inFiles() As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event StorageDataReceived(inIsSd As Boolean, inOffset As Integer, inTotal As Integer, inData As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event StorageDeleteComplete(inIsSd As Boolean, inSuccess As Boolean)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event DeviceInfoReceived(inIsGateway As Boolean, inInfo As Dictionary)
 	#tag EndHook
 
 
