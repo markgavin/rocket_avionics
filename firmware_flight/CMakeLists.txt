@@ -5,7 +5,7 @@
 # Hardware:
 #   - Adafruit Feather RP2040 with RFM95 LoRa 915MHz (5714)
 #   - Adafruit BMP390 Barometric Sensor (4816)
-#   - Adafruit Adalogger FeatherWing (SD + RTC) (2922)
+#   - Adafruit LSM6DSOX + LIS3MDL 9-DoF IMU FeatherWing (4565)
 #   - Adafruit FeatherWing OLED 128x64 (4650)
 #   - Quad Side-By-Side FeatherWing Kit (4254)
 #
@@ -31,17 +31,6 @@ set(CMAKE_CXX_STANDARD 17)
 # Initialize the Pico SDK
 pico_sdk_init()
 
-# Add FatFs library for SD card
-add_library(fatfs STATIC
-    ${PICO_SDK_PATH}/lib/tinyusb/lib/fatfs/source/ff.c
-    ${PICO_SDK_PATH}/lib/tinyusb/lib/fatfs/source/ffsystem.c
-    ${PICO_SDK_PATH}/lib/tinyusb/lib/fatfs/source/ffunicode.c
-)
-target_include_directories(fatfs PUBLIC
-    ${PICO_SDK_PATH}/lib/tinyusb/lib/fatfs/source
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
 # Add cJSON library
 add_library(cjson STATIC
     lib/cJSON/cJSON.c
@@ -56,11 +45,9 @@ add_executable(rocket_avionics_flight
     src/flight_control.c
     src/lora_radio.c
     src/bmp390.c
+    src/imu.c
     src/ssd1306.c
     src/status_display.c
-    src/rtc_pcf8523.c
-    src/sd_logger.c
-    src/diskio.c
     src/storage.c
     src/heartbeat_led.c
     src/base64.c
@@ -91,7 +78,6 @@ target_link_libraries(rocket_avionics_flight
     hardware_pio
     hardware_clocks
     pico_unique_id
-    fatfs
     cjson
 )
 

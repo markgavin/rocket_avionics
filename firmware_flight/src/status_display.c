@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 //----------------------------------------------
 // Module State
@@ -243,14 +244,30 @@ DisplayMode StatusDisplay_CycleMode(void)
 }
 
 //----------------------------------------------
+// Function: StatusDisplay_PrevMode
+//----------------------------------------------
+DisplayMode StatusDisplay_PrevMode(void)
+{
+  if (sCurrentMode == 0)
+  {
+    sCurrentMode = kDisplayModeCount - 1 ;
+  }
+  else
+  {
+    sCurrentMode-- ;
+  }
+  return sCurrentMode ;
+}
+
+//----------------------------------------------
 // Function: StatusDisplay_ShowDeviceInfo
 //----------------------------------------------
 void StatusDisplay_ShowDeviceInfo(
   const char * inFirmwareVersion,
   bool inBmp390Ok,
   bool inLoRaOk,
-  bool inSdOk,
-  bool inRtcOk)
+  bool inImuOk,
+  bool inGpsOk)
 {
   if (!sInitialized) return ;
 
@@ -269,10 +286,10 @@ void StatusDisplay_ShowDeviceInfo(
   snprintf(theBuffer, sizeof(theBuffer), "LoRa:   %s", inLoRaOk ? "OK" : "FAIL") ;
   SSD1306_DrawString(0, 34, theBuffer, 1) ;
 
-  snprintf(theBuffer, sizeof(theBuffer), "SD:     %s", inSdOk ? "OK" : "FAIL") ;
+  snprintf(theBuffer, sizeof(theBuffer), "IMU:    %s", inImuOk ? "OK" : "FAIL") ;
   SSD1306_DrawString(0, 44, theBuffer, 1) ;
 
-  snprintf(theBuffer, sizeof(theBuffer), "RTC:    %s", inRtcOk ? "OK" : "FAIL") ;
+  snprintf(theBuffer, sizeof(theBuffer), "GPS:    %s", inGpsOk ? "OK" : "FAIL") ;
   SSD1306_DrawString(0, 54, theBuffer, 1) ;
 
   SSD1306_Update() ;
@@ -382,7 +399,7 @@ void StatusDisplay_ShowGpsStatus(
   }
   else
   {
-    SSD1306_DrawStringCentered(32, "Acquiring...", 1) ;
+    SSD1306_DrawStringCentered(28, "Acquiring...", 1) ;
   }
 
   SSD1306_Update() ;
@@ -441,6 +458,327 @@ void StatusDisplay_UpdateCompact(
 
   // Gateway/LoRa status at bottom
   SSD1306_DrawString(0, 54, inLoRaConnected ? "GW: Connected" : "GW: --", 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowImu
+// Purpose: Show IMU visualization with horizon indicator
+//----------------------------------------------
+void StatusDisplay_ShowImu(
+  float inPitchDeg,
+  float inRollDeg,
+  float inAccelX,
+  float inAccelY,
+  float inAccelZ,
+  float inAccelMag,
+  float inGyroX,
+  float inGyroY,
+  float inGyroZ,
+  float inHeadingDeg)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Title
+  SSD1306_DrawString(0, 0, "IMU", 1) ;
+
+  // Draw separator line
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  //----------------------------------------------
+  // Artificial Horizon (left side, 44x44 pixels)
+  // Center at (22, 36), radius 20
+  //----------------------------------------------
+  const int16_t theCenterX = 22 ;
+  const int16_t theCenterY = 36 ;
+  const int16_t theRadius = 20 ;
+
+  // Draw horizon circle outline
+  for (int16_t i = 0 ; i < 360 ; i += 6)
+  {
+    float theAngleRad = i * 3.14159f / 180.0f ;
+    int16_t theX = theCenterX + (int16_t)(theRadius * cosf(theAngleRad)) ;
+    int16_t theY = theCenterY + (int16_t)(theRadius * sinf(theAngleRad)) ;
+    SSD1306_SetPixel(theX, theY, true) ;
+  }
+
+  // Calculate horizon line endpoints based on roll and pitch
+  // Roll tilts the line, pitch moves it up/down
+  float theRollRad = inRollDeg * 3.14159f / 180.0f ;
+  float thePitchOffset = (inPitchDeg / 90.0f) * theRadius ;  // Clamp pitch to radius
+
+  // Limit pitch offset
+  if (thePitchOffset > theRadius - 2) thePitchOffset = theRadius - 2 ;
+  if (thePitchOffset < -(theRadius - 2)) thePitchOffset = -(theRadius - 2) ;
+
+  // Horizon line rotated by roll, offset by pitch
+  float theCosRoll = cosf(theRollRad) ;
+  float theSinRoll = sinf(theRollRad) ;
+
+  int16_t theLineLen = theRadius - 2 ;
+  int16_t theX0 = theCenterX - (int16_t)(theLineLen * theCosRoll) ;
+  int16_t theY0 = theCenterY - (int16_t)(theLineLen * theSinRoll) + (int16_t)thePitchOffset ;
+  int16_t theX1 = theCenterX + (int16_t)(theLineLen * theCosRoll) ;
+  int16_t theY1 = theCenterY + (int16_t)(theLineLen * theSinRoll) + (int16_t)thePitchOffset ;
+
+  SSD1306_DrawLine(theX0, theY0, theX1, theY1, true) ;
+
+  // Draw center reference mark (small cross)
+  SSD1306_DrawLine(theCenterX - 3, theCenterY, theCenterX + 3, theCenterY, true) ;
+  SSD1306_DrawLine(theCenterX, theCenterY - 3, theCenterX, theCenterY + 3, true) ;
+
+  //----------------------------------------------
+  // Acceleration magnitude bar (right side of horizon)
+  // Vertical bar showing 0-4g scale
+  //----------------------------------------------
+  const int16_t theBarX = 48 ;
+  const int16_t theBarY = 16 ;
+  const int16_t theBarW = 6 ;
+  const int16_t theBarH = 40 ;
+
+  // Draw bar outline
+  SSD1306_DrawRect(theBarX, theBarY, theBarW, theBarH, true) ;
+
+  // Fill bar based on acceleration magnitude (0-4g scale)
+  float theAccelNorm = inAccelMag / 4.0f ;
+  if (theAccelNorm > 1.0f) theAccelNorm = 1.0f ;
+  int16_t theFillH = (int16_t)(theAccelNorm * (theBarH - 2)) ;
+  if (theFillH > 0)
+  {
+    SSD1306_FillRect(theBarX + 1, theBarY + theBarH - 1 - theFillH, theBarW - 2, theFillH, true) ;
+  }
+
+  // Accel value label
+  char theBuffer[16] ;
+  snprintf(theBuffer, sizeof(theBuffer), "%.1fg", inAccelMag) ;
+  SSD1306_DrawString(theBarX, theBarY + theBarH + 2, theBuffer, 1) ;
+
+  //----------------------------------------------
+  // Numeric values (right side)
+  //----------------------------------------------
+  const int16_t theTextX = 60 ;
+
+  // Pitch/Roll
+  snprintf(theBuffer, sizeof(theBuffer), "P:%+.0f", inPitchDeg) ;
+  SSD1306_DrawString(theTextX, 14, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "R:%+.0f", inRollDeg) ;
+  SSD1306_DrawString(theTextX + 36, 14, theBuffer, 1) ;
+
+  // Compass heading
+  snprintf(theBuffer, sizeof(theBuffer), "Hdg:%3.0f", inHeadingDeg) ;
+  SSD1306_DrawString(theTextX, 26, theBuffer, 1) ;
+
+  // Gyro rates (deg/s)
+  snprintf(theBuffer, sizeof(theBuffer), "Gx:%+.0f", inGyroX) ;
+  SSD1306_DrawString(theTextX, 38, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Gy:%+.0f", inGyroY) ;
+  SSD1306_DrawString(theTextX, 48, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Gz:%+.0f", inGyroZ) ;
+  SSD1306_DrawString(theTextX, 58, theBuffer, 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowSpin
+// Purpose: Show spin rate around vertical axis
+//----------------------------------------------
+void StatusDisplay_ShowSpin(float inSpinRate)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Title
+  SSD1306_DrawString(0, 0, "SPIN RATE", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[20] ;
+
+  // Large spin rate value (centered)
+  snprintf(theBuffer, sizeof(theBuffer), "%+.0f", inSpinRate) ;
+  SSD1306_DrawStringCentered(20, theBuffer, 2) ;
+
+  // Units
+  SSD1306_DrawStringCentered(38, "deg/sec", 1) ;
+
+  //----------------------------------------------
+  // Horizontal gauge showing spin rate
+  // Scale: -500 to +500 deg/s
+  //----------------------------------------------
+  const int16_t theGaugeX = 10 ;
+  const int16_t theGaugeY = 52 ;
+  const int16_t theGaugeW = 108 ;
+  const int16_t theGaugeH = 6 ;
+
+  // Draw gauge outline
+  SSD1306_DrawRect(theGaugeX, theGaugeY, theGaugeW, theGaugeH, true) ;
+
+  // Draw center mark (zero point)
+  int16_t theCenterX = theGaugeX + theGaugeW / 2 ;
+  SSD1306_DrawLine(theCenterX, theGaugeY - 2, theCenterX, theGaugeY + theGaugeH + 1, true) ;
+
+  // Draw indicator position
+  // Clamp to -500 to +500 range
+  float theClampedRate = inSpinRate ;
+  if (theClampedRate > 500.0f) theClampedRate = 500.0f ;
+  if (theClampedRate < -500.0f) theClampedRate = -500.0f ;
+
+  // Map to gauge position
+  int16_t theIndicatorX = theCenterX + (int16_t)((theClampedRate / 500.0f) * (theGaugeW / 2 - 2)) ;
+
+  // Draw indicator (filled rectangle)
+  if (inSpinRate >= 0)
+  {
+    // Positive: fill from center to right
+    int16_t theFillW = theIndicatorX - theCenterX ;
+    if (theFillW > 0)
+    {
+      SSD1306_FillRect(theCenterX, theGaugeY + 1, theFillW, theGaugeH - 2, true) ;
+    }
+  }
+  else
+  {
+    // Negative: fill from indicator to center
+    int16_t theFillW = theCenterX - theIndicatorX ;
+    if (theFillW > 0)
+    {
+      SSD1306_FillRect(theIndicatorX, theGaugeY + 1, theFillW, theGaugeH - 2, true) ;
+    }
+  }
+
+  // Scale labels
+  SSD1306_DrawString(theGaugeX - 4, theGaugeY - 9, "-500", 1) ;
+  SSD1306_DrawString(theCenterX - 3, theGaugeY - 9, "0", 1) ;
+  SSD1306_DrawString(theGaugeX + theGaugeW - 18, theGaugeY - 9, "+500", 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowCompass
+// Purpose: Show compass heading display
+//----------------------------------------------
+void StatusDisplay_ShowCompass(
+  float inHeadingDeg,
+  float inMagX,
+  float inMagY,
+  float inMagZ)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Title
+  SSD1306_DrawString(0, 0, "COMPASS", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  //----------------------------------------------
+  // Compass circle with arrow (left side)
+  //----------------------------------------------
+  const int16_t theCenterX = 32 ;
+  const int16_t theCenterY = 38 ;
+  const int16_t theRadius = 24 ;
+
+  // Draw compass circle
+  for (int16_t i = 0 ; i < 360 ; i += 8)
+  {
+    float theAngleRad = i * 3.14159f / 180.0f ;
+    int16_t theX = theCenterX + (int16_t)(theRadius * sinf(theAngleRad)) ;
+    int16_t theY = theCenterY - (int16_t)(theRadius * cosf(theAngleRad)) ;
+    SSD1306_SetPixel(theX, theY, true) ;
+  }
+
+  // Draw cardinal direction markers
+  SSD1306_DrawString(theCenterX - 2, theCenterY - theRadius - 9, "N", 1) ;
+  SSD1306_DrawString(theCenterX + theRadius + 2, theCenterY - 3, "E", 1) ;
+  SSD1306_DrawString(theCenterX - theRadius - 7, theCenterY - 3, "W", 1) ;
+
+  // Draw arrow pointing in heading direction
+  float theHeadingRad = inHeadingDeg * 3.14159f / 180.0f ;
+
+  int16_t theTipLen = theRadius - 4 ;
+  int16_t theTipX = theCenterX + (int16_t)(theTipLen * sinf(theHeadingRad)) ;
+  int16_t theTipY = theCenterY - (int16_t)(theTipLen * cosf(theHeadingRad)) ;
+
+  // Line from center to tip
+  SSD1306_DrawLine(theCenterX, theCenterY, theTipX, theTipY, true) ;
+
+  // Arrowhead
+  int16_t theArrowLen = 6 ;
+  int16_t theA1X = theTipX - (int16_t)(theArrowLen * sinf(theHeadingRad - 0.5f)) ;
+  int16_t theA1Y = theTipY + (int16_t)(theArrowLen * cosf(theHeadingRad - 0.5f)) ;
+  int16_t theA2X = theTipX - (int16_t)(theArrowLen * sinf(theHeadingRad + 0.5f)) ;
+  int16_t theA2Y = theTipY + (int16_t)(theArrowLen * cosf(theHeadingRad + 0.5f)) ;
+  SSD1306_DrawLine(theTipX, theTipY, theA1X, theA1Y, true) ;
+  SSD1306_DrawLine(theTipX, theTipY, theA2X, theA2Y, true) ;
+
+  // Center dot
+  SSD1306_FillRect(theCenterX - 1, theCenterY - 1, 3, 3, true) ;
+
+  //----------------------------------------------
+  // Right side: Heading value and raw mag data
+  //----------------------------------------------
+  char theBuffer[20] ;
+  const int16_t theTextX = 66 ;
+
+  // Heading value
+  snprintf(theBuffer, sizeof(theBuffer), "%5.1f", inHeadingDeg) ;
+  SSD1306_DrawString(theTextX, 14, theBuffer, 1) ;
+  SSD1306_DrawString(theTextX + 32, 14, "deg", 1) ;
+
+  // Magnetometer values in milligauss (for better readability)
+  snprintf(theBuffer, sizeof(theBuffer), "X:%+4.0f", inMagX * 1000.0f) ;
+  SSD1306_DrawString(theTextX, 30, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Y:%+4.0f", inMagY * 1000.0f) ;
+  SSD1306_DrawString(theTextX, 42, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Z:%+4.0f", inMagZ * 1000.0f) ;
+  SSD1306_DrawString(theTextX, 54, theBuffer, 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowAbout
+// Purpose: Show about screen with version and copyright
+//----------------------------------------------
+void StatusDisplay_ShowAbout(
+  const char * inVersion,
+  const char * inBuildDate,
+  const char * inBuildTime)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Product name (centered, larger appearance)
+  SSD1306_DrawStringCentered(4, "Rocket Avionics", 1) ;
+
+  // Separator line
+  SSD1306_DrawLine(0, 14, 127, 14, true) ;
+
+  // Version
+  char theBuffer[32] ;
+  snprintf(theBuffer, sizeof(theBuffer), "Version %s", inVersion) ;
+  SSD1306_DrawStringCentered(20, theBuffer, 1) ;
+
+  // Build date and time
+  snprintf(theBuffer, sizeof(theBuffer), "Built: %s", inBuildDate) ;
+  SSD1306_DrawStringCentered(32, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "%s", inBuildTime) ;
+  SSD1306_DrawStringCentered(42, theBuffer, 1) ;
+
+  // Copyright
+  SSD1306_DrawStringCentered(54, "(c) 2025-2026 M.Gavin", 1) ;
 
   SSD1306_Update() ;
 }

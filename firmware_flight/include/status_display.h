@@ -28,6 +28,10 @@ typedef enum
   kDisplayModeLoRaStatus ,    // LoRa connection info
   kDisplayModeSensors ,       // Raw sensor readings
   kDisplayModeGpsStatus ,     // GPS status and position
+  kDisplayModeImu ,           // IMU data display (horizon + accel)
+  kDisplayModeSpin ,          // Spin rate display
+  kDisplayModeCompass ,       // Compass heading display
+  kDisplayModeAbout ,         // About screen with version/copyright
   kDisplayModeCount           // Number of modes
 } DisplayMode ;
 
@@ -123,21 +127,28 @@ void StatusDisplay_SetMode(DisplayMode inMode) ;
 DisplayMode StatusDisplay_CycleMode(void) ;
 
 //----------------------------------------------
+// Function: StatusDisplay_PrevMode
+// Purpose: Cycle to previous display mode
+// Returns: New display mode
+//----------------------------------------------
+DisplayMode StatusDisplay_PrevMode(void) ;
+
+//----------------------------------------------
 // Function: StatusDisplay_ShowDeviceInfo
 // Purpose: Show device information screen
 // Parameters:
 //   inFirmwareVersion - Firmware version string
 //   inBmp390Ok - BMP390 sensor status
 //   inLoRaOk - LoRa radio status
-//   inSdOk - SD card status
-//   inRtcOk - RTC status
+//   inImuOk - IMU sensor status
+//   inGpsOk - GPS status
 //----------------------------------------------
 void StatusDisplay_ShowDeviceInfo(
   const char * inFirmwareVersion,
   bool inBmp390Ok,
   bool inLoRaOk,
-  bool inSdOk,
-  bool inRtcOk) ;
+  bool inImuOk,
+  bool inGpsOk) ;
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowLoRaStatus
@@ -207,3 +218,67 @@ void StatusDisplay_UpdateCompact(
   bool inGpsFix,
   uint8_t inGpsSatellites,
   bool inLoRaConnected) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowImu
+// Purpose: Show IMU visualization with horizon indicator
+// Parameters:
+//   inPitchDeg - Pitch angle in degrees
+//   inRollDeg - Roll angle in degrees
+//   inAccelX - Acceleration X in g
+//   inAccelY - Acceleration Y in g
+//   inAccelZ - Acceleration Z in g
+//   inAccelMag - Total acceleration magnitude in g
+//   inGyroX - Gyro rate X in dps
+//   inGyroY - Gyro rate Y in dps
+//   inGyroZ - Gyro rate Z in dps
+//   inHeadingDeg - Compass heading in degrees
+//----------------------------------------------
+void StatusDisplay_ShowImu(
+  float inPitchDeg,
+  float inRollDeg,
+  float inAccelX,
+  float inAccelY,
+  float inAccelZ,
+  float inAccelMag,
+  float inGyroX,
+  float inGyroY,
+  float inGyroZ,
+  float inHeadingDeg) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowSpin
+// Purpose: Show spin rate around vertical axis
+// Parameters:
+//   inSpinRate - Spin rate in degrees per second
+//----------------------------------------------
+void StatusDisplay_ShowSpin(float inSpinRate) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowCompass
+// Purpose: Show compass heading display
+// Parameters:
+//   inHeadingDeg - Current heading in degrees (0-360)
+//   inMagX - Raw magnetometer X
+//   inMagY - Raw magnetometer Y
+//   inMagZ - Raw magnetometer Z
+//----------------------------------------------
+void StatusDisplay_ShowCompass(
+  float inHeadingDeg,
+  float inMagX,
+  float inMagY,
+  float inMagZ) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowAbout
+// Purpose: Show about screen with version and copyright
+// Parameters:
+//   inVersion - Firmware version string
+//   inBuildDate - Build date string
+//   inBuildTime - Build time string
+//----------------------------------------------
+void StatusDisplay_ShowAbout(
+  const char * inVersion,
+  const char * inBuildDate,
+  const char * inBuildTime) ;
+

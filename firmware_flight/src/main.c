@@ -10,7 +10,7 @@
 // Hardware:
 //   - Adafruit Feather RP2040 with RFM95 LoRa 915MHz
 //   - BMP390 barometric sensor (STEMMA QT)
-//   - Adalogger FeatherWing (RTC + SD card)
+//   - LSM6DSOX + LIS3MDL 9-DoF IMU FeatherWing
 //   - FeatherWing OLED 128x64
 //----------------------------------------------
 
@@ -22,8 +22,7 @@
 #include "ssd1306.h"
 #include "status_display.h"
 #include "heartbeat_led.h"
-#include "rtc_pcf8523.h"
-#include "sd_logger.h"
+#include "imu.h"
 #include "gps.h"
 
 #include "pico/stdlib.h"
@@ -54,20 +53,20 @@ static TelemetrySample sSampleBuffer[kMaxSamples] ;
 static FlightController sFlightController ;
 static BMP390 sBmp390 ;
 static LoRa_Radio sLoRaRadio ;
+static Imu sImu ;
 
 // Hardware status
 static bool sBmp390Ok = false ;
 static bool sLoRaOk = false ;
-static bool sSdOk = false ;
-static bool sRtcOk = false ;
+static bool sImuOk = false ;
 static bool sOledOk = false ;
 static bool sGpsOk = false ;
 
 // Timing
 static uint32_t sLastSensorReadMs = 0 ;
+static uint32_t sLastImuReadMs = 0 ;
 static uint32_t sLastDisplayUpdateMs = 0 ;
-static uint32_t sLastHeartbeatUpdateMs = 0 ;
-static uint32_t sLastSdLogMs = 0 ;
+static uint32_t sLastLoRaRxMs = 0 ;
 
 // Button state
 static bool sButtonAPressed = false ;
@@ -87,7 +86,6 @@ static void InitializeButtons(void) ;
 static void ProcessButtons(uint32_t inCurrentMs) ;
 static void UpdateDisplay(uint32_t inCurrentMs) ;
 static void SendTelemetry(uint32_t inCurrentMs) ;
-static void LogToSdCard(uint32_t inCurrentMs) ;
 static void ProcessLoRaCommands(void) ;
 
 //----------------------------------------------
@@ -125,8 +123,8 @@ int main(void)
       FIRMWARE_VERSION_STRING,
       sBmp390Ok,
       sLoRaOk,
-      sSdOk,
-      sRtcOk) ;
+      sImuOk,
+      sGpsOk) ;
     sleep_ms(kSplashDisplayMs) ;
   }
 
@@ -134,8 +132,7 @@ int main(void)
   printf("\nStartup complete:\n") ;
   printf("  BMP390:  %s\n", sBmp390Ok ? "OK" : "FAIL") ;
   printf("  LoRa:    %s\n", sLoRaOk ? "OK" : "FAIL") ;
-  printf("  SD Card: %s\n", sSdOk ? "OK" : "FAIL") ;
-  printf("  RTC:     %s\n", sRtcOk ? "OK" : "FAIL") ;
+  printf("  IMU:     %s\n", sImuOk ? "OK" : "FAIL") ;
   printf("  OLED:    %s\n", sOledOk ? "OK" : "FAIL") ;
   printf("  GPS:     %s\n", sGpsOk ? "OK" : "FAIL") ;
   printf("\nEntering main loop...\n\n") ;
@@ -208,12 +205,24 @@ int main(void)
     }
 
     //------------------------------------------
-    // 2. Update flight state machine
+    // 2. Read IMU (100 Hz)
+    //------------------------------------------
+    if (sImuOk && (theCurrentMs - sLastImuReadMs) >= kImuSampleIntervalMs)
+    {
+      sLastImuReadMs = theCurrentMs ;
+      IMU_Read(&sImu) ;
+
+      // Update flight controller with IMU data (for future use)
+      // FlightControl_UpdateImu(&sFlightController, &sImu.pData) ;
+    }
+
+    //------------------------------------------
+    // 3. Update flight state machine
     //------------------------------------------
     FlightControl_Update(&sFlightController, theCurrentMs) ;
 
     //------------------------------------------
-    // 3. Send LoRa telemetry (10 Hz)
+    // 4. Send LoRa telemetry (10 Hz)
     //------------------------------------------
     if (sLoRaOk && FlightControl_ShouldSendTelemetry(&sFlightController, theCurrentMs))
     {
@@ -221,15 +230,7 @@ int main(void)
     }
 
     //------------------------------------------
-    // 4. Log to SD card (100 Hz during flight)
-    //------------------------------------------
-    if (sSdOk)
-    {
-      LogToSdCard(theCurrentMs) ;
-    }
-
-    //------------------------------------------
-    // 5. Process incoming LoRa commands
+    // 6. Process incoming LoRa commands
     //------------------------------------------
     if (sLoRaOk)
     {
@@ -237,7 +238,7 @@ int main(void)
     }
 
     //------------------------------------------
-    // 6. Update display (5 Hz)
+    // 7. Update display (5 Hz)
     //------------------------------------------
     if ((theCurrentMs - sLastDisplayUpdateMs) >= kDisplayUpdateIntervalMs)
     {
@@ -246,19 +247,19 @@ int main(void)
     }
 
     //------------------------------------------
-    // 7. Update heartbeat LED
+    // 8. Update heartbeat LED
     //------------------------------------------
     HeartbeatLED_Update(
       FlightControl_GetState(&sFlightController),
       theCurrentMs) ;
 
     //------------------------------------------
-    // 8. Process button inputs
+    // 9. Process button inputs
     //------------------------------------------
     ProcessButtons(theCurrentMs) ;
 
     //------------------------------------------
-    // 9. Maintain loop timing
+    // 10. Maintain loop timing
     //------------------------------------------
     uint32_t theLoopTimeUs = time_us_32() - theLastLoopUs ;
     if (theLoopTimeUs < kMainLoopIntervalUs)
@@ -328,28 +329,18 @@ static void InitializeHardware(void)
     printf("WARNING: OLED display initialization failed\n") ;
   }
 
-  // Initialize RTC
-  printf("Initializing RTC...\n") ;
-  if (RTC_Init())
+  // Initialize IMU (LSM6DSOX + LIS3MDL)
+  printf("Initializing IMU...\n") ;
+  if (IMU_Init(&sImu))
   {
-    sRtcOk = true ;
-    printf("RTC initialized\n") ;
+    // Configure IMU with desired ranges
+    IMU_Configure(&sImu, kImuAccelRange, kImuGyroRange, kImuMagRange) ;
+    sImuOk = true ;
+    printf("IMU initialized\n") ;
   }
   else
   {
-    printf("WARNING: RTC initialization failed\n") ;
-  }
-
-  // Initialize SD card
-  printf("Initializing SD card...\n") ;
-  if (SdLogger_Init())
-  {
-    sSdOk = true ;
-    printf("SD card initialized\n") ;
-  }
-  else
-  {
-    printf("WARNING: SD card initialization failed\n") ;
+    printf("WARNING: IMU initialization failed\n") ;
   }
 
   // Initialize LoRa radio
@@ -409,7 +400,7 @@ static void InitializeSPI(void)
 {
   printf("Initializing SPI1 bus...\n") ;
 
-  // Initialize SPI1 (shared by LoRa and SD card)
+  // Initialize SPI1 for LoRa radio
   spi_init(kSpiPort, kSpiLoRaBaudrate) ;
   gpio_set_function(kPinSpiSck, GPIO_FUNC_SPI) ;
   gpio_set_function(kPinSpiMosi, GPIO_FUNC_SPI) ;
@@ -428,11 +419,6 @@ static void InitializeSPI(void)
   // LoRa DIO0 interrupt
   gpio_init(kPinLoRaDio0) ;
   gpio_set_dir(kPinLoRaDio0, GPIO_IN) ;
-
-  // SD card chip select (shared SPI bus)
-  gpio_init(kPinSdCs) ;
-  gpio_set_dir(kPinSdCs, GPIO_OUT) ;
-  gpio_put(kPinSdCs, 1) ;
 
   printf("SPI initialized\n") ;
 }
@@ -472,10 +458,8 @@ static void ProcessButtons(uint32_t inCurrentMs)
   bool theButtonB = !gpio_get(kPinButtonB) ;
   bool theButtonC = !gpio_get(kPinButtonC) ;
 
-  FlightState theState = FlightControl_GetState(&sFlightController) ;
-
   //------------------------------------------
-  // Button A: ARM / DISARM
+  // Button A: Previous display mode
   //------------------------------------------
   if (theButtonA && !sButtonAPressed)
   {
@@ -487,33 +471,15 @@ static void ProcessButtons(uint32_t inCurrentMs)
     sButtonAPressed = false ;
     uint32_t theHoldTime = inCurrentMs - sButtonADownMs ;
 
-    if (theHoldTime > kButtonDebounceMs)
+    if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      if (theState == kFlightIdle)
-      {
-        // Short press to arm
-        printf("Button A: Arming...\n") ;
-        FlightError theError = FlightControl_Arm(&sFlightController) ;
-        if (theError != kFlightErrorNone)
-        {
-          printf("Arm failed: error %d\n", theError) ;
-          if (sOledOk)
-          {
-            StatusDisplay_ShowError("ARM FAILED") ;
-          }
-        }
-      }
-      else if (theState == kFlightArmed)
-      {
-        // Short press to disarm
-        printf("Button A: Disarming...\n") ;
-        FlightControl_Disarm(&sFlightController) ;
-      }
+      printf("Button A: Previous display mode...\n") ;
+      StatusDisplay_PrevMode() ;
     }
   }
 
   //------------------------------------------
-  // Button B: Cycle display mode
+  // Button B: (Reserved for future use)
   //------------------------------------------
   if (theButtonB && !sButtonBPressed)
   {
@@ -523,18 +489,10 @@ static void ProcessButtons(uint32_t inCurrentMs)
   else if (!theButtonB && sButtonBPressed)
   {
     sButtonBPressed = false ;
-    uint32_t theHoldTime = inCurrentMs - sButtonBDownMs ;
-
-    if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
-    {
-      // Short press: cycle display mode
-      printf("Button B: Cycling display mode...\n") ;
-      StatusDisplay_CycleMode() ;
-    }
   }
 
   //------------------------------------------
-  // Button C: Reset (long press in COMPLETE state)
+  // Button C: Next display mode
   //------------------------------------------
   if (theButtonC && !sButtonCPressed)
   {
@@ -546,11 +504,10 @@ static void ProcessButtons(uint32_t inCurrentMs)
     sButtonCPressed = false ;
     uint32_t theHoldTime = inCurrentMs - sButtonCDownMs ;
 
-    if (theHoldTime >= kButtonLongPressMs && theState == kFlightComplete)
+    if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      // Long press to reset
-      printf("Button C: Resetting flight controller...\n") ;
-      FlightControl_Reset(&sFlightController) ;
+      printf("Button C: Next display mode...\n") ;
+      StatusDisplay_CycleMode() ;
     }
   }
 }
@@ -613,8 +570,8 @@ static void UpdateDisplay(uint32_t inCurrentMs)
         FIRMWARE_VERSION_STRING,
         sBmp390Ok,
         sLoRaOk,
-        sSdOk,
-        sRtcOk) ;
+        sImuOk,
+        sGpsOk) ;
       break ;
 
     case kDisplayModeFlightStats:
@@ -622,11 +579,17 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       break ;
 
     case kDisplayModeLoRaStatus:
-      StatusDisplay_ShowLoRaStatus(
-        sLoRaOk,
-        sLoRaRadio.pLastRssi,
-        sLoRaRadio.pPacketsSent,
-        sLoRaRadio.pPacketsReceived) ;
+      {
+        // Link is connected if we received a packet within timeout
+        uint32_t theCurrentMs = to_ms_since_boot(get_absolute_time()) ;
+        bool theLinkActive = sLoRaOk && (sLastLoRaRxMs > 0) &&
+          ((theCurrentMs - sLastLoRaRxMs) < kLoRaTimeoutMs) ;
+        StatusDisplay_ShowLoRaStatus(
+          theLinkActive,
+          sLoRaRadio.pLastRssi,
+          sLoRaRadio.pPacketsSent,
+          sLoRaRadio.pPacketsReceived) ;
+      }
       break ;
 
     case kDisplayModeSensors:
@@ -651,6 +614,63 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       {
         StatusDisplay_ShowGpsStatus(false, 0, 0.0f, 0.0f, 0.0f, 0.0f) ;
       }
+      break ;
+
+    case kDisplayModeImu:
+      if (sImuOk)
+      {
+        const ImuData * theImuData = IMU_GetData(&sImu) ;
+        StatusDisplay_ShowImu(
+          theImuData->pPitchDeg,
+          theImuData->pRollDeg,
+          theImuData->pAccelX,
+          theImuData->pAccelY,
+          theImuData->pAccelZ,
+          theImuData->pAccelMagnitude,
+          theImuData->pGyroX,
+          theImuData->pGyroY,
+          theImuData->pGyroZ,
+          theImuData->pHeadingDeg) ;
+      }
+      else
+      {
+        StatusDisplay_ShowError("IMU NOT READY") ;
+      }
+      break ;
+
+    case kDisplayModeSpin:
+      if (sImuOk)
+      {
+        const ImuData * theImuData = IMU_GetData(&sImu) ;
+        StatusDisplay_ShowSpin(theImuData->pGyroY) ;
+      }
+      else
+      {
+        StatusDisplay_ShowError("IMU NOT READY") ;
+      }
+      break ;
+
+    case kDisplayModeCompass:
+      if (sImuOk)
+      {
+        const ImuData * theImuData = IMU_GetData(&sImu) ;
+        StatusDisplay_ShowCompass(
+          theImuData->pHeadingDeg,
+          theImuData->pMagX,
+          theImuData->pMagY,
+          theImuData->pMagZ) ;
+      }
+      else
+      {
+        StatusDisplay_ShowError("IMU NOT READY") ;
+      }
+      break ;
+
+    case kDisplayModeAbout:
+      StatusDisplay_ShowAbout(
+        FIRMWARE_VERSION_STRING,
+        FIRMWARE_BUILD_DATE,
+        FIRMWARE_BUILD_TIME) ;
       break ;
 
     default:
@@ -685,51 +705,6 @@ static void SendTelemetry(uint32_t inCurrentMs)
 }
 
 //----------------------------------------------
-// Function: LogToSdCard
-//----------------------------------------------
-static void LogToSdCard(uint32_t inCurrentMs)
-{
-  FlightState theState = FlightControl_GetState(&sFlightController) ;
-
-  // Start logging when armed
-  if (theState == kFlightArmed && sLastSdLogMs == 0)
-  {
-    uint32_t theTimestamp = sRtcOk ? RTC_GetUnixTimestamp() : inCurrentMs / 1000 ;
-    SdLogger_StartFlight(theTimestamp) ;
-    sLastSdLogMs = inCurrentMs ;
-  }
-
-  // Log samples during flight
-  if (theState >= kFlightArmed && theState <= kFlightDescent)
-  {
-    if ((inCurrentMs - sLastSdLogMs) >= kSdLogIntervalMs)
-    {
-      sLastSdLogMs = inCurrentMs ;
-
-      SdFlightSample theSample ;
-      theSample.timeMs = inCurrentMs - sFlightController.pLaunchTimeMs ;
-      theSample.altitudeM = sFlightController.pCurrentAltitudeM ;
-      theSample.velocityMps = sFlightController.pCurrentVelocityMps ;
-      theSample.pressurePa = sFlightController.pCurrentPressurePa ;
-      theSample.temperatureC = sFlightController.pCurrentTemperatureC ;
-
-      SdLogger_LogSample(&theSample) ;
-    }
-  }
-
-  // End logging when landed
-  if (theState == kFlightLanded && sLastSdLogMs > 0)
-  {
-    const FlightResults * theResults = FlightControl_GetResults(&sFlightController) ;
-    SdLogger_EndFlight(
-      theResults->pMaxAltitudeM,
-      theResults->pFlightTimeMs,
-      theResults->pMaxVelocityMps) ;
-    sLastSdLogMs = 0 ;
-  }
-}
-
-//----------------------------------------------
 // Function: SendDeviceInfo
 // Purpose: Send device information over LoRa
 //----------------------------------------------
@@ -760,8 +735,7 @@ static void SendDeviceInfo(void)
   uint8_t theFlags = 0 ;
   if (sBmp390Ok) theFlags |= 0x01 ;
   if (sLoRaOk) theFlags |= 0x02 ;
-  if (sSdOk) theFlags |= 0x04 ;
-  if (sRtcOk) theFlags |= 0x08 ;
+  if (sImuOk) theFlags |= 0x04 ;
   if (sOledOk) theFlags |= 0x10 ;
   if (sGpsOk) theFlags |= 0x20 ;
   thePacket[theOffset++] = theFlags ;
@@ -775,113 +749,8 @@ static void SendDeviceInfo(void)
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 16) & 0xFF ;
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 24) & 0xFF ;
 
-  // SD free space (KB)
-  uint32_t theFreeKb = SdLogger_GetFreeSpace() / 1024 ;
-  thePacket[theOffset++] = (theFreeKb) & 0xFF ;
-  thePacket[theOffset++] = (theFreeKb >> 8) & 0xFF ;
-  thePacket[theOffset++] = (theFreeKb >> 16) & 0xFF ;
-  thePacket[theOffset++] = (theFreeKb >> 24) & 0xFF ;
-
-  // Flight count on SD
-  thePacket[theOffset++] = (uint8_t)SdLogger_GetFlightCount() ;
-
   printf("LoRa: Sending device info (%d bytes)\n", theOffset) ;
   LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
-}
-
-//----------------------------------------------
-// Function: SendSdListResponse
-// Purpose: Send SD card file list over LoRa
-//----------------------------------------------
-static void SendSdListResponse(void)
-{
-  SdFileInfo theFiles[16] ;
-  int theCount = SdLogger_GetFileList(theFiles, 16) ;
-
-  printf("LoRa: Sending SD list (%d files)\n", theCount) ;
-
-  // Build response packet with file list
-  // Format: magic, type, count, then for each file: name_len, name, size(4), date(4)
-  uint8_t thePacket[200] ;
-  int theOffset = 0 ;
-
-  thePacket[theOffset++] = kLoRaMagic ;
-  thePacket[theOffset++] = kLoRaPacketStorageList ;
-  thePacket[theOffset++] = 0x01 ;  // SD storage type
-  thePacket[theOffset++] = (uint8_t)theCount ;
-
-  for (int i = 0 ; i < theCount && theOffset < 180 ; i++)
-  {
-    uint8_t theNameLen = strlen(theFiles[i].pFilename) ;
-    if (theOffset + theNameLen + 9 > 200) break ;  // Don't overflow
-
-    thePacket[theOffset++] = theNameLen ;
-    memcpy(&thePacket[theOffset], theFiles[i].pFilename, theNameLen) ;
-    theOffset += theNameLen ;
-
-    // Size (4 bytes, little endian)
-    thePacket[theOffset++] = (theFiles[i].pSize) & 0xFF ;
-    thePacket[theOffset++] = (theFiles[i].pSize >> 8) & 0xFF ;
-    thePacket[theOffset++] = (theFiles[i].pSize >> 16) & 0xFF ;
-    thePacket[theOffset++] = (theFiles[i].pSize >> 24) & 0xFF ;
-
-    // Date: YYYYMMDD as 4 bytes
-    uint32_t theDate = theFiles[i].pYear * 10000 + theFiles[i].pMonth * 100 + theFiles[i].pDay ;
-    thePacket[theOffset++] = (theDate) & 0xFF ;
-    thePacket[theOffset++] = (theDate >> 8) & 0xFF ;
-    thePacket[theOffset++] = (theDate >> 16) & 0xFF ;
-    thePacket[theOffset++] = (theDate >> 24) & 0xFF ;
-  }
-
-  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
-}
-
-//----------------------------------------------
-// Function: SendSdFileChunk
-// Purpose: Send a chunk of a file over LoRa
-//----------------------------------------------
-static void SendSdFileChunk(const char * inFilename, uint32_t inOffset)
-{
-  uint8_t thePacket[200] ;
-  uint8_t theData[180] ;
-
-  uint32_t theFileSize = SdLogger_GetFileSize(inFilename) ;
-  if (theFileSize == 0)
-  {
-    printf("LoRa: File not found: %s\n", inFilename) ;
-    return ;
-  }
-
-  uint32_t theBytesRead = SdLogger_ReadFile(inFilename, theData, inOffset, 180) ;
-
-  printf("LoRa: Sending %s chunk offset=%lu len=%lu\n",
-         inFilename, (unsigned long)inOffset, (unsigned long)theBytesRead) ;
-
-  // Build response: magic, type, offset(4), total_size(4), chunk_len, data
-  int theIdx = 0 ;
-  thePacket[theIdx++] = kLoRaMagic ;
-  thePacket[theIdx++] = kLoRaPacketStorageData ;
-
-  // Offset (4 bytes)
-  thePacket[theIdx++] = (inOffset) & 0xFF ;
-  thePacket[theIdx++] = (inOffset >> 8) & 0xFF ;
-  thePacket[theIdx++] = (inOffset >> 16) & 0xFF ;
-  thePacket[theIdx++] = (inOffset >> 24) & 0xFF ;
-
-  // Total size (4 bytes)
-  thePacket[theIdx++] = (theFileSize) & 0xFF ;
-  thePacket[theIdx++] = (theFileSize >> 8) & 0xFF ;
-  thePacket[theIdx++] = (theFileSize >> 16) & 0xFF ;
-  thePacket[theIdx++] = (theFileSize >> 24) & 0xFF ;
-
-  // Chunk length
-  thePacket[theIdx++] = (uint8_t)theBytesRead ;
-
-  // Data
-  memcpy(&thePacket[theIdx], theData, theBytesRead) ;
-  theIdx += theBytesRead ;
-
-  LoRa_SendBlocking(&sLoRaRadio, thePacket, theIdx, 500) ;
 }
 
 //----------------------------------------------
@@ -898,6 +767,9 @@ static void ProcessLoRaCommands(void)
   if (theLen < 3 || theBuffer[0] != kLoRaMagic) return ;
 
   uint8_t thePacketType = theBuffer[1] ;
+
+  // Update last receive time for link status
+  sLastLoRaRxMs = to_ms_since_boot(get_absolute_time()) ;
 
   if (thePacketType == kLoRaPacketCommand)
   {
@@ -923,52 +795,6 @@ static void ProcessLoRaCommands(void)
       case kCmdReset:
         printf("LoRa: Reset command received\n") ;
         FlightControl_Reset(&sFlightController) ;
-        break ;
-
-      case kCmdSdList:
-        printf("LoRa: SD list command received\n") ;
-        SendSdListResponse() ;
-        break ;
-
-      case kCmdSdRead:
-        // Format: cmd, filename_len, filename, offset(4)
-        if (theLen >= 8)
-        {
-          uint8_t theNameLen = theBuffer[3] ;
-          if (theNameLen < 64 && theLen >= 4 + theNameLen + 4)
-          {
-            char theFilename[64] ;
-            memcpy(theFilename, &theBuffer[4], theNameLen) ;
-            theFilename[theNameLen] = '\0' ;
-
-            uint32_t theOffset = theBuffer[4 + theNameLen] |
-                                (theBuffer[5 + theNameLen] << 8) |
-                                (theBuffer[6 + theNameLen] << 16) |
-                                (theBuffer[7 + theNameLen] << 24) ;
-
-            printf("LoRa: SD read command - %s offset %lu\n", theFilename, (unsigned long)theOffset) ;
-            SendSdFileChunk(theFilename, theOffset) ;
-          }
-        }
-        break ;
-
-      case kCmdSdDelete:
-        // Format: cmd, filename_len, filename
-        if (theLen >= 5)
-        {
-          uint8_t theNameLen = theBuffer[3] ;
-          if (theNameLen < 64 && theLen >= 4 + theNameLen)
-          {
-            char theFilename[64] ;
-            memcpy(theFilename, &theBuffer[4], theNameLen) ;
-            theFilename[theNameLen] = '\0' ;
-
-            printf("LoRa: SD delete command - %s\n", theFilename) ;
-            bool theResult = SdLogger_DeleteFlight(theFilename) ;
-            printf("LoRa: Delete %s\n", theResult ? "OK" : "FAILED") ;
-            // TODO: Send ack packet
-          }
-        }
         break ;
 
       case kCmdInfo:

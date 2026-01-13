@@ -10,7 +10,7 @@
 // Hardware:
 //   - Adafruit Feather RP2040 with RFM95 LoRa 915MHz (5714)
 //   - Adafruit BMP390 Barometric Sensor (4816)
-//   - Adafruit Adalogger FeatherWing (SD + PCF8523 RTC) (2922)
+//   - Adafruit LSM6DSOX + LIS3MDL FeatherWing 9-DoF IMU (4565)
 //   - Adafruit FeatherWing OLED 128x64 (SSD1306) (4650)
 //   - Quad Side-By-Side FeatherWing Kit (4254)
 //
@@ -36,11 +36,12 @@
 // I2C Device Addresses
 //----------------------------------------------
 #define kI2cAddrBMP390      0x77  // Barometric sensor (or 0x76 if SDO to GND)
-#define kI2cAddrPCF8523     0x68  // RTC (Adalogger FeatherWing)
 #define kI2cAddrSSD1306     0x3C  // OLED display (or 0x3D)
+#define kI2cAddrLSM6DSOX    0x6A  // IMU accel/gyro (or 0x6B if SDO to VDD)
+#define kI2cAddrLIS3MDL     0x1E  // IMU magnetometer (or 0x1C if SDO to GND)
 
 //----------------------------------------------
-// SPI1 - Shared by LoRa Radio and SD Card
+// SPI1 - LoRa Radio
 // Feather RP2040 RFM95 uses SPI1 on pins 8, 14, 15
 // See: https://learn.adafruit.com/feather-rp2040-rfm95/pinouts
 //----------------------------------------------
@@ -49,7 +50,6 @@
 #define kPinSpiMiso         8   // GP8 - SPI1 RX/MISO
 #define kSpiPort            spi1
 #define kSpiLoRaBaudrate    1000000   // 1 MHz for LoRa
-#define kSpiSdBaudrate      12000000  // 12 MHz for SD card
 
 //----------------------------------------------
 // LoRa Radio (RFM95 built into Feather RP2040 RFM95)
@@ -58,12 +58,6 @@
 #define kPinLoRaReset       17  // GP17 - RFM95 Reset
 #define kPinLoRaDio0        21  // GP21 - RFM95 DIO0 (RX Done interrupt)
 #define kPinLoRaDio1        22  // GP22 - RFM95 DIO1 (optional)
-
-//----------------------------------------------
-// SD Card (Adalogger FeatherWing)
-// Shares SPI1 with LoRa, different CS pin
-//----------------------------------------------
-#define kPinSdCs            10  // GP10 - SD Card Chip Select (D10)
 
 //----------------------------------------------
 // OLED FeatherWing Buttons
@@ -114,9 +108,9 @@
 // Telemetry Timing
 //----------------------------------------------
 #define kTelemetryIntervalMs        100     // 10 Hz LoRa telemetry
-#define kSdLogIntervalMs            10      // 100 Hz SD card logging
 #define kDisplayUpdateIntervalMs    200     // 5 Hz display update
 #define kSensorSampleIntervalMs     10      // 100 Hz sensor sampling
+#define kImuSampleIntervalMs        10      // 100 Hz IMU sampling
 
 //----------------------------------------------
 // Flight Detection Thresholds
@@ -131,7 +125,6 @@
 // Data Collection Constants
 //----------------------------------------------
 #define kMaxSamples                 6000    // 10 minutes at 10 Hz
-#define kMaxSdSamples               60000   // 10 minutes at 100 Hz
 
 //----------------------------------------------
 // Heartbeat LED Timing (NeoPixel blink rates)
@@ -155,15 +148,17 @@
 #define kDisplayHeight              64
 
 //----------------------------------------------
-// SD Card Logging
-//----------------------------------------------
-#define kSdLogDirectory             "/flights"
-#define kSdLogFilePrefix            "flight_"
-#define kSdLogFileExtension         ".csv"
-
-//----------------------------------------------
 // Communication Timeout
 //----------------------------------------------
 #define kLoRaTimeoutMs              5000    // 5 second LoRa timeout
 #define kCommandTimeoutMs           30000   // 30 second command timeout
+
+//----------------------------------------------
+// IMU Configuration (LSM6DSOX + LIS3MDL)
+//----------------------------------------------
+#define kImuAccelRange              8       // ±8g (options: 2, 4, 8, 16)
+#define kImuGyroRange               1000    // ±1000 dps (options: 125, 250, 500, 1000, 2000)
+#define kImuAccelOdr                416     // 416 Hz output rate
+#define kImuGyroOdr                 416     // 416 Hz output rate
+#define kImuMagRange                4       // ±4 gauss
 
