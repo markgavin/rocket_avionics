@@ -364,7 +364,6 @@ Inherits Application
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
 		    Window_Console.LogMessage(">> Requesting flight computer info...")
 		    Window_Main.pConnection.SendCommand("info")
-		    Window_Console.Show
 		  Else
 		    MsgBox("Not connected to gateway")
 		  End If
@@ -378,10 +377,17 @@ Inherits Application
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
 		    Window_Console.LogMessage(">> Requesting gateway device info...")
 		    Window_Main.pConnection.SendCommand("gw_info")
-		    Window_Console.Show
 		  Else
 		    MsgBox("Not connected to gateway")
 		  End If
+		  Return True
+		End Function
+	#tag EndMenuHandler
+
+	#tag MenuHandler
+		Function ViewOrientation() As Boolean Handles ViewOrientation.Action
+		  // Show orientation visualization window
+		  Window_Orientation.Show
 		  Return True
 		End Function
 	#tag EndMenuHandler

@@ -108,7 +108,11 @@ Inherits Canvas
 		    End If
 		  Else
 		    // No data message
-		    g.ForeColor = Color.Gray
+		    If pDarkMode Then
+		      g.ForeColor = &c888888
+		    Else
+		      g.ForeColor = Color.Gray
+		    End If
 		    g.TextSize = 14
 		    Var theMessage As String = "No flight data"
 		    g.DrawString(theMessage, (g.Width - g.StringWidth(theMessage)) / 2, g.Height / 2)
@@ -214,8 +218,12 @@ Inherits Canvas
 		  Var theXScale As Double = inWidth / theMaxTime
 		  Var theYScale As Double = inHeight / theMaxAltitude
 
-		  // Draw altitude curve
-		  g.ForeColor = &c0066FF
+		  // Draw altitude curve (brighter blue in dark mode)
+		  If pDarkMode Then
+		    g.ForeColor = &c44AAFF
+		  Else
+		    g.ForeColor = &c0066CC
+		  End If
 		  g.PenWidth = 2
 
 		  Var thePrevX As Integer = -1
@@ -259,8 +267,12 @@ Inherits Canvas
 		  Var theXScale As Double = inWidth / theMaxTime
 		  Var theYScale As Double = inHeight / theMaxVelocity
 
-		  // Draw velocity curve in green
-		  g.ForeColor = &c00AA00
+		  // Draw velocity curve (brighter green in dark mode)
+		  If pDarkMode Then
+		    g.ForeColor = &c44FF66
+		  Else
+		    g.ForeColor = &c00AA00
+		  End If
 		  g.PenWidth = 2
 
 		  Var thePrevX As Integer = -1
@@ -339,8 +351,12 @@ Inherits Canvas
 		  Var theX As Integer = inLeft + CType(theApogeeSample.GetTimeSeconds * theXScale, Integer)
 		  Var theY As Integer = inTop + inHeight - CType(theApogeeSample.pAltitudeM * theYScale, Integer)
 
-		  // Draw marker
-		  g.ForeColor = &cFF3300
+		  // Draw marker (brighter in dark mode)
+		  If pDarkMode Then
+		    g.ForeColor = &cFF6644
+		  Else
+		    g.ForeColor = &cFF3300
+		  End If
 		  g.PenWidth = 2
 
 		  // Circle marker
@@ -349,7 +365,11 @@ Inherits Canvas
 
 		  // Label
 		  g.TextSize = 11
-		  g.ForeColor = &cCC0000
+		  If pDarkMode Then
+		    g.ForeColor = &cFF8866
+		  Else
+		    g.ForeColor = &cCC0000
+		  End If
 		  Var theLabel As String = Format(pFlightData.pMaxAltitudeM, "0.0") + " m"
 		  g.DrawString(theLabel, theX + 10, theY - 5)
 		End Sub

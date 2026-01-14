@@ -230,12 +230,70 @@ Protected Class FlightConnection
 		      theSample.pFlags = theJson.Lookup("flags", 0)
 		      theSample.pRssi = theJson.Lookup("rssi", 0)
 		      theSample.pSnr = theJson.Lookup("snr", 0)
+
+		      // GPS data
+		      theSample.pGpsLatitude = theJson.Lookup("lat", 0.0)
+		      theSample.pGpsLongitude = theJson.Lookup("lon", 0.0)
+		      theSample.pGpsSpeedMps = theJson.Lookup("gspd", 0.0)
+		      theSample.pGpsHeadingDeg = theJson.Lookup("hdg", 0.0)
+		      theSample.pGpsSatellites = theJson.Lookup("sat", 0)
+		      theSample.pGpsFix = theJson.Lookup("gps", False)
+
+		      // Accelerometer data - gateway sends in g's (floats), convert to milli-g for storage
+		      Var theAccelXg As Double = theJson.Lookup("ax", 0.0)
+		      Var theAccelYg As Double = theJson.Lookup("ay", 0.0)
+		      Var theAccelZg As Double = theJson.Lookup("az", 0.0)
+		      theSample.pAccelX = Round(theAccelXg * 1000.0)  // Store as milli-g (Integer)
+		      theSample.pAccelY = Round(theAccelYg * 1000.0)
+		      theSample.pAccelZ = Round(theAccelZg * 1000.0)
+
+		      // Gyroscope data - gateway sends in dps (floats), store directly
+		      theSample.pGyroX = theJson.Lookup("gx", 0.0)  // Store as dps (Double)
+		      theSample.pGyroY = theJson.Lookup("gy", 0.0)
+		      theSample.pGyroZ = theJson.Lookup("gz", 0.0)
+
+		      // Magnetometer data (in milligauss, integers)
+		      theSample.pMagX = theJson.Lookup("mx", 0)
+		      theSample.pMagY = theJson.Lookup("my", 0)
+		      theSample.pMagZ = theJson.Lookup("mz", 0)
+
+		      // Calculate pitch and roll from accelerometer (in degrees)
+		      // IMU coordinate system: Y=up (vertical), X=right, Z=back (toward user)
+		      // theAccelXg/Yg/Zg are already in g's from above
+
+		      // Pitch = forward/back tilt (rotation around X-axis)
+		      // Positive pitch = nose up, negative = nose down
+		      theSample.pPitch = ATan2(theAccelZg, theAccelYg) * 180.0 / 3.14159
+
+		      // Roll = left/right tilt (rotation around Z-axis)
+		      // Positive roll = tilting right
+		      theSample.pRoll = ATan2(-theAccelXg, theAccelYg) * 180.0 / 3.14159
+
+		      // Calculate heading from magnetometer
+		      // For horizontal plane heading, use X and Z (since Y is vertical)
+		      theSample.pHeading = ATan2(theSample.pMagX, -theSample.pMagZ) * 180.0 / 3.14159
+		      If theSample.pHeading < 0 Then
+		        theSample.pHeading = theSample.pHeading + 360.0
+		      End If
+
+		      // Gateway GPS data
+		      theSample.pGatewayGpsFix = theJson.Lookup("gw_gps", False)
+		      theSample.pGatewayLatitude = theJson.Lookup("gw_lat", 0.0)
+		      theSample.pGatewayLongitude = theJson.Lookup("gw_lon", 0.0)
+
 		      RaiseEvent TelemetryReceived(theSample)
 
 		    Case "link"
 		      // Link status from gateway
+		      // Note: "usb_connected" means USB cable connected, not LoRa link
+		      // Only raise event for actual LoRa link status changes
 		      Var theStatus As String = theJson.Lookup("status", "")
-		      RaiseEvent LinkStatusChanged(theStatus = "connected")
+		      If theStatus = "connected" Then
+		        RaiseEvent LinkStatusChanged(True)
+		      ElseIf theStatus = "lost" Then
+		        RaiseEvent LinkStatusChanged(False)
+		      End If
+		      // Ignore "usb_connected" - this is USB cable status, not LoRa link
 
 		    Case "status"
 		      // Gateway status response
@@ -257,33 +315,43 @@ Protected Class FlightConnection
 		      Var theMessage As String = theJson.Lookup("message", "")
 		      RaiseEvent ErrorReceived(theCode, theMessage)
 
-		    Case "sd_list", "flash_list"
-		      // Storage file list response
-		      Var theIsSd As Boolean = (theType = "sd_list")
-		      Var theFiles() As Dictionary
+		    Case "flash_list"
+		      // Flash storage flight list response
+		      Var theFlightCount As Integer = theJson.Lookup("count", 0)
+		      Var theFlights() As Dictionary
 
-		      If theJson.HasKey("files") Then
-		        Var theFilesArray As JSONItem = theJson.Value("files")
-		        For i As Integer = 0 To theFilesArray.Count - 1
-		          Var theFileJson As JSONItem = theFilesArray.ValueAt(i)
-		          Var theFile As New Dictionary
-		          theFile.Value("name") = theFileJson.Lookup("name", "")
-		          theFile.Value("size") = theFileJson.Lookup("size", 0)
-		          theFile.Value("date") = theFileJson.Lookup("date", "")
-		          theFiles.Add(theFile)
+		      If theJson.HasKey("flights") Then
+		        Var theFlightsArray As JSONItem = theJson.Value("flights")
+		        For i As Integer = 0 To theFlightsArray.Count - 1
+		          Var theFlightJson As JSONItem = theFlightsArray.ValueAt(i)
+		          Var theFlight As New Dictionary
+		          theFlight.Value("slot") = theFlightJson.Lookup("slot", 0)
+		          theFlight.Value("id") = theFlightJson.Lookup("id", 0)
+		          theFlight.Value("altitude") = theFlightJson.Lookup("alt", 0.0)
+		          theFlight.Value("time_ms") = theFlightJson.Lookup("time", 0)
+		          theFlight.Value("samples") = theFlightJson.Lookup("samples", 0)
+		          theFlights.Add(theFlight)
 		        Next
 		      End If
 
-		      RaiseEvent StorageListReceived(theIsSd, theFiles)
+		      RaiseEvent FlashListReceived(theFlightCount, theFlights)
 
-		    Case "sd_data", "flash_data"
-		      // Storage data chunk response
-		      Var theIsSd As Boolean = (theType = "sd_data")
-		      Var theOffset As Integer = theJson.Lookup("offset", 0)
+		    Case "flash_data"
+		      // Flash data chunk response (samples)
+		      Var theSlot As Integer = theJson.Lookup("slot", 0)
+		      Var theStart As Integer = theJson.Lookup("start", 0)
 		      Var theTotal As Integer = theJson.Lookup("total", 0)
+		      Var theCount As Integer = theJson.Lookup("count", 0)
 		      Var theHexData As String = theJson.Lookup("data", "")
 
-		      RaiseEvent StorageDataReceived(theIsSd, theOffset, theTotal, theHexData)
+		      RaiseEvent FlashDataReceived(theSlot, theStart, theTotal, theCount, theHexData)
+
+		    Case "flash_header"
+		      // Flash header response
+		      Var theSlot As Integer = theJson.Lookup("slot", 0)
+		      Var theHexData As String = theJson.Lookup("data", "")
+
+		      RaiseEvent FlashHeaderReceived(theSlot, theHexData)
 
 		    Case "fc_info"
 		      // Flight computer device info
@@ -292,8 +360,7 @@ Protected Class FlightConnection
 		      theInfo.Value("build") = theJson.Lookup("build", "")
 		      theInfo.Value("bmp390") = theJson.Lookup("bmp390", False)
 		      theInfo.Value("lora") = theJson.Lookup("lora", False)
-		      theInfo.Value("sd") = theJson.Lookup("sd", False)
-		      theInfo.Value("rtc") = theJson.Lookup("rtc", False)
+		      theInfo.Value("imu") = theJson.Lookup("imu", False)
 		      theInfo.Value("oled") = theJson.Lookup("oled", False)
 		      theInfo.Value("gps") = theJson.Lookup("gps", False)
 		      theInfo.Value("state") = theJson.Lookup("state", "")
@@ -310,6 +377,7 @@ Protected Class FlightConnection
 		      theInfo.Value("build") = theJson.Lookup("build", "")
 		      theInfo.Value("lora") = theJson.Lookup("lora", False)
 		      theInfo.Value("bmp390") = theJson.Lookup("bmp390", False)
+		      theInfo.Value("gps") = theJson.Lookup("gps", False)
 		      theInfo.Value("display") = theJson.Lookup("display", False)
 		      theInfo.Value("connected") = theJson.Lookup("connected", False)
 		      theInfo.Value("rx") = theJson.Lookup("rx", 0)
@@ -318,6 +386,10 @@ Protected Class FlightConnection
 		      theInfo.Value("snr") = theJson.Lookup("snr", 0)
 		      theInfo.Value("ground_pres") = theJson.Lookup("ground_pres", 0.0)
 		      theInfo.Value("ground_temp") = theJson.Lookup("ground_temp", 0.0)
+		      theInfo.Value("gps_fix") = theJson.Lookup("gps_fix", False)
+		      theInfo.Value("gps_lat") = theJson.Lookup("gps_lat", 0.0)
+		      theInfo.Value("gps_lon") = theJson.Lookup("gps_lon", 0.0)
+		      theInfo.Value("gps_sats") = theJson.Lookup("gps_sats", 0)
 		      LogMessage("Raising DeviceInfoReceived for gateway", "DEBUG")
 		      RaiseEvent DeviceInfoReceived(True, theInfo)
 
@@ -489,6 +561,26 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
+		Sub SendOrientationMode(inEnabled As Boolean)
+		  // Enable or disable orientation testing mode (high-rate telemetry)
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "orientation_mode"
+		  theJson.Value("id") = theId
+		  theJson.Value("enabled") = inEnabled
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
 		Sub SendRaw(inData As String)
 		  // Send raw data (for debug console)
 		  If Not IsConnected Then
@@ -563,6 +655,75 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h0
+		Sub SendFlashList()
+		  // Request list of stored flights from flash
+		  SendCommand("flash_list")
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendFlashRead(inSlot As Integer, inSampleStart As Integer)
+		  // Request flash data chunk (samples)
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "flash_read"
+		  theJson.Value("id") = theId
+		  theJson.Value("slot") = inSlot
+		  theJson.Value("sample") = inSampleStart
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendFlashReadHeader(inSlot As Integer)
+		  // Request flash flight header
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "flash_read"
+		  theJson.Value("id") = theId
+		  theJson.Value("slot") = inSlot
+		  theJson.Value("header") = True
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendFlashDelete(inSlot As Integer)
+		  // Delete a flight from flash (use slot=255 to delete all)
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "flash_delete"
+		  theJson.Value("id") = theId
+		  theJson.Value("slot") = inSlot
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
 
 	#tag Hook, Flags = &h0
 		Event ConnectionChanged(inConnected As Boolean)
@@ -610,6 +771,18 @@ Protected Class FlightConnection
 
 	#tag Hook, Flags = &h0
 		Event DeviceInfoReceived(inIsGateway As Boolean, inInfo As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event FlashListReceived(inCount As Integer, inFlights() As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event FlashDataReceived(inSlot As Integer, inStart As Integer, inTotal As Integer, inCount As Integer, inData As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event FlashHeaderReceived(inSlot As Integer, inData As String)
 	#tag EndHook
 
 

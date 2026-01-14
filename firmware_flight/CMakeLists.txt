@@ -31,14 +31,6 @@ set(CMAKE_CXX_STANDARD 17)
 # Initialize the Pico SDK
 pico_sdk_init()
 
-# Add cJSON library
-add_library(cjson STATIC
-    lib/cJSON/cJSON.c
-)
-target_include_directories(cjson PUBLIC
-    lib/cJSON
-)
-
 # Main executable
 add_executable(rocket_avionics_flight
     src/main.c
@@ -49,6 +41,7 @@ add_executable(rocket_avionics_flight
     src/ssd1306.c
     src/status_display.c
     src/storage.c
+    src/flight_storage.c
     src/heartbeat_led.c
     src/base64.c
     src/gps.c
@@ -78,7 +71,6 @@ target_link_libraries(rocket_avionics_flight
     hardware_pio
     hardware_clocks
     pico_unique_id
-    cjson
 )
 
 # Enable USB output, disable UART

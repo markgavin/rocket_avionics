@@ -410,19 +410,30 @@ void StatusDisplay_ShowGpsStatus(
 //----------------------------------------------
 void StatusDisplay_UpdateCompact(
   FlightState inState,
+  bool inOrientationMode,
   float inAltitudeM,
   float inVelocityMps,
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
-  bool inLoRaConnected)
+  bool inLoRaConnected,
+  int16_t inRssi,
+  int8_t inSnr)
 {
   if (!sInitialized) return ;
 
   SSD1306_Clear() ;
 
-  // State name at top
-  const char * theStateName = FlightControl_GetStateName(inState) ;
+  // State name at top - show ORIENTATION when in orientation mode and idle
+  const char * theStateName ;
+  if (inOrientationMode && inState == kFlightIdle)
+  {
+    theStateName = "ORIENTATION" ;
+  }
+  else
+  {
+    theStateName = FlightControl_GetStateName(inState) ;
+  }
   SSD1306_DrawStringCentered(0, theStateName, 1) ;
 
   // Draw separator line
@@ -456,8 +467,32 @@ void StatusDisplay_UpdateCompact(
   }
   SSD1306_DrawString(0, 40, theBuffer, 1) ;
 
-  // Gateway/LoRa status at bottom
-  SSD1306_DrawString(0, 54, inLoRaConnected ? "GW: Connected" : "GW: --", 1) ;
+  // Gateway/LoRa status at bottom with signal quality (Good/Ok/Poor)
+  // Thresholds match gateway_display.h
+  // Note: When RSSI=0 and SNR=0, it means we're transmitting but haven't received ACKs
+  const char * theGwStatus ;
+  if (!inLoRaConnected)
+  {
+    theGwStatus = "GW: --" ;
+  }
+  else if (inRssi == 0 && inSnr == 0)
+  {
+    // Transmitting but no ACK data yet - show active status
+    theGwStatus = "GW: Active" ;
+  }
+  else if (inRssi > -70 && inSnr > 5)
+  {
+    theGwStatus = "GW: Good" ;
+  }
+  else if (inRssi > -90 && inSnr > 0)
+  {
+    theGwStatus = "GW: Ok" ;
+  }
+  else
+  {
+    theGwStatus = "GW: Poor" ;
+  }
+  SSD1306_DrawString(0, 54, theGwStatus, 1) ;
 
   SSD1306_Update() ;
 }
@@ -680,42 +715,48 @@ void StatusDisplay_ShowCompass(
   SSD1306_DrawLine(0, 10, 127, 10, true) ;
 
   //----------------------------------------------
-  // Compass circle with arrow (left side)
+  // Compass ellipse with arrow (left side)
+  // Use ellipse to compensate for non-square pixels
   //----------------------------------------------
   const int16_t theCenterX = 32 ;
   const int16_t theCenterY = 38 ;
-  const int16_t theRadius = 24 ;
+  const int16_t theRadiusX = 26 ;   // Horizontal radius
+  const int16_t theRadiusY = 20 ;   // Vertical radius (smaller for ellipse)
+  const float theAspect = (float)theRadiusY / (float)theRadiusX ;
 
-  // Draw compass circle
-  for (int16_t i = 0 ; i < 360 ; i += 8)
+  // Draw compass ellipse
+  for (int16_t i = 0 ; i < 360 ; i += 5)
   {
     float theAngleRad = i * 3.14159f / 180.0f ;
-    int16_t theX = theCenterX + (int16_t)(theRadius * sinf(theAngleRad)) ;
-    int16_t theY = theCenterY - (int16_t)(theRadius * cosf(theAngleRad)) ;
+    int16_t theX = theCenterX + (int16_t)(theRadiusX * sinf(theAngleRad)) ;
+    int16_t theY = theCenterY - (int16_t)(theRadiusY * cosf(theAngleRad)) ;
     SSD1306_SetPixel(theX, theY, true) ;
   }
 
   // Draw cardinal direction markers
-  SSD1306_DrawString(theCenterX - 2, theCenterY - theRadius - 9, "N", 1) ;
-  SSD1306_DrawString(theCenterX + theRadius + 2, theCenterY - 3, "E", 1) ;
-  SSD1306_DrawString(theCenterX - theRadius - 7, theCenterY - 3, "W", 1) ;
+  SSD1306_DrawString(theCenterX - 2, theCenterY - theRadiusY - 9, "N", 1) ;
+  SSD1306_DrawString(theCenterX + theRadiusX + 2, theCenterY - 3, "E", 1) ;
+  SSD1306_DrawString(theCenterX - theRadiusX - 7, theCenterY - 3, "W", 1) ;
 
   // Draw arrow pointing in heading direction
   float theHeadingRad = inHeadingDeg * 3.14159f / 180.0f ;
 
-  int16_t theTipLen = theRadius - 4 ;
-  int16_t theTipX = theCenterX + (int16_t)(theTipLen * sinf(theHeadingRad)) ;
-  int16_t theTipY = theCenterY - (int16_t)(theTipLen * cosf(theHeadingRad)) ;
+  // Arrow tip position (on ellipse, slightly inside)
+  float theTipScale = 0.80f ;
+  int16_t theTipX = theCenterX + (int16_t)(theRadiusX * theTipScale * sinf(theHeadingRad)) ;
+  int16_t theTipY = theCenterY - (int16_t)(theRadiusY * theTipScale * cosf(theHeadingRad)) ;
 
   // Line from center to tip
   SSD1306_DrawLine(theCenterX, theCenterY, theTipX, theTipY, true) ;
 
-  // Arrowhead
-  int16_t theArrowLen = 6 ;
-  int16_t theA1X = theTipX - (int16_t)(theArrowLen * sinf(theHeadingRad - 0.5f)) ;
-  int16_t theA1Y = theTipY + (int16_t)(theArrowLen * cosf(theHeadingRad - 0.5f)) ;
-  int16_t theA2X = theTipX - (int16_t)(theArrowLen * sinf(theHeadingRad + 0.5f)) ;
-  int16_t theA2Y = theTipY + (int16_t)(theArrowLen * cosf(theHeadingRad + 0.5f)) ;
+  // Arrowhead (scale Y for ellipse aspect ratio)
+  int16_t theArrowLen = 5 ;
+  float theA1Rad = theHeadingRad - 0.5f ;
+  float theA2Rad = theHeadingRad + 0.5f ;
+  int16_t theA1X = theTipX - (int16_t)(theArrowLen * sinf(theA1Rad)) ;
+  int16_t theA1Y = theTipY + (int16_t)(theArrowLen * theAspect * cosf(theA1Rad)) ;
+  int16_t theA2X = theTipX - (int16_t)(theArrowLen * sinf(theA2Rad)) ;
+  int16_t theA2Y = theTipY + (int16_t)(theArrowLen * theAspect * cosf(theA2Rad)) ;
   SSD1306_DrawLine(theTipX, theTipY, theA1X, theA1Y, true) ;
   SSD1306_DrawLine(theTipX, theTipY, theA2X, theA2Y, true) ;
 
@@ -747,6 +788,80 @@ void StatusDisplay_ShowCompass(
 }
 
 //----------------------------------------------
+// Function: StatusDisplay_ShowRates
+// Purpose: Show sensor sampling rates screen
+//----------------------------------------------
+void StatusDisplay_ShowRates(
+  uint16_t inBmp390Hz,
+  uint16_t inImuAccelHz,
+  uint16_t inImuGyroHz,
+  uint8_t inGpsHz,
+  uint8_t inTelemetryHz,
+  uint8_t inDisplayHz)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Title
+  SSD1306_DrawStringCentered(0, "SAMPLING RATES", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[32] ;
+
+  // BMP390 barometer
+  snprintf(theBuffer, sizeof(theBuffer), "BMP390:  %3u Hz", inBmp390Hz) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  // IMU Accelerometer
+  snprintf(theBuffer, sizeof(theBuffer), "Accel:   %3u Hz", inImuAccelHz) ;
+  SSD1306_DrawString(0, 24, theBuffer, 1) ;
+
+  // IMU Gyroscope
+  snprintf(theBuffer, sizeof(theBuffer), "Gyro:    %3u Hz", inImuGyroHz) ;
+  SSD1306_DrawString(0, 34, theBuffer, 1) ;
+
+  // GPS
+  snprintf(theBuffer, sizeof(theBuffer), "GPS:     %3u Hz", inGpsHz) ;
+  SSD1306_DrawString(0, 44, theBuffer, 1) ;
+
+  // Telemetry and Display rates on bottom line
+  snprintf(theBuffer, sizeof(theBuffer), "Telem:%uHz Disp:%uHz", inTelemetryHz, inDisplayHz) ;
+  SSD1306_DrawString(0, 56, theBuffer, 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Internal: Format build date from "Jan 13 2026" to "26-01-13"
+//----------------------------------------------
+static void FormatBuildDate(const char * inDate, char * outFormatted, int inMaxLen)
+{
+  // __DATE__ format: "Mmm DD YYYY" e.g. "Jan 13 2026"
+  static const char * kMonths[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  } ;
+
+  int theMonth = 0 ;
+  for (int i = 0 ; i < 12 ; i++)
+  {
+    if (inDate[0] == kMonths[i][0] &&
+        inDate[1] == kMonths[i][1] &&
+        inDate[2] == kMonths[i][2])
+    {
+      theMonth = i + 1 ;
+      break ;
+    }
+  }
+
+  int theDay = (inDate[4] == ' ') ? (inDate[5] - '0') : ((inDate[4] - '0') * 10 + (inDate[5] - '0')) ;
+  int theYear = (inDate[9] - '0') * 10 + (inDate[10] - '0') ;  // Last 2 digits
+
+  snprintf(outFormatted, inMaxLen, "%02d-%02d-%02d", theYear, theMonth, theDay) ;
+}
+
+//----------------------------------------------
 // Function: StatusDisplay_ShowAbout
 // Purpose: Show about screen with version and copyright
 //----------------------------------------------
@@ -755,30 +870,32 @@ void StatusDisplay_ShowAbout(
   const char * inBuildDate,
   const char * inBuildTime)
 {
+  (void)inBuildTime ;  // Not used in compact format
+
   if (!sInitialized) return ;
 
   SSD1306_Clear() ;
 
-  // Product name (centered, larger appearance)
+  // Product name (centered)
   SSD1306_DrawStringCentered(4, "Rocket Avionics", 1) ;
+  SSD1306_DrawStringCentered(14, "Flight Computer", 1) ;
 
   // Separator line
-  SSD1306_DrawLine(0, 14, 127, 14, true) ;
+  SSD1306_DrawLine(0, 24, 127, 24, true) ;
 
-  // Version
+  // Version and date on same line
+  char theDate[16] ;
+  FormatBuildDate(inBuildDate, theDate, sizeof(theDate)) ;
+
   char theBuffer[32] ;
-  snprintf(theBuffer, sizeof(theBuffer), "Version %s", inVersion) ;
-  SSD1306_DrawStringCentered(20, theBuffer, 1) ;
+  snprintf(theBuffer, sizeof(theBuffer), "v%s  %s", inVersion, theDate) ;
+  SSD1306_DrawStringCentered(30, theBuffer, 1) ;
 
-  // Build date and time
-  snprintf(theBuffer, sizeof(theBuffer), "Built: %s", inBuildDate) ;
-  SSD1306_DrawStringCentered(32, theBuffer, 1) ;
-
-  snprintf(theBuffer, sizeof(theBuffer), "%s", inBuildTime) ;
-  SSD1306_DrawStringCentered(42, theBuffer, 1) ;
+  // Separator line
+  SSD1306_DrawLine(0, 42, 127, 42, true) ;
 
   // Copyright
-  SSD1306_DrawStringCentered(54, "(c) 2025-2026 M.Gavin", 1) ;
+  SSD1306_DrawStringCentered(48, "(c) 2026 Mark Gavin", 1) ;
 
   SSD1306_Update() ;
 }

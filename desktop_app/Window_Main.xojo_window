@@ -8,16 +8,16 @@ Begin Window Window_Main
    FullScreen      =   False
    HasBackColor    =   False
    HasFullScreenButton=   False
-   Height          =   470
+   Height          =   560
    ImplicitInstance=   True
    LiveResize      =   "True"
    MacProcID       =   0
    MaxHeight       =   32000
    MaximizeButton  =   True
    MaxWidth        =   32000
-   MenuBar         =   0
+   MenuBar         =   4294967314
    MenuBarVisible  =   True
-   MinHeight       =   470
+   MinHeight       =   560
    MinimizeButton  =   True
    MinWidth        =   1000
    Placement       =   0
@@ -351,6 +351,140 @@ Begin Window Window_Main
          Visible         =   True
          Width           =   240
       End
+      Begin Label LabelDistance
+         AutoDeactivate  =   True
+         Bold            =   False
+         DataField       =   ""
+         DataSource      =   ""
+         Enabled         =   True
+         FontName        =   "System"
+         FontUnit        =   0
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupTelemetry"
+         Italic          =   False
+         Left            =   40
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Multiline       =   False
+         Scope           =   2
+         Selectable      =   False
+         TabIndex        =   4
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "Distance: --- m  Bearing: ---°"
+         TextAlign       =   0
+         TextColor       =   &c66666600
+         TextSize        =   11.0
+         Tooltip         =   ""
+         Top             =   280
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   True
+         Width           =   240
+      End
+   End
+   Begin GroupBox GroupGatewayGps
+      AutoDeactivate  =   True
+      Bold            =   False
+      Caption         =   "Gateway GPS"
+      Enabled         =   True
+      FontName        =   "System"
+      FontSize        =   0.0
+      FontUnit        =   0
+      Height          =   80
+      Index           =   -2147483648
+      InitialParent   =   ""
+      Italic          =   False
+      Left            =   20
+      LockBottom      =   False
+      LockedInPosition=   False
+      LockLeft        =   True
+      LockRight       =   False
+      LockTop         =   True
+      Scope           =   2
+      TabIndex        =   4
+      TabPanelIndex   =   0
+      TabStop         =   True
+      Tooltip         =   ""
+      Top             =   320
+      Transparent     =   False
+      Underline       =   False
+      Visible         =   True
+      Width           =   280
+      Begin Label LabelGatewayGpsStatus
+         AutoDeactivate  =   True
+         Bold            =   False
+         DataField       =   ""
+         DataSource      =   ""
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupGatewayGps"
+         Italic          =   False
+         Left            =   40
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Multiline       =   False
+         Scope           =   2
+         Selectable      =   False
+         TabIndex        =   0
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "Status: ---"
+         TextAlign       =   0
+         TextColor       =   &c66666600
+         Tooltip         =   ""
+         Top             =   345
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   True
+         Width           =   240
+      End
+      Begin Label LabelGatewayGpsCoords
+         AutoDeactivate  =   True
+         Bold            =   False
+         DataField       =   ""
+         DataSource      =   ""
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupGatewayGps"
+         Italic          =   False
+         Left            =   40
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Multiline       =   False
+         Scope           =   2
+         Selectable      =   False
+         TabIndex        =   1
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "Lat: ---  Lon: ---"
+         TextAlign       =   0
+         TextColor       =   &c00000000
+         Tooltip         =   ""
+         Top             =   365
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   True
+         Width           =   240
+      End
    End
    Begin GroupBox GroupCommands
       AutoDeactivate  =   True
@@ -375,7 +509,7 @@ Begin Window Window_Main
       TabPanelIndex   =   0
       TabStop         =   True
       Tooltip         =   ""
-      Top             =   320
+      Top             =   410
       Transparent     =   False
       Underline       =   False
       Visible         =   True
@@ -406,7 +540,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   360
+         Top             =   450
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -438,7 +572,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   360
+         Top             =   450
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -470,7 +604,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   410
+         Top             =   500
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -485,7 +619,7 @@ Begin Window Window_Main
       Backdrop        =   0
       DoubleBuffer    =   False
       Enabled         =   True
-      Height          =   420
+      Height          =   510
       Index           =   -2147483648
       InitialParent   =   ""
       Left            =   320
@@ -536,12 +670,12 @@ End
 		Sub Open()
 		  // Restore window position
 		  Module_WindowSettings.LoadWindowPosition(Self, "Window_Main")
-
+		  
 		  // Center splash screen over main window and show it
 		  Window_Splash.Left = Self.Left + (Self.Width - Window_Splash.Width) / 2
 		  Window_Splash.Top = Self.Top + (Self.Height - Window_Splash.Height) / 2
 		  Window_Splash.Show
-
+		  
 		  // Initialize connection
 		  pConnection = New FlightConnection
 		  AddHandler pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
@@ -551,12 +685,15 @@ End
 		  AddHandler pConnection.StorageListReceived, AddressOf HandleStorageListReceived
 		  AddHandler pConnection.StorageDataReceived, AddressOf HandleStorageDataReceived
 		  AddHandler pConnection.DeviceInfoReceived, AddressOf HandleDeviceInfoReceived
-
+		  
 		  // Initialize current flight data
 		  pCurrentFlight = New FlightData
 
 		  // Refresh serial ports
 		  RefreshSerialPorts()
+
+		  // Apply dark mode appearance
+		  ApplyAppearance()
 		End Sub
 	#tag EndEvent
 
@@ -626,20 +763,42 @@ End
 	#tag Method, Flags = &h21
 		Private Sub HandleDeviceInfoReceived(inSender As FlightConnection, inIsGateway As Boolean, inInfo As Dictionary)
 		  #Pragma Unused inSender
-		  
+
 		  // Log that we received device info
 		  Window_Console.LogMessage("** Device info received: " + If(inIsGateway, "Gateway", "Flight Computer"))
-		  
-		  // Display device info in dialog window
+
+		  // Display device info in separate window instances (so both can be viewed at once)
 		  Try
 		    If inIsGateway Then
-		      Window_Console.LogMessage("** Calling ShowGatewayInfo...")
-		      Window_DeviceInfo.ShowGatewayInfo(inInfo)
-		      Window_Console.LogMessage("** ShowGatewayInfo completed")
+		      // Create or reuse gateway info window
+		      If pGatewayInfoWindow = Nil Then
+		        pGatewayInfoWindow = New Window_DeviceInfo
+		      End If
+		      pGatewayInfoWindow.ShowGatewayInfo(inInfo)
+
+		      // Also update gateway GPS labels on main window
+		      Var theGpsFix As Boolean = inInfo.Lookup("gps_fix", False)
+		      If theGpsFix Then
+		        LabelGatewayGpsStatus.Text = "Status: Fix (" + Str(inInfo.Lookup("gps_sats", 0)) + " sats)"
+		        LabelGatewayGpsStatus.TextColor = &c00AA00
+		        LabelGatewayGpsCoords.Text = "Lat: " + Format(inInfo.Lookup("gps_lat", 0.0), "0.00000") + _
+		          "  Lon: " + Format(inInfo.Lookup("gps_lon", 0.0), "0.00000")
+		      Else
+		        Var theGpsOk As Boolean = inInfo.Lookup("gps", False)
+		        If theGpsOk Then
+		          LabelGatewayGpsStatus.Text = "Status: No Fix (acquiring...)"
+		        Else
+		          LabelGatewayGpsStatus.Text = "Status: GPS Not Found"
+		        End If
+		        LabelGatewayGpsStatus.TextColor = &c99999900
+		        LabelGatewayGpsCoords.Text = "Lat: ---  Lon: ---"
+		      End If
 		    Else
-		      Window_Console.LogMessage("** Calling ShowFlightComputerInfo...")
-		      Window_DeviceInfo.ShowFlightComputerInfo(inInfo)
-		      Window_Console.LogMessage("** ShowFlightComputerInfo completed")
+		      // Create or reuse flight computer info window
+		      If pFlightComputerInfoWindow = Nil Then
+		        pFlightComputerInfoWindow = New Window_DeviceInfo
+		      End If
+		      pFlightComputerInfoWindow.ShowFlightComputerInfo(inInfo)
 		    End If
 		  Catch theError As RuntimeException
 		    Window_Console.LogMessage("** ERROR in ShowDeviceInfo: " + theError.Message)
@@ -707,29 +866,71 @@ End
 		  LabelAltitude.Text = theAltText
 		  
 		  LabelVelocity.Text = "Velocity: " + Format(inSample.pVelocityMps, "0.0") + " m/s"
-		  LabelState.Text = "State: " + inSample.pState.Uppercase
-		  
+
+		  // Show "ORIENTATION" when in orientation mode and idle state
+		  If inSample.IsOrientationMode And inSample.pState = "idle" Then
+		    LabelState.Text = "State: ORIENTATION"
+		    LabelState.TextColor = &c9900CC  // Purple for orientation mode
+		  Else
+		    LabelState.Text = "State: " + inSample.pState.Uppercase
+
+		    // Update state color
+		    Select Case inSample.pState
+		    Case "armed"
+		      LabelState.TextColor = &cFF6600
+		    Case "boost", "coast"
+		      LabelState.TextColor = &cFF0000
+		    Case "apogee", "descent"
+		      LabelState.TextColor = &c0066FF
+		    Case "landed", "complete"
+		      LabelState.TextColor = &c00AA00
+		    Else
+		      LabelState.TextColor = &c006600
+		    End Select
+		  End If
+
 		  // Show RSSI/SNR and ground station altitude (if available)
 		  Var theRssiText As String = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
 		  If inSample.pGroundAltitudeM <> 0.0 Then
 		    theRssiText = theRssiText + "  Gnd: " + Format(inSample.pGroundAltitudeM, "0") + " m"
 		  End If
 		  LabelRssi.Text = theRssiText
-		  
-		  // Update state color
-		  Select Case inSample.pState
-		  Case "armed"
-		    LabelState.TextColor = &cFF6600
-		  Case "boost", "coast"
-		    LabelState.TextColor = &cFF0000
-		  Case "apogee", "descent"
-		    LabelState.TextColor = &c0066FF
-		  Case "landed", "complete"
-		    LabelState.TextColor = &c00AA00
+
+		  // Show distance and bearing from gateway to flight computer (if both have GPS fix)
+		  If inSample.pGpsFix And inSample.pGatewayGpsFix Then
+		    Var theDistM As Double = inSample.DistanceToFlightM
+		    Var theBearing As Double = inSample.BearingToFlightDeg
+		    Var theDistText As String
+		    If theDistM >= 1000 Then
+		      theDistText = Format(theDistM / 1000.0, "0.00") + " km"
+		    Else
+		      theDistText = Format(theDistM, "0") + " m"
+		    End If
+		    LabelDistance.Text = "Distance: " + theDistText + "  Bearing: " + Format(theBearing, "0") + Chr(176)
+		    LabelDistance.TextColor = &c006600
 		  Else
-		    LabelState.TextColor = &c006600
-		  End Select
-		  
+		    If Not inSample.pGpsFix And Not inSample.pGatewayGpsFix Then
+		      LabelDistance.Text = "Distance: --- (no GPS fix)"
+		    ElseIf Not inSample.pGpsFix Then
+		      LabelDistance.Text = "Distance: --- (flight GPS no fix)"
+		    Else
+		      LabelDistance.Text = "Distance: --- (gateway GPS no fix)"
+		    End If
+		    LabelDistance.TextColor = &c99999900
+		  End If
+
+		  // Update gateway GPS display
+		  If inSample.pGatewayGpsFix Then
+		    LabelGatewayGpsStatus.Text = "Status: Fix"
+		    LabelGatewayGpsStatus.TextColor = &c00AA00
+		    LabelGatewayGpsCoords.Text = "Lat: " + Format(inSample.pGatewayLatitude, "0.00000") + _
+		      "  Lon: " + Format(inSample.pGatewayLongitude, "0.00000")
+		  Else
+		    LabelGatewayGpsStatus.Text = "Status: No Fix"
+		    LabelGatewayGpsStatus.TextColor = &c99999900
+		    LabelGatewayGpsCoords.Text = "Lat: ---  Lon: ---"
+		  End If
+
 		  // Detect new flight starting (transition to armed or boost)
 		  If (inSample.pState = "armed" Or inSample.pState = "boost") And _
 		    (pPreviousState = "idle" Or pPreviousState = "complete" Or pPreviousState = "") Then
@@ -772,6 +973,12 @@ End
 		  
 		  // Update chart
 		  ChartAltitude.SetFlightData(pCurrentFlight)
+		  
+		  // Forward telemetry to orientation window if active
+		  // Use shared flag to avoid implicitly creating the window
+		  If Window_Orientation.sOrientationModeActive Then
+		    Window_Orientation.UpdateFromTelemetry(inSample)
+		  End If
 		End Sub
 	#tag EndMethod
 
@@ -825,7 +1032,8 @@ End
 		  LabelVelocity.Text = "Velocity: " + Format(inSample.pVelocityMps, "0.0") + " m/s"
 		  LabelState.Text = "State: " + inSample.pState.Uppercase
 		  LabelRssi.Text = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
-		  
+		  LabelDistance.Text = "Distance: --- m  Bearing: ---" + Chr(176)
+
 		  // Update state color
 		  Select Case inSample.pState
 		  Case "armed"
@@ -839,7 +1047,7 @@ End
 		  Else
 		    LabelState.TextColor = &c006600
 		  End Select
-		  
+
 		  // Update chart
 		  ChartAltitude.SetFlightData(pCurrentFlight)
 		End Sub
@@ -855,12 +1063,40 @@ End
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
+		Private pFlightComputerInfoWindow As Window_DeviceInfo
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
 		Private pFlightSaved As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pGatewayInfoWindow As Window_DeviceInfo
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
 		Private pPreviousState As String = ""
 	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pIsDarkMode As Boolean = False
+	#tag EndProperty
+
+
+	#tag Method, Flags = &h21
+		Private Sub ApplyAppearance()
+		  // Check if dark mode is enabled (macOS only)
+		  #If TargetMacOS Then
+		    pIsDarkMode = Color.IsDarkMode
+		  #Else
+		    pIsDarkMode = False
+		  #EndIf
+
+		  // Update chart for dark mode
+		  ChartAltitude.pDarkMode = pIsDarkMode
+		  ChartAltitude.Refresh
+		End Sub
+	#tag EndMethod
 
 
 #tag EndWindowCode

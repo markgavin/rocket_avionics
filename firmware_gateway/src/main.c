@@ -4,11 +4,14 @@
 //   LoRa to USB serial bridge
 // Author: Mark Gavin
 // Created: 2026-01-10
+// Modified: 2026-01-13 (Switched to OLED display)
 // Copyright: (c) 2025-2026 by Mark Gavin
 // License: Proprietary - All Rights Reserved
 //
 // Hardware:
 //   - Adafruit Feather RP2040 with RFM95 LoRa 915MHz
+//   - Adafruit FeatherWing OLED 128x64 (4650)
+//   - Adafruit BMP390 Barometric Sensor (4816)
 //----------------------------------------------
 
 #include "pins.h"
@@ -17,6 +20,7 @@
 #include "gateway_protocol.h"
 #include "gateway_display.h"
 #include "bmp390.h"
+#include "gps.h"
 
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -36,8 +40,23 @@
 #define kLinkTimeoutMs          5000
 #define kUsbLineBufferSize      256
 #define kStartupDelayMs         1000
-#define kDisplayUpdateIntervalMs 100
+#define kOledUpdateIntervalMs   200   // 5 Hz display update
 #define kBmp390ReadIntervalMs   100   // 10 Hz sensor reading
+#define kSplashDurationMs       1500  // Splash screen duration
+#define kGpsUpdateIntervalMs    100   // 10 Hz GPS update
+
+//----------------------------------------------
+// Debug Configuration
+// Set to 0 to disable debug output that can
+// interfere with protocol JSON parsing
+//----------------------------------------------
+#define kEnableDebugOutput      0
+
+#if kEnableDebugOutput
+  #define DEBUG_PRINT(...)  printf(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...)  ((void)0)
+#endif
 
 //----------------------------------------------
 // Module State
@@ -49,6 +68,7 @@ static bool sLoRaOk = false ;
 static bool sDisplayOk = false ;
 static bool sUsbConnected = false ;
 static bool sBmp390Ok = false ;
+static bool sGpsOk = false ;
 
 // Ground barometer data
 static float sGroundPressurePa = 0.0f ;
@@ -62,6 +82,15 @@ static bool sLedState = false ;
 static uint32_t sLastDisplayUpdateMs = 0 ;
 static uint32_t sLastUsbCheckMs = 0 ;
 static uint32_t sLastBmp390ReadMs = 0 ;
+static uint32_t sLastGpsUpdateMs = 0 ;
+
+// Button state
+static bool sButtonAState = false ;
+static bool sButtonBState = false ;
+static bool sButtonCState = false ;
+static uint32_t sButtonALastMs = 0 ;
+static uint32_t sButtonBLastMs = 0 ;
+static uint32_t sButtonCLastMs = 0 ;
 
 // USB input buffer
 static char sUsbLineBuffer[kUsbLineBufferSize] ;
@@ -73,8 +102,10 @@ static int sUsbLinePos = 0 ;
 static void InitializeHardware(void) ;
 static void InitializeI2C(void) ;
 static void InitializeSPI(void) ;
+static void InitializeButtons(void) ;
 static void ProcessLoRaPackets(uint32_t inCurrentMs) ;
 static void ProcessUsbInput(uint32_t inCurrentMs) ;
+static void ProcessButtons(uint32_t inCurrentMs) ;
 static void UpdateLed(uint32_t inCurrentMs) ;
 static void UpdateDisplay(uint32_t inCurrentMs) ;
 static void ReadGroundBarometer(uint32_t inCurrentMs) ;
@@ -106,15 +137,17 @@ int main(void)
   printf("  LoRa: %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  Display: %s\n", sDisplayOk ? "OK" : "FAIL") ;
   printf("  BMP390: %s\n", sBmp390Ok ? "OK" : "FAIL") ;
+  printf("  GPS: %s\n", sGpsOk ? "OK" : "FAIL") ;
   printf("  Frequency: %lu Hz\n", (unsigned long)kLoRaFrequency) ;
   printf("  Sync Word: 0x%02X\n", kLoRaSyncWord) ;
   printf("\nListening for telemetry...\n\n") ;
 
-  // Set initial display state
+  // Show splash screen
   if (sDisplayOk)
   {
+    GatewayDisplay_ShowSplash() ;
+    sleep_ms(kSplashDurationMs) ;
     GatewayDisplay_SetConnectionState(kConnectionDisconnected) ;
-    GatewayDisplay_ShowMessage("Ready - Listening...", false) ;
   }
 
   // Put LoRa in receive mode
@@ -140,8 +173,17 @@ int main(void)
       ReadGroundBarometer(theCurrentMs) ;
     }
 
+    // Update GPS
+    if (sGpsOk)
+    {
+      GPS_Update(theCurrentMs) ;
+    }
+
     // Process USB serial input
     ProcessUsbInput(theCurrentMs) ;
+
+    // Process button inputs
+    ProcessButtons(theCurrentMs) ;
 
     // Update status LED
     UpdateLed(theCurrentMs) ;
@@ -159,6 +201,7 @@ int main(void)
       {
         sGatewayState.pConnected = false ;
         printf("{\"type\":\"link\",\"status\":\"lost\"}\n") ;
+        stdio_flush() ;
 
         // Update display
         if (sDisplayOk)
@@ -232,16 +275,31 @@ static void InitializeHardware(void)
     printf("ERROR: LoRa radio initialization failed!\n") ;
   }
 
-  // Initialize TFT display
-  printf("Initializing TFT display...\n") ;
-  if (GatewayDisplay_Init())
+  // Initialize GPS
+  printf("Initializing GPS...\n") ;
+  if (GPS_Init())
   {
-    sDisplayOk = true ;
-    printf("TFT display initialized\n") ;
+    sGpsOk = true ;
+    printf("GPS initialized\n") ;
   }
   else
   {
-    printf("ERROR: TFT display initialization failed!\n") ;
+    printf("WARNING: GPS initialization failed\n") ;
+  }
+
+  // Initialize buttons
+  InitializeButtons() ;
+
+  // Initialize OLED display
+  printf("Initializing OLED display...\n") ;
+  if (GatewayDisplay_Init())
+  {
+    sDisplayOk = true ;
+    printf("OLED display initialized\n") ;
+  }
+  else
+  {
+    printf("ERROR: OLED display initialization failed!\n") ;
   }
 
   printf("Hardware initialization complete\n\n") ;
@@ -270,7 +328,7 @@ static void InitializeSPI(void)
 {
   printf("Initializing SPI1 bus...\n") ;
 
-  // Initialize SPI1 (shared by LoRa and TFT)
+  // Initialize SPI1 for LoRa radio
   spi_init(kSpiPort, kSpiLoRaBaudrate) ;
   gpio_set_function(kPinSpiSck, GPIO_FUNC_SPI) ;
   gpio_set_function(kPinSpiMosi, GPIO_FUNC_SPI) ;
@@ -290,17 +348,32 @@ static void InitializeSPI(void)
   gpio_init(kPinLoRaDio0) ;
   gpio_set_dir(kPinLoRaDio0, GPIO_IN) ;
 
-  // TFT chip select (active low)
-  gpio_init(kPinTftCs) ;
-  gpio_set_dir(kPinTftCs, GPIO_OUT) ;
-  gpio_put(kPinTftCs, 1) ;
-
-  // TFT data/command select
-  gpio_init(kPinTftDc) ;
-  gpio_set_dir(kPinTftDc, GPIO_OUT) ;
-  gpio_put(kPinTftDc, 1) ;
-
   printf("SPI1 initialized\n") ;
+}
+
+//----------------------------------------------
+// Function: InitializeButtons
+//----------------------------------------------
+static void InitializeButtons(void)
+{
+  printf("Initializing buttons...\n") ;
+
+  // Button A (left) - active low
+  gpio_init(kPinButtonA) ;
+  gpio_set_dir(kPinButtonA, GPIO_IN) ;
+  gpio_pull_up(kPinButtonA) ;
+
+  // Button B (middle) - active low
+  gpio_init(kPinButtonB) ;
+  gpio_set_dir(kPinButtonB, GPIO_IN) ;
+  gpio_pull_up(kPinButtonB) ;
+
+  // Button C (right) - active low
+  gpio_init(kPinButtonC) ;
+  gpio_set_dir(kPinButtonC, GPIO_IN) ;
+  gpio_pull_up(kPinButtonC) ;
+
+  printf("Buttons initialized\n") ;
 }
 
 //----------------------------------------------
@@ -328,7 +401,7 @@ static void ReadGroundBarometer(uint32_t inCurrentMs)
     static uint32_t sDebugCount = 0 ;
     if ((++sDebugCount % 10) == 0)
     {
-      printf("GND BMP: P=%.0f Pa T=%.1f C\n", sGroundPressurePa, sGroundTemperatureC) ;
+      DEBUG_PRINT("GND BMP: P=%.0f Pa T=%.1f C\n", sGroundPressurePa, sGroundTemperatureC) ;
     }
   }
   else
@@ -337,7 +410,7 @@ static void ReadGroundBarometer(uint32_t inCurrentMs)
     static uint32_t sFailCount = 0 ;
     if ((++sFailCount % 10) == 0)
     {
-      printf("GND BMP: Read failed (%u)\n", sFailCount) ;
+      DEBUG_PRINT("GND BMP: Read failed (%u)\n", sFailCount) ;
     }
   }
 }
@@ -363,6 +436,7 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
   {
     sGatewayState.pConnected = true ;
     printf("{\"type\":\"link\",\"status\":\"connected\"}\n") ;
+    stdio_flush() ;
 
     // Update display
     if (sDisplayOk)
@@ -373,12 +447,12 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
   }
 
   // Debug: show received packet info
-  printf("RX: len=%u magic=0x%02X\n", theLen, theBuffer[0]) ;
+  DEBUG_PRINT("RX: len=%u magic=0x%02X\n", theLen, theBuffer[0]) ;
 
   // Validate packet
   if (theLen < 3 || theBuffer[0] != kLoRaMagic)
   {
-    printf("RX: Invalid packet (len=%u, magic=0x%02X)\n", theLen, theBuffer[0]) ;
+    DEBUG_PRINT("RX: Invalid packet (len=%u, magic=0x%02X)\n", theLen, theBuffer[0]) ;
     return ;
   }
 
@@ -387,16 +461,20 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
   // Handle telemetry packets
   if (thePacketType == kLoRaPacketTelemetry && theLen >= sizeof(LoRaTelemetryPacket))
   {
-    printf("RX: Telemetry packet, expected size=%u\n", (unsigned)sizeof(LoRaTelemetryPacket)) ;
+    DEBUG_PRINT("RX: Telemetry packet, expected size=%u\n", (unsigned)sizeof(LoRaTelemetryPacket)) ;
   }
   else if (thePacketType == kLoRaPacketTelemetry)
   {
-    printf("RX: Telemetry packet too small (got %u, need %u)\n", theLen, (unsigned)sizeof(LoRaTelemetryPacket)) ;
+    DEBUG_PRINT("RX: Telemetry packet too small (got %u, need %u)\n", theLen, (unsigned)sizeof(LoRaTelemetryPacket)) ;
   }
 
   if (thePacketType == kLoRaPacketTelemetry && theLen >= sizeof(LoRaTelemetryPacket))
   {
     LoRaTelemetryPacket * thePacket = (LoRaTelemetryPacket *)theBuffer ;
+
+    // Get gateway GPS data
+    const GpsData * theGwGps = sGpsOk ? GPS_GetData() : NULL ;
+    bool theGwGpsValid = (theGwGps != NULL && theGwGps->pValid) ;
 
     // Convert to JSON and output to USB
     char theJson[kJsonBufferSize] ;
@@ -405,12 +483,16 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
       sGatewayState.pLastRssi,
       sGatewayState.pLastSnr,
       sGroundPressurePa,
+      theGwGpsValid,
+      theGwGpsValid ? theGwGps->pLatitude : 0.0f,
+      theGwGpsValid ? theGwGps->pLongitude : 0.0f,
       theJson,
       sizeof(theJson)) ;
 
     if (theJsonLen > 0)
     {
       printf("%s", theJson) ;
+      stdio_flush() ;
     }
 
     // Update display with telemetry
@@ -425,41 +507,63 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
 
       GatewayDisplay_UpdateTelemetry(theAltitudeM, theVelocityMps, theStateName) ;
     }
+
+    // Send ACK packet back to flight computer with signal quality info
+    // This lets the flight computer know the gateway is receiving its telemetry
+    uint8_t theAckPacket[5] ;
+    theAckPacket[0] = kLoRaMagic ;
+    theAckPacket[1] = kLoRaPacketAck ;
+    theAckPacket[2] = (uint8_t)(sGatewayState.pLastRssi & 0xFF) ;
+    theAckPacket[3] = (uint8_t)((sGatewayState.pLastRssi >> 8) & 0xFF) ;
+    theAckPacket[4] = (uint8_t)sGatewayState.pLastSnr ;
+
+    if (LoRa_SendBlocking(&sLoRaRadio, theAckPacket, sizeof(theAckPacket), 100))
+    {
+      sGatewayState.pPacketsSent++ ;
+      DEBUG_PRINT("ACK TX: RSSI=%d SNR=%d\n", sGatewayState.pLastRssi, sGatewayState.pLastSnr) ;
+    }
+    else
+    {
+      DEBUG_PRINT("ACK TX FAILED\n") ;
+    }
+
+    // Immediately return to receive mode after ACK
+    LoRa_StartReceive(&sLoRaRadio) ;
   }
-  // Handle storage list response (SD or Flash)
+  // Handle storage list response (Flash)
   else if (thePacketType == kLoRaPacketStorageList && theLen >= 3)
   {
-    printf("RX: Storage list packet, len=%u\n", theLen) ;
+    DEBUG_PRINT("RX: Flash list packet, len=%u\n", theLen) ;
 
-    // Determine if this is SD or Flash based on a flag in the packet
-    // For now, assume SD (we can add a storage type byte later)
     char theJson[1024] ;
-    int theJsonLen = GatewayProtocol_StorageListToJson(
-      theBuffer, theLen, true, theJson, sizeof(theJson)) ;
+    int theJsonLen = GatewayProtocol_FlashListToJson(
+      theBuffer, theLen, theJson, sizeof(theJson)) ;
 
     if (theJsonLen > 0)
     {
       printf("%s", theJson) ;
+      stdio_flush() ;
     }
   }
-  // Handle storage data chunk (SD or Flash)
+  // Handle storage data chunk (Flash)
   else if (thePacketType == kLoRaPacketStorageData && theLen >= 12)
   {
-    printf("RX: Storage data packet, len=%u\n", theLen) ;
+    DEBUG_PRINT("RX: Flash data packet, len=%u\n", theLen) ;
 
     char theJson[1024] ;
-    int theJsonLen = GatewayProtocol_StorageDataToJson(
-      theBuffer, theLen, true, theJson, sizeof(theJson)) ;
+    int theJsonLen = GatewayProtocol_FlashDataToJson(
+      theBuffer, theLen, theJson, sizeof(theJson)) ;
 
     if (theJsonLen > 0)
     {
       printf("%s", theJson) ;
+      stdio_flush() ;
     }
   }
   // Handle device info response
   else if (thePacketType == kLoRaPacketInfo && theLen >= 5)
   {
-    printf("RX: Device info packet, len=%u\n", theLen) ;
+    DEBUG_PRINT("RX: Device info packet, len=%u\n", theLen) ;
 
     // Parse info packet
     int theOffset = 2 ;
@@ -508,13 +612,14 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
     uint8_t theFlightCount = theBuffer[theOffset++] ;
 
     // Build JSON response
+    // Note: Hardware flags from flight firmware:
+    //   0x01 = BMP390, 0x02 = LoRa, 0x04 = IMU, 0x10 = OLED, 0x20 = GPS
     printf("{\"type\":\"fc_info\","
            "\"version\":\"%s\","
            "\"build\":\"%s\","
            "\"bmp390\":%s,"
            "\"lora\":%s,"
-           "\"sd\":%s,"
-           "\"rtc\":%s,"
+           "\"imu\":%s,"
            "\"oled\":%s,"
            "\"gps\":%s,"
            "\"state\":\"%s\","
@@ -526,13 +631,13 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
            (theFlags & 0x01) ? "true" : "false",
            (theFlags & 0x02) ? "true" : "false",
            (theFlags & 0x04) ? "true" : "false",
-           (theFlags & 0x08) ? "true" : "false",
            (theFlags & 0x10) ? "true" : "false",
            (theFlags & 0x20) ? "true" : "false",
            GatewayProtocol_GetStateName(theState),
            (unsigned long)theSamples,
            (unsigned long)theFreeKb,
            theFlightCount) ;
+    stdio_flush() ;
   }
 
   // Return to receive mode
@@ -567,6 +672,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             char theResponse[64] ;
             GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
             printf("%s", theResponse) ;
+            stdio_flush() ;
           }
           // Handle status locally
           else if (theCommandType == kUsbCmdStatus)
@@ -574,16 +680,22 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             char theResponse[kJsonBufferSize] ;
             GatewayProtocol_BuildStatusJson(&sGatewayState, theCommandId, theResponse, sizeof(theResponse)) ;
             printf("%s", theResponse) ;
+            stdio_flush() ;
           }
           // Handle gateway info locally
           else if (theCommandType == kUsbCmdGatewayInfo)
           {
+            // Get GPS data
+            const GpsData * theGpsData = sGpsOk ? GPS_GetData() : NULL ;
+            bool theGpsFix = (theGpsData != NULL && theGpsData->pValid) ;
+
             // Build gateway device info JSON response
             printf("{\"type\":\"gw_info\","
                    "\"version\":\"%s\","
                    "\"build\":\"%s %s\","
                    "\"lora\":%s,"
                    "\"bmp390\":%s,"
+                   "\"gps\":%s,"
                    "\"display\":%s,"
                    "\"connected\":%s,"
                    "\"rx\":%lu,"
@@ -591,11 +703,16 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    "\"rssi\":%d,"
                    "\"snr\":%d,"
                    "\"ground_pres\":%.0f,"
-                   "\"ground_temp\":%.1f}\n",
+                   "\"ground_temp\":%.1f,"
+                   "\"gps_fix\":%s,"
+                   "\"gps_lat\":%.6f,"
+                   "\"gps_lon\":%.6f,"
+                   "\"gps_sats\":%u}\n",
                    FIRMWARE_VERSION_STRING,
                    __DATE__, __TIME__,
                    sLoRaOk ? "true" : "false",
                    sBmp390Ok ? "true" : "false",
+                   sGpsOk ? "true" : "false",
                    sDisplayOk ? "true" : "false",
                    sGatewayState.pConnected ? "true" : "false",
                    (unsigned long)sGatewayState.pPacketsReceived,
@@ -603,19 +720,26 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    sGatewayState.pLastRssi,
                    sGatewayState.pLastSnr,
                    sGroundPressurePa,
-                   sGroundTemperatureC) ;
+                   sGroundTemperatureC,
+                   theGpsFix ? "true" : "false",
+                   theGpsFix ? theGpsData->pLatitude : 0.0f,
+                   theGpsFix ? theGpsData->pLongitude : 0.0f,
+                   theGpsFix ? theGpsData->pSatellites : 0) ;
+            stdio_flush() ;
           }
-          // Handle storage read commands (need filename and offset)
-          else if ((theCommandType == kUsbCmdSdRead || theCommandType == kUsbCmdFlashRead) && sLoRaOk)
+          // Handle flash read commands (slot and sample index)
+          else if (theCommandType == kUsbCmdFlashRead && sLoRaOk)
           {
-            char theFilename[64] ;
-            uint32_t theOffset = 0 ;
+            uint8_t theSlot = 0 ;
+            uint32_t theSample = 0 ;
 
-            if (GatewayProtocol_ParseStorageParams(sUsbLineBuffer, theFilename, &theOffset))
+            if (GatewayProtocol_ParseFlashParams(sUsbLineBuffer, &theSlot, &theSample))
             {
-              uint8_t thePacket[80] ;
-              int theLen = GatewayProtocol_BuildStorageReadCommand(
-                theCommandType, theFilename, theOffset, thePacket, sizeof(thePacket)) ;
+              uint8_t thePacket[16] ;
+              int theLen = GatewayProtocol_BuildFlashReadCommand(
+                theSlot, theSample, thePacket, sizeof(thePacket)) ;
+
+              DEBUG_PRINT("CMD: Flash read slot=%u sample=%lu\n", theSlot, (unsigned long)theSample) ;
 
               if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
               {
@@ -623,33 +747,39 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
               else
               {
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
               LoRa_StartReceive(&sLoRaRadio) ;
             }
             else
             {
+              DEBUG_PRINT("CMD: Flash read - failed to parse params\n") ;
               char theResponse[64] ;
               GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
               printf("%s", theResponse) ;
+              stdio_flush() ;
             }
           }
-          // Handle storage delete commands (need filename)
-          else if ((theCommandType == kUsbCmdSdDelete || theCommandType == kUsbCmdFlashDelete) && sLoRaOk)
+          // Handle flash delete commands (slot number)
+          else if (theCommandType == kUsbCmdFlashDelete && sLoRaOk)
           {
-            char theFilename[64] ;
-            uint32_t theOffset = 0 ;
+            uint8_t theSlot = 0 ;
+            uint32_t theSample = 0 ;
 
-            if (GatewayProtocol_ParseStorageParams(sUsbLineBuffer, theFilename, &theOffset))
+            if (GatewayProtocol_ParseFlashParams(sUsbLineBuffer, &theSlot, &theSample))
             {
-              uint8_t thePacket[72] ;
-              int theLen = GatewayProtocol_BuildStorageDeleteCommand(
-                theCommandType, theFilename, thePacket, sizeof(thePacket)) ;
+              uint8_t thePacket[8] ;
+              int theLen = GatewayProtocol_BuildFlashDeleteCommand(
+                theSlot, thePacket, sizeof(thePacket)) ;
+
+              DEBUG_PRINT("CMD: Flash delete slot=%u\n", theSlot) ;
 
               if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
               {
@@ -657,13 +787,51 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
               else
               {
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
+              LoRa_StartReceive(&sLoRaRadio) ;
+            }
+            else
+            {
+              DEBUG_PRINT("CMD: Flash delete - failed to parse params\n") ;
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+          }
+          // Handle orientation mode command (has enabled parameter)
+          else if (theCommandType == kUsbCmdOrientationMode && sLoRaOk)
+          {
+            bool theEnabled = false ;
+            if (GatewayProtocol_ParseOrientationModeEnabled(sUsbLineBuffer, &theEnabled))
+            {
+              uint8_t thePacket[8] ;
+              int theLen = GatewayProtocol_BuildOrientationModeCommand(theEnabled, thePacket, sizeof(thePacket)) ;
+
+              if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+              {
+                sGatewayState.pPacketsSent++ ;
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+                stdio_flush() ;
+              }
+              else
+              {
+                char theResponse[64] ;
+                GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+                printf("%s", theResponse) ;
+                stdio_flush() ;
+              }
+
               LoRa_StartReceive(&sLoRaRadio) ;
             }
             else
@@ -671,31 +839,34 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
               char theResponse[64] ;
               GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
               printf("%s", theResponse) ;
+              stdio_flush() ;
             }
           }
           // Forward other commands to flight computer (arm, disarm, reset, sd_list, flash_list, info, etc.)
           else if (sLoRaOk)
           {
-            printf("CMD: Forwarding command type %d to flight computer\n", theCommandType) ;
+            DEBUG_PRINT("CMD: Forwarding command type %d to flight computer\n", theCommandType) ;
             uint8_t thePacket[8] ;
             int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, thePacket, sizeof(thePacket)) ;
-            printf("CMD: Built LoRa packet, len=%d\n", theLen) ;
+            DEBUG_PRINT("CMD: Built LoRa packet, len=%d\n", theLen) ;
 
             if (theLen > 0)
             {
-              printf("CMD: Sending via LoRa...\n") ;
+              DEBUG_PRINT("CMD: Sending via LoRa...\n") ;
               if (LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
               {
                 sGatewayState.pPacketsSent++ ;
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
               else
               {
                 char theResponse[64] ;
                 GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
                 printf("%s", theResponse) ;
+                stdio_flush() ;
               }
 
               // Return to receive mode
@@ -731,6 +902,51 @@ static void UpdateLed(uint32_t inCurrentMs)
 }
 
 //----------------------------------------------
+// Function: ProcessButtons
+// Purpose: Handle button presses for display mode cycling
+//----------------------------------------------
+static void ProcessButtons(uint32_t inCurrentMs)
+{
+  // Button A (left) - previous mode
+  bool theButtonA = !gpio_get(kPinButtonA) ;  // Active low
+  if (theButtonA && !sButtonAState && (inCurrentMs - sButtonALastMs) > kButtonDebounceMs)
+  {
+    sButtonALastMs = inCurrentMs ;
+    GatewayDisplay_PrevMode() ;
+    DEBUG_PRINT("BTN: Mode changed to %d\n", GatewayDisplay_GetMode()) ;
+  }
+  sButtonAState = theButtonA ;
+
+  // Button B (middle) - show About screen
+  bool theButtonB = !gpio_get(kPinButtonB) ;  // Active low
+  if (theButtonB && !sButtonBState && (inCurrentMs - sButtonBLastMs) > kButtonDebounceMs)
+  {
+    sButtonBLastMs = inCurrentMs ;
+    // Toggle to About mode
+    if (GatewayDisplay_GetMode() == kGwDisplayModeAbout)
+    {
+      GatewayDisplay_SetMode(kGwDisplayModeTelemetry) ;
+    }
+    else
+    {
+      GatewayDisplay_SetMode(kGwDisplayModeAbout) ;
+    }
+    DEBUG_PRINT("BTN: Mode changed to %d\n", GatewayDisplay_GetMode()) ;
+  }
+  sButtonBState = theButtonB ;
+
+  // Button C (right) - next mode
+  bool theButtonC = !gpio_get(kPinButtonC) ;  // Active low
+  if (theButtonC && !sButtonCState && (inCurrentMs - sButtonCLastMs) > kButtonDebounceMs)
+  {
+    sButtonCLastMs = inCurrentMs ;
+    GatewayDisplay_CycleMode() ;
+    DEBUG_PRINT("BTN: Mode changed to %d\n", GatewayDisplay_GetMode()) ;
+  }
+  sButtonCState = theButtonC ;
+}
+
+//----------------------------------------------
 // Function: UpdateDisplay
 // Purpose: Periodically update display with signal/packet info
 //----------------------------------------------
@@ -748,20 +964,43 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       if (sUsbConnected)
       {
         printf("{\"type\":\"link\",\"status\":\"usb_connected\"}\n") ;
+        stdio_flush() ;
       }
     }
   }
 
   // Update display at fixed interval
-  if ((inCurrentMs - sLastDisplayUpdateMs) < kDisplayUpdateIntervalMs)
+  if ((inCurrentMs - sLastDisplayUpdateMs) < kOledUpdateIntervalMs)
   {
     return ;
   }
   sLastDisplayUpdateMs = inCurrentMs ;
 
-  // Update signal strength (always show latest)
+  // Update cached display data
   GatewayDisplay_UpdateSignal(sGatewayState.pLastRssi, sGatewayState.pLastSnr) ;
-
-  // Update packet statistics
   GatewayDisplay_UpdatePacketStats(sGatewayState.pPacketsReceived, sGatewayState.pPacketsLost) ;
+  GatewayDisplay_UpdateBarometer(sGroundPressurePa, sGroundTemperatureC) ;
+
+  // Update GPS display data
+  if (sGpsOk)
+  {
+    const GpsData * theGps = GPS_GetData() ;
+    GatewayDisplay_UpdateGps(true, theGps->pValid, theGps->pLatitude, theGps->pLongitude,
+      theGps->pSatellites, theGps->pSpeedMps, theGps->pHeadingDeg) ;
+  }
+  else
+  {
+    GatewayDisplay_UpdateGps(false, false, 0.0f, 0.0f, 0, 0.0f, 0.0f) ;
+  }
+
+  // Handle About screen specially with version info
+  if (GatewayDisplay_GetMode() == kGwDisplayModeAbout)
+  {
+    GatewayDisplay_ShowAbout(FIRMWARE_VERSION_STRING, __DATE__, __TIME__) ;
+  }
+  else
+  {
+    // Update current mode display
+    GatewayDisplay_Update() ;
+  }
 }

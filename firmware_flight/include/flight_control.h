@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "imu.h"
 
 //----------------------------------------------
 // Flight States
@@ -102,10 +103,20 @@ typedef struct __attribute__((packed))
   uint16_t pGpsHeadingDeg10 ;     // Heading * 10 (0-3600 = 0-360.0 deg)
   uint8_t pGpsSatellites ;        // Number of satellites in use
 
-  // Accelerometer (6 bytes)
-  int16_t pAccelX ;               // Accelerometer X (raw)
+  // Accelerometer (6 bytes) - values in milli-g (mg)
+  int16_t pAccelX ;               // Accelerometer X
   int16_t pAccelY ;               // Accelerometer Y
   int16_t pAccelZ ;               // Accelerometer Z
+
+  // Gyroscope (6 bytes) - values in 0.1 degrees/second
+  int16_t pGyroX ;                // Gyroscope X
+  int16_t pGyroY ;                // Gyroscope Y
+  int16_t pGyroZ ;                // Gyroscope Z
+
+  // Magnetometer (6 bytes) - values in milligauss
+  int16_t pMagX ;                 // Magnetometer X
+  int16_t pMagY ;                 // Magnetometer Y
+  int16_t pMagZ ;                 // Magnetometer Z
 
   // Status (3 bytes)
   uint8_t pState ;                // Flight state enum
@@ -135,6 +146,9 @@ typedef struct __attribute__((packed))
 #define kCmdPing            0x06
 #define kCmdInfo            0x07  // Request device info
 
+// Mode commands
+#define kCmdOrientationMode 0x08  // Enable/disable high-rate orientation testing
+
 // Storage commands
 #define kCmdSdList          0x10
 #define kCmdSdRead          0x11
@@ -151,6 +165,7 @@ typedef struct __attribute__((packed))
 #define kFlagGpsFix             0x10  // GPS has valid fix
 #define kFlagSensorOk           0x20
 #define kFlagLoRaLink           0x40  // LoRa link active (received ack recently)
+#define kFlagOrientationMode    0x80  // Orientation testing mode active
 
 //----------------------------------------------
 // Flight Controller State
@@ -160,6 +175,8 @@ typedef struct
   FlightState pState ;
   bool pTelemetryEnabled ;        // LoRa transmission active
   bool pSdLoggingEnabled ;        // SD card logging active
+  bool pOrientationMode ;         // High-rate telemetry for orientation testing
+  uint32_t pOrientationModeTimeMs ; // Time when orientation mode was enabled (for timeout)
 
   // Sensor data (current)
   float pCurrentAltitudeM ;
@@ -281,11 +298,13 @@ const FlightResults * FlightControl_GetResults(
 // Purpose: Build a LoRa telemetry packet
 // Parameters:
 //   inController - Controller
+//   inImuData - IMU data (can be NULL)
 //   outPacket - Packet to fill
 // Returns: Packet size in bytes
 //----------------------------------------------
 uint8_t FlightControl_BuildTelemetryPacket(
   const FlightController * inController,
+  const ImuData * inImuData,
   LoRaTelemetryPacket * outPacket) ;
 
 //----------------------------------------------
@@ -322,3 +341,27 @@ void FlightControl_MarkTelemetrySent(
 float FlightControl_CalculateAltitude(
   float inPressurePa,
   float inGroundPressurePa) ;
+
+//----------------------------------------------
+// Function: FlightControl_SetOrientationMode
+// Purpose: Enable/disable high-rate orientation testing mode
+// Parameters:
+//   ioController - Controller
+//   inEnabled - true to enable, false to disable
+//----------------------------------------------
+void FlightControl_SetOrientationMode(
+  FlightController * ioController,
+  bool inEnabled) ;
+
+//----------------------------------------------
+// Function: FlightControl_CheckOrientationTimeout
+// Purpose: Auto-disable orientation mode after timeout
+// Parameters:
+//   ioController - Controller
+//   inCurrentTimeMs - Current time
+//   inTimeoutMs - Timeout in milliseconds
+//----------------------------------------------
+void FlightControl_CheckOrientationTimeout(
+  FlightController * ioController,
+  uint32_t inCurrentTimeMs,
+  uint32_t inTimeoutMs) ;

@@ -82,10 +82,13 @@ int GatewayProtocol_TelemetryToJson(
   int16_t inRssi,
   int8_t inSnr,
   float inGroundPressurePa,
+  bool inGwGpsValid,
+  float inGwGpsLat,
+  float inGwGpsLon,
   char * outJson,
   int inMaxLen)
 {
-  if (inPacket == NULL || outJson == NULL || inMaxLen < 128) return 0 ;
+  if (inPacket == NULL || outJson == NULL || inMaxLen < 256) return 0 ;
 
   // Validate magic byte
   if (inPacket->pMagic != kLoRaMagic) return 0 ;
@@ -102,6 +105,22 @@ int GatewayProtocol_TelemetryToJson(
   float theHeadingDeg = inPacket->pGpsHeadingDeg10 / 10.0f ;
   bool theHasGpsFix = (inPacket->pFlags & kFlagGpsFix) != 0 ;
 
+  // Convert IMU units
+  // Accelerometer: milli-g to g
+  float theAccelX = inPacket->pAccelX / 1000.0f ;
+  float theAccelY = inPacket->pAccelY / 1000.0f ;
+  float theAccelZ = inPacket->pAccelZ / 1000.0f ;
+
+  // Gyroscope: 0.1 dps to dps
+  float theGyroX = inPacket->pGyroX / 10.0f ;
+  float theGyroY = inPacket->pGyroY / 10.0f ;
+  float theGyroZ = inPacket->pGyroZ / 10.0f ;
+
+  // Magnetometer: already in milligauss, send as-is
+  int16_t theMagX = inPacket->pMagX ;
+  int16_t theMagY = inPacket->pMagY ;
+  int16_t theMagZ = inPacket->pMagZ ;
+
   // Get state name
   const char * theStateName = GatewayProtocol_GetStateName(inPacket->pState) ;
 
@@ -116,7 +135,7 @@ int GatewayProtocol_TelemetryToJson(
     theDiffAltitudeM = CalculateAltitude((float)inPacket->pPressurePa, inGroundPressurePa) ;
   }
 
-  // Build JSON telemetry message with GPS data and ground reference
+  // Build JSON telemetry message with GPS, IMU data, ground reference, and gateway GPS
   int theLen = snprintf(outJson, inMaxLen,
     "{\"type\":\"tel\","
     "\"seq\":%u,"
@@ -134,10 +153,22 @@ int GatewayProtocol_TelemetryToJson(
     "\"hdg\":%.1f,"
     "\"sat\":%u,"
     "\"gps\":%s,"
+    "\"ax\":%.3f,"
+    "\"ay\":%.3f,"
+    "\"az\":%.3f,"
+    "\"gx\":%.1f,"
+    "\"gy\":%.1f,"
+    "\"gz\":%.1f,"
+    "\"mx\":%d,"
+    "\"my\":%d,"
+    "\"mz\":%d,"
     "\"state\":\"%s\","
     "\"flags\":%u,"
     "\"rssi\":%d,"
-    "\"snr\":%d}\n",
+    "\"snr\":%d,"
+    "\"gw_gps\":%s,"
+    "\"gw_lat\":%.6f,"
+    "\"gw_lon\":%.6f}\n",
     inPacket->pSequence,
     (unsigned long)inPacket->pTimeMs,
     theAltitudeM,
@@ -153,10 +184,22 @@ int GatewayProtocol_TelemetryToJson(
     theHeadingDeg,
     inPacket->pGpsSatellites,
     theHasGpsFix ? "true" : "false",
+    theAccelX,
+    theAccelY,
+    theAccelZ,
+    theGyroX,
+    theGyroY,
+    theGyroZ,
+    theMagX,
+    theMagY,
+    theMagZ,
     theStateName,
     inPacket->pFlags,
     inRssi,
-    inSnr) ;
+    inSnr,
+    inGwGpsValid ? "true" : "false",
+    inGwGpsValid ? inGwGpsLat : 0.0f,
+    inGwGpsValid ? inGwGpsLon : 0.0f) ;
 
   return theLen ;
 }
@@ -242,6 +285,10 @@ bool GatewayProtocol_ParseCommand(
   else if (strncmp(theCmdStart, "flash_delete", theCmdLen) == 0)
   {
     *outCommandType = kUsbCmdFlashDelete ;
+  }
+  else if (strncmp(theCmdStart, "orientation_mode", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdOrientationMode ;
   }
   else
   {
@@ -601,6 +648,281 @@ int GatewayProtocol_StorageDataToJson(
   // Encode data as hex
   const uint8_t * theData = &inPacket[12] ;
   for (uint16_t i = 0 ; i < theChunkLen && theJsonLen < inMaxLen - 10 ; i++)
+  {
+    theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "%02X", theData[i]) ;
+  }
+
+  theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "\"}\n") ;
+
+  return theJsonLen ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseOrientationModeEnabled
+//----------------------------------------------
+bool GatewayProtocol_ParseOrientationModeEnabled(
+  const char * inJson,
+  bool * outEnabled)
+{
+  if (inJson == NULL || outEnabled == NULL) return false ;
+
+  // Look for "enabled":true or "enabled":false
+  const char * theEnabledStart = strstr(inJson, "\"enabled\":") ;
+  if (theEnabledStart == NULL) return false ;
+
+  theEnabledStart += 10 ;  // Skip past "enabled":
+
+  // Skip whitespace
+  while (*theEnabledStart == ' ') theEnabledStart++ ;
+
+  if (strncmp(theEnabledStart, "true", 4) == 0)
+  {
+    *outEnabled = true ;
+    return true ;
+  }
+  else if (strncmp(theEnabledStart, "false", 5) == 0)
+  {
+    *outEnabled = false ;
+    return true ;
+  }
+
+  return false ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildOrientationModeCommand
+//----------------------------------------------
+int GatewayProtocol_BuildOrientationModeCommand(
+  bool inEnabled,
+  uint8_t * outPacket,
+  int inMaxLen)
+{
+  if (outPacket == NULL || inMaxLen < 5) return 0 ;
+
+  outPacket[0] = kLoRaMagic ;
+  outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = kCmdOrientationMode ;
+  outPacket[3] = inEnabled ? 1 : 0 ;
+  outPacket[4] = 0 ;  // CRC placeholder
+
+  return 5 ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseFlashParams
+//----------------------------------------------
+bool GatewayProtocol_ParseFlashParams(
+  const char * inJson,
+  uint8_t * outSlot,
+  uint32_t * outSample)
+{
+  if (inJson == NULL || outSlot == NULL || outSample == NULL) return false ;
+
+  *outSlot = 0 ;
+  *outSample = 0 ;
+  bool theHasSlot = false ;
+
+  // Find slot: "slot":N
+  const char * theSlotStart = strstr(inJson, "\"slot\":") ;
+  if (theSlotStart != NULL)
+  {
+    theSlotStart += 7 ;  // Skip past "slot":
+    *outSlot = (uint8_t)strtoul(theSlotStart, NULL, 10) ;
+    theHasSlot = true ;
+  }
+
+  // Find sample: "sample":N
+  const char * theSampleStart = strstr(inJson, "\"sample\":") ;
+  if (theSampleStart != NULL)
+  {
+    theSampleStart += 9 ;  // Skip past "sample":
+    *outSample = (uint32_t)strtoul(theSampleStart, NULL, 10) ;
+  }
+
+  // Check for header request: "header":true
+  const char * theHeaderStart = strstr(inJson, "\"header\":true") ;
+  if (theHeaderStart != NULL)
+  {
+    *outSample = 0xFFFFFFFF ;  // Special value for header request
+  }
+
+  return theHasSlot ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildFlashReadCommand
+//----------------------------------------------
+int GatewayProtocol_BuildFlashReadCommand(
+  uint8_t inSlot,
+  uint32_t inSample,
+  uint8_t * outPacket,
+  int inMaxLen)
+{
+  if (outPacket == NULL || inMaxLen < 8) return 0 ;
+
+  outPacket[0] = kLoRaMagic ;
+  outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = kCmdFlashRead ;
+  outPacket[3] = inSlot ;
+
+  // Sample index (4 bytes, little-endian)
+  outPacket[4] = (uint8_t)(inSample & 0xFF) ;
+  outPacket[5] = (uint8_t)((inSample >> 8) & 0xFF) ;
+  outPacket[6] = (uint8_t)((inSample >> 16) & 0xFF) ;
+  outPacket[7] = (uint8_t)((inSample >> 24) & 0xFF) ;
+
+  return 8 ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildFlashDeleteCommand
+//----------------------------------------------
+int GatewayProtocol_BuildFlashDeleteCommand(
+  uint8_t inSlot,
+  uint8_t * outPacket,
+  int inMaxLen)
+{
+  if (outPacket == NULL || inMaxLen < 5) return 0 ;
+
+  outPacket[0] = kLoRaMagic ;
+  outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = kCmdFlashDelete ;
+  outPacket[3] = inSlot ;  // 0-6 for specific slot, 255 (0xFF) for all
+  outPacket[4] = 0 ;  // Reserved
+
+  return 5 ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_FlashListToJson
+// Flight computer packet format:
+//   magic, type, count, then for each flight:
+//   slot(1), flightId(4), maxAltCm(4), flightTimeMs(4), sampleCount(4)
+//----------------------------------------------
+int GatewayProtocol_FlashListToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  char * outJson,
+  int inMaxLen)
+{
+  if (inPacket == NULL || outJson == NULL || inLen < 3 || inMaxLen < 64) return 0 ;
+
+  uint8_t theCount = inPacket[2] ;
+  int theOffset = 3 ;
+
+  // Start JSON
+  int theJsonLen = snprintf(outJson, inMaxLen,
+    "{\"type\":\"flash_list\",\"count\":%u,\"flights\":[", theCount) ;
+
+  // Parse each flight entry (17 bytes each)
+  for (uint8_t i = 0 ; i < theCount && theOffset + 17 <= inLen ; i++)
+  {
+    uint8_t theSlot = inPacket[theOffset++] ;
+
+    uint32_t theFlightId = inPacket[theOffset] |
+                           (inPacket[theOffset + 1] << 8) |
+                           (inPacket[theOffset + 2] << 16) |
+                           (inPacket[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    int32_t theMaxAltCm = inPacket[theOffset] |
+                          (inPacket[theOffset + 1] << 8) |
+                          (inPacket[theOffset + 2] << 16) |
+                          (inPacket[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    uint32_t theFlightTimeMs = inPacket[theOffset] |
+                               (inPacket[theOffset + 1] << 8) |
+                               (inPacket[theOffset + 2] << 16) |
+                               (inPacket[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    uint32_t theSampleCount = inPacket[theOffset] |
+                              (inPacket[theOffset + 1] << 8) |
+                              (inPacket[theOffset + 2] << 16) |
+                              (inPacket[theOffset + 3] << 24) ;
+    theOffset += 4 ;
+
+    // Add flight entry to JSON
+    if (i > 0) theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, ",") ;
+    theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen,
+      "{\"slot\":%u,\"id\":%lu,\"alt\":%.1f,\"time\":%lu,\"samples\":%lu}",
+      theSlot,
+      (unsigned long)theFlightId,
+      theMaxAltCm / 100.0f,
+      (unsigned long)theFlightTimeMs,
+      (unsigned long)theSampleCount) ;
+  }
+
+  // Close JSON
+  theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "]}\n") ;
+
+  return theJsonLen ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_FlashDataToJson
+// Flight computer packet format:
+//   magic, type, slot(1), startSample(4), totalSamples(4), count(1), samples...
+// Each sample is 52 bytes (FlightSample structure)
+//----------------------------------------------
+int GatewayProtocol_FlashDataToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  char * outJson,
+  int inMaxLen)
+{
+  if (inPacket == NULL || outJson == NULL || inLen < 12 || inMaxLen < 128) return 0 ;
+
+  uint8_t theSlot = inPacket[2] ;
+
+  uint32_t theStartSample = inPacket[3] |
+                            (inPacket[4] << 8) |
+                            (inPacket[5] << 16) |
+                            (inPacket[6] << 24) ;
+
+  uint32_t theTotalSamples = inPacket[7] |
+                             (inPacket[8] << 8) |
+                             (inPacket[9] << 16) |
+                             (inPacket[10] << 24) ;
+
+  uint8_t theSampleCount = inPacket[11] ;
+
+  // Check if this is a header packet (startSample == 0xFFFFFFFF)
+  if (theStartSample == 0xFFFFFFFF)
+  {
+    // Header packet - data is FlightHeader structure (80 bytes)
+    // For simplicity, encode the raw header as hex
+    int theJsonLen = snprintf(outJson, inMaxLen,
+      "{\"type\":\"flash_header\",\"slot\":%u,\"data\":\"",
+      theSlot) ;
+
+    int theDataLen = inLen - 7 ;  // After magic, type, slot, startSample marker
+    const uint8_t * theData = &inPacket[7] ;
+
+    for (int i = 0 ; i < theDataLen && theJsonLen < inMaxLen - 10 ; i++)
+    {
+      theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "%02X", theData[i]) ;
+    }
+
+    theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "\"}\n") ;
+    return theJsonLen ;
+  }
+
+  // Sample data packet - encode samples as hex for transport
+  int theJsonLen = snprintf(outJson, inMaxLen,
+    "{\"type\":\"flash_data\",\"slot\":%u,\"start\":%lu,\"total\":%lu,\"count\":%u,\"data\":\"",
+    theSlot,
+    (unsigned long)theStartSample,
+    (unsigned long)theTotalSamples,
+    theSampleCount) ;
+
+  // Encode sample data as hex
+  int theDataOffset = 12 ;  // After header
+  int theDataLen = inLen - theDataOffset ;
+  const uint8_t * theData = &inPacket[theDataOffset] ;
+
+  for (int i = 0 ; i < theDataLen && theJsonLen < inMaxLen - 10 ; i++)
   {
     theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "%02X", theData[i]) ;
   }

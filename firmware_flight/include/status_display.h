@@ -31,6 +31,7 @@ typedef enum
   kDisplayModeImu ,           // IMU data display (horizon + accel)
   kDisplayModeSpin ,          // Spin rate display
   kDisplayModeCompass ,       // Compass heading display
+  kDisplayModeRates ,         // Sensor sampling rates
   kDisplayModeAbout ,         // About screen with version/copyright
   kDisplayModeCount           // Number of modes
 } DisplayMode ;
@@ -200,24 +201,30 @@ void StatusDisplay_ShowGpsStatus(
 //----------------------------------------------
 // Function: StatusDisplay_UpdateCompact
 // Purpose: Update display with compact format showing
-//   altitude, GPS, and gateway status
+//   altitude, GPS, and gateway status with signal quality
 // Parameters:
 //   inState - Current flight state
+//   inOrientationMode - Orientation testing mode active
 //   inAltitudeM - Current altitude in meters
 //   inVelocityMps - Current velocity in m/s
 //   inGpsOk - GPS initialized and working
 //   inGpsFix - GPS has valid fix
 //   inGpsSatellites - Number of satellites
 //   inLoRaConnected - LoRa link status (gateway connected)
+//   inRssi - Signal strength in dBm (only valid if connected)
+//   inSnr - Signal to noise ratio in dB (only valid if connected)
 //----------------------------------------------
 void StatusDisplay_UpdateCompact(
   FlightState inState,
+  bool inOrientationMode,
   float inAltitudeM,
   float inVelocityMps,
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
-  bool inLoRaConnected) ;
+  bool inLoRaConnected,
+  int16_t inRssi,
+  int8_t inSnr) ;
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowImu
@@ -268,6 +275,25 @@ void StatusDisplay_ShowCompass(
   float inMagX,
   float inMagY,
   float inMagZ) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowRates
+// Purpose: Show sensor sampling rates screen
+// Parameters:
+//   inBmp390Hz - BMP390 sampling rate in Hz
+//   inImuAccelHz - IMU accelerometer ODR in Hz
+//   inImuGyroHz - IMU gyroscope ODR in Hz
+//   inGpsHz - GPS update rate in Hz
+//   inTelemetryHz - LoRa telemetry rate in Hz
+//   inDisplayHz - Display update rate in Hz
+//----------------------------------------------
+void StatusDisplay_ShowRates(
+  uint16_t inBmp390Hz,
+  uint16_t inImuAccelHz,
+  uint16_t inImuGyroHz,
+  uint8_t inGpsHz,
+  uint8_t inTelemetryHz,
+  uint8_t inDisplayHz) ;
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowAbout

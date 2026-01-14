@@ -229,6 +229,25 @@ Begin Menu MenuBar_Main
          AutoEnable = True
          Visible = True
       End
+      Begin MenuItem ViewSeparator1
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem ViewOrientation
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "Orientation Display"
+         ShortcutKey = "O"
+         Shortcut = "Cmd+O"
+         MenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
    End
    Begin MenuItem FlightMenu
       SpecialMenu = 0

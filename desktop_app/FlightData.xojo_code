@@ -115,6 +115,26 @@ Protected Class FlightData
 		        theSample.pPressurePa = theSampleJson.Lookup("pres", 0.0)
 		        theSample.pTemperatureC = theSampleJson.Lookup("temp", 0.0)
 		        theSample.pState = theSampleJson.Lookup("state", "")
+
+		        // GPS data
+		        theSample.pGpsLatitude = theSampleJson.Lookup("lat", 0.0)
+		        theSample.pGpsLongitude = theSampleJson.Lookup("lon", 0.0)
+		        theSample.pGpsSpeedMps = theSampleJson.Lookup("gspd", 0.0)
+		        theSample.pGpsHeadingDeg = theSampleJson.Lookup("hdg", 0.0)
+		        theSample.pGpsSatellites = theSampleJson.Lookup("sat", 0)
+		        theSample.pGpsFix = theSampleJson.Lookup("gps", False)
+
+		        // IMU data
+		        theSample.pAccelX = theSampleJson.Lookup("ax", 0)
+		        theSample.pAccelY = theSampleJson.Lookup("ay", 0)
+		        theSample.pAccelZ = theSampleJson.Lookup("az", 0)
+		        theSample.pGyroX = theSampleJson.Lookup("gx", 0.0)
+		        theSample.pGyroY = theSampleJson.Lookup("gy", 0.0)
+		        theSample.pGyroZ = theSampleJson.Lookup("gz", 0.0)
+		        theSample.pMagX = theSampleJson.Lookup("mx", 0.0)
+		        theSample.pMagY = theSampleJson.Lookup("my", 0.0)
+		        theSample.pMagZ = theSampleJson.Lookup("mz", 0.0)
+
 		        theData.pSamples.Add(theSample)
 		      Next
 		    End If
@@ -146,7 +166,9 @@ Protected Class FlightData
 		  theLines.Add("# Flight Time (s): " + Format(GetFlightTimeSeconds(), "0.000"))
 		  theLines.Add("# Notes: " + pNotes)
 		  theLines.Add("#")
-		  theLines.Add("Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State")
+		  theLines.Add("Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State," + _
+		    "GPS_Lat,GPS_Lon,GPS_Speed_mps,GPS_Hdg_deg,GPS_Sat,GPS_Fix," + _
+		    "Accel_X,Accel_Y,Accel_Z,Gyro_X,Gyro_Y,Gyro_Z,Mag_X,Mag_Y,Mag_Z")
 
 		  // Data rows
 		  For Each theSample As TelemetrySample In pSamples
@@ -155,7 +177,22 @@ Protected Class FlightData
 		      Format(theSample.pVelocityMps, "0.00") + "," + _
 		      Format(theSample.pPressurePa, "0.0") + "," + _
 		      Format(theSample.pTemperatureC, "0.0") + "," + _
-		      theSample.pState)
+		      theSample.pState + "," + _
+		      Format(theSample.pGpsLatitude, "0.000000") + "," + _
+		      Format(theSample.pGpsLongitude, "0.000000") + "," + _
+		      Format(theSample.pGpsSpeedMps, "0.00") + "," + _
+		      Format(theSample.pGpsHeadingDeg, "0.0") + "," + _
+		      Str(theSample.pGpsSatellites) + "," + _
+		      If(theSample.pGpsFix, "1", "0") + "," + _
+		      Str(theSample.pAccelX) + "," + _
+		      Str(theSample.pAccelY) + "," + _
+		      Str(theSample.pAccelZ) + "," + _
+		      Format(theSample.pGyroX, "0.00") + "," + _
+		      Format(theSample.pGyroY, "0.00") + "," + _
+		      Format(theSample.pGyroZ, "0.00") + "," + _
+		      Format(theSample.pMagX, "0.00") + "," + _
+		      Format(theSample.pMagY, "0.00") + "," + _
+		      Format(theSample.pMagZ, "0.00"))
 		  Next
 
 		  Return String.FromArray(theLines, EndOfLine)
@@ -188,6 +225,26 @@ Protected Class FlightData
 		    theSampleJson.Value("pres") = theSample.pPressurePa
 		    theSampleJson.Value("temp") = theSample.pTemperatureC
 		    theSampleJson.Value("state") = theSample.pState
+
+		    // GPS data
+		    theSampleJson.Value("lat") = theSample.pGpsLatitude
+		    theSampleJson.Value("lon") = theSample.pGpsLongitude
+		    theSampleJson.Value("gspd") = theSample.pGpsSpeedMps
+		    theSampleJson.Value("hdg") = theSample.pGpsHeadingDeg
+		    theSampleJson.Value("sat") = theSample.pGpsSatellites
+		    theSampleJson.Value("gps") = theSample.pGpsFix
+
+		    // IMU data
+		    theSampleJson.Value("ax") = theSample.pAccelX
+		    theSampleJson.Value("ay") = theSample.pAccelY
+		    theSampleJson.Value("az") = theSample.pAccelZ
+		    theSampleJson.Value("gx") = theSample.pGyroX
+		    theSampleJson.Value("gy") = theSample.pGyroY
+		    theSampleJson.Value("gz") = theSample.pGyroZ
+		    theSampleJson.Value("mx") = theSample.pMagX
+		    theSampleJson.Value("my") = theSample.pMagY
+		    theSampleJson.Value("mz") = theSample.pMagZ
+
 		    theSamplesArray.Add(theSampleJson)
 		  Next
 		  theJson.Value("samples") = theSamplesArray

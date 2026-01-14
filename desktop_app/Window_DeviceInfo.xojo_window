@@ -15,7 +15,7 @@ Begin Window Window_DeviceInfo
    MaxHeight       =   32000
    MaximizeButton  =   False
    MaxWidth        =   32000
-   MenuBar         =   0
+   MenuBar         =   4294967314
    MenuBarVisible  =   True
    MinHeight       =   64
    MinimizeButton  =   True
@@ -1039,125 +1039,55 @@ End
 
 
 	#tag Method, Flags = &h0
-		Sub ShowGatewayInfo(inInfo As Dictionary)
-		  // Display gateway device information
-		  Self.Title = "Gateway Device Information"
-
-		  // Firmware
-		  LabelDeviceValue.Text = "Ground Gateway"
-		  LabelVersionValue.Text = "v" + inInfo.Lookup("version", "--").StringValue
-		  LabelBuildValue.Text = inInfo.Lookup("build", "--").StringValue
-
-		  // Hardware - Gateway specific
-		  LabelHw1Type.Text = "LoRa Radio:"
-		  LabelHw1Value.Text = If(inInfo.Lookup("lora", False).BooleanValue, "OK", "FAIL")
-		  LabelHw1Value.TextColor = If(inInfo.Lookup("lora", False).BooleanValue, &c006600, &cCC0000)
-
-		  LabelHw2Type.Text = "Ground Baro:"
-		  LabelHw2Value.Text = If(inInfo.Lookup("bmp390", False).BooleanValue, "BMP390 OK", "Not Present")
-		  LabelHw2Value.TextColor = If(inInfo.Lookup("bmp390", False).BooleanValue, &c006600, &c666666)
-
-		  LabelHw3Type.Text = "TFT Display:"
-		  LabelHw3Value.Text = If(inInfo.Lookup("display", False).BooleanValue, "OK", "FAIL")
-		  LabelHw3Value.TextColor = If(inInfo.Lookup("display", False).BooleanValue, &c006600, &cCC0000)
-
-		  // Hide unused hardware rows for gateway
-		  LabelHw4Type.Visible = False
-		  LabelHw4Value.Visible = False
-		  LabelHw5Type.Visible = False
-		  LabelHw5Value.Visible = False
-
-		  // Resize hardware group
-		  GroupHardware.Height = 100
-		  GroupStatus.Top = 234
-
-		  // Status - Gateway specific
-		  GroupStatus.Caption = "Link Status"
-
-		  LabelStat1Type.Text = "Flight Link:"
-		  LabelStat1Value.Text = If(inInfo.Lookup("connected", False).BooleanValue, "CONNECTED", "Not Connected")
-		  LabelStat1Value.TextColor = If(inInfo.Lookup("connected", False).BooleanValue, &c006600, &c666666)
-
-		  LabelStat2Type.Text = "Packets RX:"
-		  LabelStat2Value.Text = Str(inInfo.Lookup("rx", 0).IntegerValue)
-		  LabelStat2Value.TextColor = &c000000
-
-		  LabelStat3Type.Text = "Packets TX:"
-		  LabelStat3Value.Text = Str(inInfo.Lookup("tx", 0).IntegerValue)
-		  LabelStat3Value.TextColor = &c000000
-
-		  LabelStat4Type.Text = "Signal:"
-		  Var theRssi As Integer = inInfo.Lookup("rssi", 0).IntegerValue
-		  Var theSnr As Integer = inInfo.Lookup("snr", 0).IntegerValue
-		  LabelStat4Value.Text = Str(theRssi) + " dBm / " + Str(theSnr) + " dB SNR"
-		  LabelStat4Value.TextColor = &c000000
-
-		  // Ground reference info in status message
-		  Var theGroundPres As Double = inInfo.Lookup("ground_pres", 0.0).DoubleValue
-		  If theGroundPres > 0.0 Then
-		    Var theGroundTemp As Double = inInfo.Lookup("ground_temp", 0.0).DoubleValue
-		    LabelStatusMsg.Text = "Ground: " + Format(theGroundPres, "0") + " Pa, " + Format(theGroundTemp, "0.1") + " C"
-		  Else
-		    LabelStatusMsg.Text = ""
-		  End If
-
-		  // Adjust window height for gateway
-		  Self.Height = 396
-
-		  Self.Show
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h0
 		Sub ShowFlightComputerInfo(inInfo As Dictionary)
 		  // Display flight computer device information
 		  Self.Title = "Flight Computer Device Information"
-
+		  
 		  // Firmware
 		  LabelDeviceValue.Text = "Flight Computer"
 		  LabelVersionValue.Text = "v" + inInfo.Lookup("version", "--").StringValue
 		  LabelBuildValue.Text = inInfo.Lookup("build", "--").StringValue
-
+		  
 		  // Hardware - Flight computer specific
 		  LabelHw1Type.Text = "LoRa Radio:"
 		  LabelHw1Value.Text = If(inInfo.Lookup("lora", False).BooleanValue, "OK", "FAIL")
 		  LabelHw1Value.TextColor = If(inInfo.Lookup("lora", False).BooleanValue, &c006600, &cCC0000)
-
+		  
 		  LabelHw2Type.Text = "Barometer:"
 		  LabelHw2Value.Text = If(inInfo.Lookup("bmp390", False).BooleanValue, "BMP390 OK", "FAIL")
 		  LabelHw2Value.TextColor = If(inInfo.Lookup("bmp390", False).BooleanValue, &c006600, &cCC0000)
-
+		  
 		  LabelHw3Type.Text = "OLED Display:"
 		  LabelHw3Value.Text = If(inInfo.Lookup("oled", False).BooleanValue, "OK", "FAIL")
 		  LabelHw3Value.TextColor = If(inInfo.Lookup("oled", False).BooleanValue, &c006600, &cCC0000)
-
-		  LabelHw4Type.Text = "SD Card:"
-		  LabelHw4Value.Text = If(inInfo.Lookup("sd", False).BooleanValue, "OK", "Not Present")
-		  LabelHw4Value.TextColor = If(inInfo.Lookup("sd", False).BooleanValue, &c006600, &c666666)
+		  
+		  LabelHw4Type.Text = "IMU:"
+		  LabelHw4Value.Text = If(inInfo.Lookup("imu", False).BooleanValue, "LSM6DSOX OK", "FAIL")
+		  LabelHw4Value.TextColor = If(inInfo.Lookup("imu", False).BooleanValue, &c006600, &cCC0000)
 		  LabelHw4Type.Visible = True
 		  LabelHw4Value.Visible = True
-
-		  LabelHw5Type.Text = "RTC:"
-		  LabelHw5Value.Text = If(inInfo.Lookup("rtc", False).BooleanValue, "OK", "FAIL")
-		  LabelHw5Value.TextColor = If(inInfo.Lookup("rtc", False).BooleanValue, &c006600, &cCC0000)
+		  
+		  LabelHw5Type.Text = "GPS:"
+		  LabelHw5Value.Text = If(inInfo.Lookup("gps", False).BooleanValue, "OK", "Not Present")
+		  LabelHw5Value.TextColor = If(inInfo.Lookup("gps", False).BooleanValue, &c006600, &c666666)
 		  LabelHw5Type.Visible = True
 		  LabelHw5Value.Visible = True
-
+		  
 		  // Reset hardware group size
 		  GroupHardware.Height = 144
 		  GroupStatus.Top = 278
-
+		  
 		  // Status - Flight computer specific
 		  GroupStatus.Caption = "Flight Status"
-
+		  
 		  LabelStat1Type.Text = "State:"
 		  LabelStat1Value.Text = inInfo.Lookup("state", "--").StringValue.Uppercase
 		  LabelStat1Value.TextColor = &c000000
-
+		  
 		  LabelStat2Type.Text = "Samples:"
 		  LabelStat2Value.Text = Str(inInfo.Lookup("samples", 0).IntegerValue)
 		  LabelStat2Value.TextColor = &c000000
-
+		  
 		  Var theSdFreeKb As Integer = inInfo.Lookup("sd_free_kb", 0).IntegerValue
 		  LabelStat3Type.Text = "SD Free:"
 		  If theSdFreeKb > 0 Then
@@ -1166,22 +1096,114 @@ End
 		    LabelStat3Value.Text = "N/A"
 		  End If
 		  LabelStat3Value.TextColor = &c000000
-
+		  
 		  LabelStat4Type.Text = "Flights:"
 		  Var theFlightCount As Integer = inInfo.Lookup("flight_count", 0).IntegerValue
 		  LabelStat4Value.Text = Str(theFlightCount)
 		  LabelStat4Value.TextColor = &c000000
-
-		  // GPS status in status message
-		  Var theHasGps As Boolean = inInfo.Lookup("gps", False).BooleanValue
-		  If theHasGps Then
-		    LabelStatusMsg.Text = "GPS: OK"
-		  Else
-		    LabelStatusMsg.Text = "GPS: Not Present"
-		  End If
-
+		  
+		  // Clear status message (GPS is now shown in hardware section)
+		  LabelStatusMsg.Text = ""
+		  
 		  // Reset window height for flight computer
 		  Self.Height = 440
+		  
+		  Self.Show
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub ShowGatewayInfo(inInfo As Dictionary)
+		  // Display gateway device information
+		  Self.Title = "Gateway Device Information"
+		  
+		  // Firmware
+		  LabelDeviceValue.Text = "Ground Gateway"
+		  LabelVersionValue.Text = "v" + inInfo.Lookup("version", "--").StringValue
+		  LabelBuildValue.Text = inInfo.Lookup("build", "--").StringValue
+		  
+		  // Hardware - Gateway specific
+		  LabelHw1Type.Text = "LoRa Radio:"
+		  LabelHw1Value.Text = If(inInfo.Lookup("lora", False).BooleanValue, "OK", "FAIL")
+		  LabelHw1Value.TextColor = If(inInfo.Lookup("lora", False).BooleanValue, &c006600, &cCC0000)
+		  
+		  LabelHw2Type.Text = "Ground Baro:"
+		  LabelHw2Value.Text = If(inInfo.Lookup("bmp390", False).BooleanValue, "BMP390 OK", "Not Present")
+		  LabelHw2Value.TextColor = If(inInfo.Lookup("bmp390", False).BooleanValue, &c006600, &c666666)
+		  
+		  LabelHw3Type.Text = "OLED Display:"
+		  LabelHw3Value.Text = If(inInfo.Lookup("display", False).BooleanValue, "OK", "FAIL")
+		  LabelHw3Value.TextColor = If(inInfo.Lookup("display", False).BooleanValue, &c006600, &cCC0000)
+
+		  // GPS status
+		  LabelHw4Type.Text = "GPS Module:"
+		  LabelHw4Type.Visible = True
+		  LabelHw4Value.Visible = True
+		  Var theGpsOk As Boolean = inInfo.Lookup("gps", False).BooleanValue
+		  Var theGpsFix As Boolean = inInfo.Lookup("gps_fix", False).BooleanValue
+		  If theGpsOk Then
+		    If theGpsFix Then
+		      LabelHw4Value.Text = "Fix (" + Str(inInfo.Lookup("gps_sats", 0).IntegerValue) + " sats)"
+		      LabelHw4Value.TextColor = &c006600
+		    Else
+		      LabelHw4Value.Text = "No Fix"
+		      LabelHw4Value.TextColor = &cCC6600
+		    End If
+		  Else
+		    LabelHw4Value.Text = "Not Present"
+		    LabelHw4Value.TextColor = &c666666
+		  End If
+
+		  // GPS coordinates
+		  LabelHw5Type.Text = "GPS Location:"
+		  LabelHw5Type.Visible = True
+		  LabelHw5Value.Visible = True
+		  If theGpsFix Then
+		    Var theLat As Double = inInfo.Lookup("gps_lat", 0.0).DoubleValue
+		    Var theLon As Double = inInfo.Lookup("gps_lon", 0.0).DoubleValue
+		    LabelHw5Value.Text = Format(theLat, "0.00000") + ", " + Format(theLon, "0.00000")
+		    LabelHw5Value.TextColor = &c000000
+		  Else
+		    LabelHw5Value.Text = "---"
+		    LabelHw5Value.TextColor = &c666666
+		  End If
+
+		  // Resize hardware group (include GPS rows)
+		  GroupHardware.Height = 140
+		  GroupStatus.Top = 274
+		  
+		  // Status - Gateway specific
+		  GroupStatus.Caption = "Link Status"
+		  
+		  LabelStat1Type.Text = "Flight Link:"
+		  LabelStat1Value.Text = If(inInfo.Lookup("connected", False).BooleanValue, "CONNECTED", "Not Connected")
+		  LabelStat1Value.TextColor = If(inInfo.Lookup("connected", False).BooleanValue, &c006600, &c666666)
+		  
+		  LabelStat2Type.Text = "Packets RX:"
+		  LabelStat2Value.Text = Str(inInfo.Lookup("rx", 0).IntegerValue)
+		  LabelStat2Value.TextColor = &c000000
+		  
+		  LabelStat3Type.Text = "Packets TX:"
+		  LabelStat3Value.Text = Str(inInfo.Lookup("tx", 0).IntegerValue)
+		  LabelStat3Value.TextColor = &c000000
+		  
+		  LabelStat4Type.Text = "Signal:"
+		  Var theRssi As Integer = inInfo.Lookup("rssi", 0).IntegerValue
+		  Var theSnr As Integer = inInfo.Lookup("snr", 0).IntegerValue
+		  LabelStat4Value.Text = Str(theRssi) + " dBm / " + Str(theSnr) + " dB SNR"
+		  LabelStat4Value.TextColor = &c000000
+		  
+		  // Ground reference info in status message
+		  Var theGroundPres As Double = inInfo.Lookup("ground_pres", 0.0).DoubleValue
+		  If theGroundPres > 0.0 Then
+		    Var theGroundTemp As Double = inInfo.Lookup("ground_temp", 0.0).DoubleValue
+		    LabelStatusMsg.Text = "Ground: " + Format(theGroundPres, "0") + " Pa, " + Format(theGroundTemp, "0.1") + " C"
+		  Else
+		    LabelStatusMsg.Text = ""
+		  End If
+		  
+		  // Adjust window height for gateway (with GPS info)
+		  Self.Height = 436
 
 		  Self.Show
 		End Sub

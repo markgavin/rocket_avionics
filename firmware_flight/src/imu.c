@@ -434,25 +434,17 @@ void IMU_CalculateOrientation(Imu * ioImu)
   // When rocket tips right, X increases, roll positive
   ioImu->pData.pRollDeg = atan2f(theAccelX, theAccelY) * 180.0f / 3.14159265f ;
 
-  // Calculate heading from magnetometer (tilt-compensated)
+  // Calculate heading from magnetometer
+  // LIS3MDL chip Z-axis is perpendicular to board surface
+  // When board is vertical (display facing observer), chip Z points up
+  // Horizontal plane is chip X-Y
   if (ioImu->pMagOk)
   {
-    float thePitchRad = ioImu->pData.pPitchDeg * 3.14159265f / 180.0f ;
-    float theRollRad = ioImu->pData.pRollDeg * 3.14159265f / 180.0f ;
-
     float theMagX = ioImu->pData.pMagX ;
     float theMagY = ioImu->pData.pMagY ;
-    float theMagZ = ioImu->pData.pMagZ ;
 
-    // Tilt compensation for Y-up mounting
-    // Project magnetometer readings to horizontal plane
-    float theXh = theMagX * cosf(theRollRad) + theMagZ * sinf(theRollRad) ;
-    float theZh = -theMagX * sinf(theRollRad) * sinf(thePitchRad) +
-                   theMagY * sinf(thePitchRad) +
-                   theMagZ * cosf(theRollRad) * sinf(thePitchRad) ;
-
-    // Calculate heading (Z-axis points toward observer, so heading based on X/Z)
-    float theHeading = atan2f(theXh, -theZh) * 180.0f / 3.14159265f ;
+    // Heading from horizontal components (X-Y plane when Z is up)
+    float theHeading = atan2f(theMagX, theMagY) * 180.0f / 3.14159265f ;
     if (theHeading < 0) theHeading += 360.0f ;
 
     ioImu->pData.pHeadingDeg = theHeading ;

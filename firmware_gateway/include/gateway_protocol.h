@@ -36,6 +36,7 @@
 #define kCmdDownload        0x05
 #define kCmdPing            0x06
 #define kCmdInfo            0x07  // Request device info
+#define kCmdOrientationMode 0x08  // Enable/disable high-rate orientation testing
 
 // Storage commands
 #define kCmdSdList          0x10
@@ -46,7 +47,7 @@
 #define kCmdFlashDelete     0x22
 
 //----------------------------------------------
-// LoRa Telemetry Packet (binary, 42 bytes)
+// LoRa Telemetry Packet (binary, 54 bytes)
 // Must match flight_control.h exactly!
 //----------------------------------------------
 typedef struct __attribute__((packed))
@@ -72,10 +73,20 @@ typedef struct __attribute__((packed))
   uint16_t pGpsHeadingDeg10 ;     // Heading * 10 (0-3600 = 0-360.0 deg)
   uint8_t pGpsSatellites ;        // Number of satellites in use
 
-  // Accelerometer (6 bytes)
-  int16_t pAccelX ;               // Accelerometer X (raw)
+  // Accelerometer (6 bytes) - values in milli-g (mg)
+  int16_t pAccelX ;               // Accelerometer X
   int16_t pAccelY ;               // Accelerometer Y
   int16_t pAccelZ ;               // Accelerometer Z
+
+  // Gyroscope (6 bytes) - values in 0.1 degrees/second
+  int16_t pGyroX ;                // Gyroscope X
+  int16_t pGyroY ;                // Gyroscope Y
+  int16_t pGyroZ ;                // Gyroscope Z
+
+  // Magnetometer (6 bytes) - values in milligauss
+  int16_t pMagX ;                 // Magnetometer X
+  int16_t pMagY ;                 // Magnetometer Y
+  int16_t pMagZ ;                 // Magnetometer Z
 
   // Status (3 bytes)
   uint8_t pState ;                // Flight state enum
@@ -85,6 +96,7 @@ typedef struct __attribute__((packed))
 
 // Flags byte bit definitions
 #define kFlagGpsFix             0x10  // GPS has valid fix
+#define kFlagOrientationMode    0x80  // Orientation testing mode active
 
 //----------------------------------------------
 // USB Command Types (from desktop app)
@@ -97,8 +109,9 @@ typedef enum
   kUsbCmdDownload ,
   kUsbCmdReset ,
   kUsbCmdPing ,
-  kUsbCmdInfo ,        // Request flight computer device info
-  kUsbCmdGatewayInfo , // Request gateway device info
+  kUsbCmdInfo ,            // Request flight computer device info
+  kUsbCmdGatewayInfo ,     // Request gateway device info
+  kUsbCmdOrientationMode , // Enable/disable orientation testing mode
   // Storage commands (10+)
   kUsbCmdSdList = 10 ,
   kUsbCmdSdRead ,
@@ -136,6 +149,9 @@ void GatewayProtocol_Init(GatewayState * ioState) ;
 //   inRssi - RSSI of received packet
 //   inSnr - SNR of received packet
 //   inGroundPressurePa - Ground barometer pressure (0 if not available)
+//   inGwGpsValid - Gateway GPS has valid fix
+//   inGwGpsLat - Gateway GPS latitude
+//   inGwGpsLon - Gateway GPS longitude
 //   outJson - Buffer for JSON string
 //   inMaxLen - Maximum JSON length
 // Returns: Length of JSON string
@@ -145,6 +161,9 @@ int GatewayProtocol_TelemetryToJson(
   int16_t inRssi,
   int8_t inSnr,
   float inGroundPressurePa,
+  bool inGwGpsValid,
+  float inGwGpsLat,
+  float inGwGpsLon,
   char * outJson,
   int inMaxLen) ;
 
@@ -298,5 +317,107 @@ int GatewayProtocol_StorageDataToJson(
   const uint8_t * inPacket,
   int inLen,
   bool inIsSd,
+  char * outJson,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseOrientationModeEnabled
+// Purpose: Parse enabled flag from orientation_mode command
+// Parameters:
+//   inJson - JSON string to parse
+//   outEnabled - Pointer to store enabled flag
+// Returns: true if enabled flag found
+//----------------------------------------------
+bool GatewayProtocol_ParseOrientationModeEnabled(
+  const char * inJson,
+  bool * outEnabled) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildOrientationModeCommand
+// Purpose: Build LoRa command for orientation mode
+// Parameters:
+//   inEnabled - Enable or disable orientation mode
+//   outPacket - Buffer for packet data
+//   inMaxLen - Maximum packet length
+// Returns: Packet length
+//----------------------------------------------
+int GatewayProtocol_BuildOrientationModeCommand(
+  bool inEnabled,
+  uint8_t * outPacket,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseFlashParams
+// Purpose: Parse slot and sample offset from JSON command
+// Parameters:
+//   inJson - JSON string to parse
+//   outSlot - Pointer to slot number (0-6, or 255 for delete all)
+//   outSample - Pointer to sample index
+// Returns: true if parameters found
+//----------------------------------------------
+bool GatewayProtocol_ParseFlashParams(
+  const char * inJson,
+  uint8_t * outSlot,
+  uint32_t * outSample) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildFlashReadCommand
+// Purpose: Build LoRa command for flash_read
+// Parameters:
+//   inSlot - Flight slot (0-6)
+//   inSample - Starting sample index (0xFFFFFFFF for header)
+//   outPacket - Buffer for packet data
+//   inMaxLen - Maximum packet length
+// Returns: Packet length
+//----------------------------------------------
+int GatewayProtocol_BuildFlashReadCommand(
+  uint8_t inSlot,
+  uint32_t inSample,
+  uint8_t * outPacket,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_BuildFlashDeleteCommand
+// Purpose: Build LoRa command for flash_delete
+// Parameters:
+//   inSlot - Flight slot to delete (0-6, or 255 for all)
+//   outPacket - Buffer for packet data
+//   inMaxLen - Maximum packet length
+// Returns: Packet length
+//----------------------------------------------
+int GatewayProtocol_BuildFlashDeleteCommand(
+  uint8_t inSlot,
+  uint8_t * outPacket,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_FlashListToJson
+// Purpose: Convert flash storage list LoRa packet to JSON
+// Parameters:
+//   inPacket - Binary packet data
+//   inLen - Packet length
+//   outJson - Buffer for JSON string
+//   inMaxLen - Maximum JSON length
+// Returns: Length of JSON string
+//----------------------------------------------
+int GatewayProtocol_FlashListToJson(
+  const uint8_t * inPacket,
+  int inLen,
+  char * outJson,
+  int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_FlashDataToJson
+// Purpose: Convert flash data chunk LoRa packet to JSON
+// Parameters:
+//   inPacket - Binary packet data
+//   inLen - Packet length
+//   outJson - Buffer for JSON string
+//   inMaxLen - Maximum JSON length
+// Returns: Length of JSON string
+//----------------------------------------------
+int GatewayProtocol_FlashDataToJson(
+  const uint8_t * inPacket,
+  int inLen,
   char * outJson,
   int inMaxLen) ;

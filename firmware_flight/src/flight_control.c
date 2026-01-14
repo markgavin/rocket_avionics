@@ -137,6 +137,7 @@ void FlightControl_Init(
   ioController->pState = kFlightIdle ;
   ioController->pTelemetryEnabled = false ;
   ioController->pSdLoggingEnabled = false ;
+  ioController->pOrientationMode = false ;
   ioController->pSamples = inSampleBuffer ;
   ioController->pMaxSamples = inMaxSamples ;
   ioController->pSampleCount = 0 ;
@@ -439,6 +440,7 @@ const FlightResults * FlightControl_GetResults(const FlightController * inContro
 //----------------------------------------------
 uint8_t FlightControl_BuildTelemetryPacket(
   const FlightController * inController,
+  const ImuData * inImuData,
   LoRaTelemetryPacket * outPacket)
 {
   memset(outPacket, 0, sizeof(LoRaTelemetryPacket)) ;
@@ -475,10 +477,24 @@ uint8_t FlightControl_BuildTelemetryPacket(
     outPacket->pGpsSatellites = theGps->pSatellites ;
   }
 
-  // Accelerometer data (future)
-  outPacket->pAccelX = 0 ;
-  outPacket->pAccelY = 0 ;
-  outPacket->pAccelZ = 0 ;
+  // IMU data
+  if (inImuData != NULL)
+  {
+    // Accelerometer: convert from g to milli-g (mg)
+    outPacket->pAccelX = (int16_t)(inImuData->pAccelX * 1000.0f) ;
+    outPacket->pAccelY = (int16_t)(inImuData->pAccelY * 1000.0f) ;
+    outPacket->pAccelZ = (int16_t)(inImuData->pAccelZ * 1000.0f) ;
+
+    // Gyroscope: convert from dps to 0.1 dps
+    outPacket->pGyroX = (int16_t)(inImuData->pGyroX * 10.0f) ;
+    outPacket->pGyroY = (int16_t)(inImuData->pGyroY * 10.0f) ;
+    outPacket->pGyroZ = (int16_t)(inImuData->pGyroZ * 10.0f) ;
+
+    // Magnetometer: convert from gauss to milligauss
+    outPacket->pMagX = (int16_t)(inImuData->pMagX * 1000.0f) ;
+    outPacket->pMagY = (int16_t)(inImuData->pMagY * 1000.0f) ;
+    outPacket->pMagZ = (int16_t)(inImuData->pMagZ * 1000.0f) ;
+  }
 
   outPacket->pState = (uint8_t)inController->pState ;
 
@@ -487,6 +503,10 @@ uint8_t FlightControl_BuildTelemetryPacket(
   if (theGps != NULL && theGps->pValid)
   {
     theFlags |= kFlagGpsFix ;
+  }
+  if (inController->pOrientationMode)
+  {
+    theFlags |= kFlagOrientationMode ;
   }
   outPacket->pFlags = theFlags ;
 
@@ -509,15 +529,29 @@ bool FlightControl_ShouldSendTelemetry(
     return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= kTelemetryIntervalMs ;
   }
 
-  // When armed: send at 1 Hz (ready for launch)
+  // When armed: send at 2 Hz (ready for launch, conserve battery)
   if (inController->pState == kFlightArmed)
   {
-    return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= (kTelemetryIntervalMs * 10) ;
+    return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 500 ;
   }
 
-  // In idle, landed, or complete: send heartbeat at 0.5 Hz (every 2 seconds)
-  // This allows link verification before arming
-  return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 2000 ;
+  // In idle: rate depends on orientation mode
+  if (inController->pState == kFlightIdle)
+  {
+    if (inController->pOrientationMode)
+    {
+      // Orientation testing: 10 Hz for real-time display
+      return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 100 ;
+    }
+    else
+    {
+      // Normal idle: 0.5 Hz (conserve battery)
+      return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 2000 ;
+    }
+  }
+
+  // Landed or complete: send at 1 Hz (conserve battery while allowing data download)
+  return (inCurrentTimeMs - inController->pLastTelemetryTimeMs) >= 1000 ;
 }
 
 //----------------------------------------------
@@ -529,4 +563,39 @@ void FlightControl_MarkTelemetrySent(
 {
   ioController->pLastTelemetryTimeMs = inCurrentTimeMs ;
   ioController->pTelemetrySequence++ ;
+}
+
+//----------------------------------------------
+// Function: FlightControl_SetOrientationMode
+//----------------------------------------------
+void FlightControl_SetOrientationMode(
+  FlightController * ioController,
+  bool inEnabled)
+{
+  ioController->pOrientationMode = inEnabled ;
+  if (inEnabled)
+  {
+    // Record timestamp for timeout
+    ioController->pOrientationModeTimeMs = to_ms_since_boot(get_absolute_time()) ;
+  }
+}
+
+//----------------------------------------------
+// Function: FlightControl_CheckOrientationTimeout
+// Purpose: Auto-disable orientation mode after timeout
+// Parameters:
+//   ioController - Controller
+//   inCurrentTimeMs - Current time
+//   inTimeoutMs - Timeout in milliseconds (e.g., 30000 for 30 seconds)
+//----------------------------------------------
+void FlightControl_CheckOrientationTimeout(
+  FlightController * ioController,
+  uint32_t inCurrentTimeMs,
+  uint32_t inTimeoutMs)
+{
+  if (ioController->pOrientationMode &&
+      (inCurrentTimeMs - ioController->pOrientationModeTimeMs) > inTimeoutMs)
+  {
+    ioController->pOrientationMode = false ;
+  }
 }

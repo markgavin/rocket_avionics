@@ -15,7 +15,7 @@ Begin Window Dialog_About
    MaxHeight       =   433
    MaximizeButton  =   False
    MaxWidth        =   400
-   MenuBar         =   0
+   MenuBar         =   4294967314
    MenuBarVisible  =   False
    MinHeight       =   433
    MinimizeButton  =   False
@@ -232,7 +232,7 @@ End
 		Sub Open()
 		  // Set version from app info
 		  LabelVersion.Text = "Version " + Str(App.MajorVersion) + "." + Str(App.MinorVersion)
-
+		  
 		  // Load the icon image
 		  LoadIconImage
 		End Sub
@@ -245,7 +245,7 @@ End
 		  // Use 512pt files - prefer @2x version for better quality on HiDPI/Retina displays
 		  Var theFile As FolderItem
 		  Var theFile2x As FolderItem
-
+		  
 		  #If TargetMacOS Then
 		    // macOS: Try Resources folder in app bundle
 		    Var theResources As FolderItem = App.ExecutableFile.Parent.Parent.Child("Resources")
@@ -253,7 +253,7 @@ End
 		      // Look for 512pt files (which are copied by build automation)
 		      theFile2x = theResources.Child("ModelRocketAvionic512pt@2x.png")
 		      theFile = theResources.Child("ModelRocketAvionic512pt.png")
-
+		      
 		      // Prefer @2x for sharper rendering
 		      If theFile2x <> Nil And theFile2x.Exists Then
 		        pIconImage = Picture.Open(theFile2x)
@@ -265,14 +265,14 @@ End
 		        Return
 		      End If
 		    End If
-
+		    
 		    // Debug mode: Try artwork directory
 		    #If DebugBuild Then
 		      Var theSourceFile As FolderItem
 		      Var theSourceFile2x As FolderItem
 		      theSourceFile2x = New FolderItem("/Users/markgavin/mg/rocket_avionics/artwork/ModelRocketAvionic512pt@2x.png", FolderItem.PathModes.Native)
 		      theSourceFile = New FolderItem("/Users/markgavin/mg/rocket_avionics/artwork/ModelRocketAvionic512pt.png", FolderItem.PathModes.Native)
-
+		      
 		      If theSourceFile2x <> Nil And theSourceFile2x.Exists Then
 		        pIconImage = Picture.Open(theSourceFile2x)
 		        CanvasIcon.Invalidate
@@ -307,7 +307,7 @@ End
 	#tag Event
 		Sub Paint(g As Graphics, areas() As REALbasic.Rect)
 		  #Pragma Unused areas
-
+		  
 		  // Draw the icon image
 		  If pIconImage <> Nil Then
 		    g.DrawPicture(pIconImage, 0, 0, g.Width, g.Height, 0, 0, pIconImage.Width, pIconImage.Height)

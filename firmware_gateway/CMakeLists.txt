@@ -33,9 +33,10 @@ add_executable(rocket_gateway
   src/main.c
   src/lora_radio.c
   src/gateway_protocol.c
-  src/hx8357.c
+  src/ssd1306.c
   src/gateway_display.c
   src/bmp390.c
+  src/gps.c
 )
 
 # Include directories
@@ -50,6 +51,7 @@ target_link_libraries(rocket_gateway
   hardware_spi
   hardware_gpio
   hardware_i2c
+  hardware_uart
 )
 
 # Enable USB serial output (disable UART)

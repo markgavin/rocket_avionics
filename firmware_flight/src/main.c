@@ -17,6 +17,7 @@
 #include "pins.h"
 #include "version.h"
 #include "flight_control.h"
+#include "flight_storage.h"
 #include "bmp390.h"
 #include "lora_radio.h"
 #include "ssd1306.h"
@@ -43,6 +44,19 @@
 #define kSplashDisplayMs        2000
 
 //----------------------------------------------
+// Debug Configuration
+// Set to 0 to disable debug output for production
+// (saves power, reduces code size)
+//----------------------------------------------
+#define kEnableDebugOutput      0
+
+#if kEnableDebugOutput
+  #define DEBUG_PRINT(...)  printf(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...)  ((void)0)
+#endif
+
+//----------------------------------------------
 // Telemetry Sample Buffer
 //----------------------------------------------
 static TelemetrySample sSampleBuffer[kMaxSamples] ;
@@ -61,12 +75,20 @@ static bool sLoRaOk = false ;
 static bool sImuOk = false ;
 static bool sOledOk = false ;
 static bool sGpsOk = false ;
+static bool sFlashOk = false ;
 
 // Timing
 static uint32_t sLastSensorReadMs = 0 ;
 static uint32_t sLastImuReadMs = 0 ;
 static uint32_t sLastDisplayUpdateMs = 0 ;
 static uint32_t sLastLoRaRxMs = 0 ;
+static uint32_t sLastLoRaTxMs = 0 ;  // Last successful telemetry TX
+static uint32_t sLastFlashLogMs = 0 ;  // Last flash logging time
+
+// Gateway signal quality (from ACK packets)
+static int16_t sGatewayRssi = 0 ;
+static int8_t sGatewaySnr = 0 ;
+static bool sHasAckData = false ;  // Have we received any ACKs?
 
 // Button state
 static bool sButtonAPressed = false ;
@@ -75,6 +97,10 @@ static bool sButtonCPressed = false ;
 static uint32_t sButtonADownMs = 0 ;
 static uint32_t sButtonBDownMs = 0 ;
 static uint32_t sButtonCDownMs = 0 ;
+
+// Flight state tracking (for flash storage transitions)
+static FlightState sPreviousFlightState = kFlightIdle ;
+static uint32_t sCurrentFlightId = 0 ;
 
 //----------------------------------------------
 // Forward Declarations
@@ -135,6 +161,7 @@ int main(void)
   printf("  IMU:     %s\n", sImuOk ? "OK" : "FAIL") ;
   printf("  OLED:    %s\n", sOledOk ? "OK" : "FAIL") ;
   printf("  GPS:     %s\n", sGpsOk ? "OK" : "FAIL") ;
+  printf("  Flash:   %s\n", sFlashOk ? "OK" : "FAIL") ;
   printf("\nEntering main loop...\n\n") ;
 
   // Put LoRa in receive mode to listen for commands
@@ -173,7 +200,7 @@ int main(void)
           if ((++sDebugCount % 100) == 0)
           {
             float theDelta = thePressure - sLastPressure ;
-            printf("BMP: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
+            DEBUG_PRINT("BMP: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
               thePressure, theDelta, theTemperature,
               sFlightController.pCurrentAltitudeM, theDataReady) ;
             sLastPressure = thePressure ;
@@ -192,7 +219,7 @@ int main(void)
           static uint32_t sFailCount = 0 ;
           if ((++sFailCount % 100) == 0)
           {
-            printf("BMP: Read failed (%lu) rdy=%d\n", (unsigned long)sFailCount, theDataReady) ;
+            DEBUG_PRINT("BMP: Read failed (%lu) rdy=%d\n", (unsigned long)sFailCount, theDataReady) ;
           }
         }
       }
@@ -220,6 +247,140 @@ int main(void)
     // 3. Update flight state machine
     //------------------------------------------
     FlightControl_Update(&sFlightController, theCurrentMs) ;
+
+    // Check for orientation mode timeout (30 seconds)
+    FlightControl_CheckOrientationTimeout(&sFlightController, theCurrentMs, 30000) ;
+
+    //------------------------------------------
+    // 3a. Handle flight state transitions for flash storage
+    //------------------------------------------
+    FlightState theCurrentState = FlightControl_GetState(&sFlightController) ;
+    if (sFlashOk && theCurrentState != sPreviousFlightState)
+    {
+      // State changed - check for recording start/stop
+      if (theCurrentState == kFlightBoost && sPreviousFlightState == kFlightArmed)
+      {
+        // Launch detected - start recording
+        const GpsData * theGps = sGpsOk ? GPS_GetData() : NULL ;
+        int32_t theLaunchLat = (theGps && theGps->pValid) ?
+          (int32_t)(theGps->pLatitude * 1000000.0f) : 0 ;
+        int32_t theLaunchLon = (theGps && theGps->pValid) ?
+          (int32_t)(theGps->pLongitude * 1000000.0f) : 0 ;
+
+        sCurrentFlightId = FlightStorage_StartFlight(
+          sFlightController.pGroundPressurePa,
+          theLaunchLat,
+          theLaunchLon) ;
+
+        if (sCurrentFlightId > 0)
+        {
+          DEBUG_PRINT("Flash: Started recording flight %lu\n", (unsigned long)sCurrentFlightId) ;
+          sLastFlashLogMs = theCurrentMs ;
+        }
+        else
+        {
+          DEBUG_PRINT("Flash: Failed to start recording (storage full?)\n") ;
+        }
+      }
+      else if (theCurrentState == kFlightLanded && sPreviousFlightState == kFlightDescent)
+      {
+        // Landing detected - end recording
+        if (FlightStorage_IsRecording())
+        {
+          bool theSaved = FlightStorage_EndFlight(
+            sFlightController.pResults.pMaxAltitudeM,
+            sFlightController.pResults.pMaxVelocityMps,
+            sFlightController.pResults.pApogeeTimeMs,
+            sFlightController.pResults.pFlightTimeMs) ;
+
+          if (theSaved)
+          {
+            DEBUG_PRINT("Flash: Flight %lu saved (%lu samples)\n",
+              (unsigned long)sCurrentFlightId,
+              (unsigned long)sFlightController.pSampleCount) ;
+          }
+          else
+          {
+            DEBUG_PRINT("Flash: Failed to save flight %lu\n", (unsigned long)sCurrentFlightId) ;
+          }
+          sCurrentFlightId = 0 ;
+        }
+      }
+
+      sPreviousFlightState = theCurrentState ;
+    }
+
+    //------------------------------------------
+    // 3b. Log samples to flash (10 Hz during flight)
+    //------------------------------------------
+    if (sFlashOk && FlightStorage_IsRecording() &&
+        (theCurrentMs - sLastFlashLogMs) >= kTelemetryIntervalMs)
+    {
+      sLastFlashLogMs = theCurrentMs ;
+
+      // Build sample from current sensor data
+      FlightSample theSample ;
+      theSample.pTimeMs = theCurrentMs - sFlightController.pLaunchTimeMs ;
+      theSample.pAltitudeCm = (int32_t)(sFlightController.pCurrentAltitudeM * 100.0f) ;
+      theSample.pVelocityCmps = (int16_t)(sFlightController.pCurrentVelocityMps * 100.0f) ;
+      theSample.pPressurePa = (uint32_t)sFlightController.pCurrentPressurePa ;
+      theSample.pTemperatureC10 = (int16_t)(sFlightController.pCurrentTemperatureC * 10.0f) ;
+
+      // GPS data
+      const GpsData * theGps = sGpsOk ? GPS_GetData() : NULL ;
+      if (theGps != NULL && theGps->pValid)
+      {
+        theSample.pGpsLatitude = (int32_t)(theGps->pLatitude * 1000000.0f) ;
+        theSample.pGpsLongitude = (int32_t)(theGps->pLongitude * 1000000.0f) ;
+        theSample.pGpsSpeedCmps = (int16_t)(theGps->pSpeedMps * 100.0f) ;
+        theSample.pGpsHeadingDeg10 = (uint16_t)(theGps->pHeadingDeg * 10.0f) ;
+        theSample.pGpsSatellites = theGps->pSatellites ;
+      }
+      else
+      {
+        theSample.pGpsLatitude = 0 ;
+        theSample.pGpsLongitude = 0 ;
+        theSample.pGpsSpeedCmps = 0 ;
+        theSample.pGpsHeadingDeg10 = 0 ;
+        theSample.pGpsSatellites = 0 ;
+      }
+
+      // IMU data
+      const ImuData * theImuData = sImuOk ? IMU_GetData(&sImu) : NULL ;
+      if (theImuData != NULL)
+      {
+        // Accelerometer: convert from g to milli-g
+        theSample.pAccelX = (int16_t)(theImuData->pAccelX * 1000.0f) ;
+        theSample.pAccelY = (int16_t)(theImuData->pAccelY * 1000.0f) ;
+        theSample.pAccelZ = (int16_t)(theImuData->pAccelZ * 1000.0f) ;
+
+        // Gyroscope: convert from dps to 0.1 dps
+        theSample.pGyroX = (int16_t)(theImuData->pGyroX * 10.0f) ;
+        theSample.pGyroY = (int16_t)(theImuData->pGyroY * 10.0f) ;
+        theSample.pGyroZ = (int16_t)(theImuData->pGyroZ * 10.0f) ;
+
+        // Magnetometer: convert from gauss to milligauss
+        theSample.pMagX = (int16_t)(theImuData->pMagX * 1000.0f) ;
+        theSample.pMagY = (int16_t)(theImuData->pMagY * 1000.0f) ;
+        theSample.pMagZ = (int16_t)(theImuData->pMagZ * 1000.0f) ;
+      }
+      else
+      {
+        theSample.pAccelX = 0 ;
+        theSample.pAccelY = 0 ;
+        theSample.pAccelZ = 0 ;
+        theSample.pGyroX = 0 ;
+        theSample.pGyroY = 0 ;
+        theSample.pGyroZ = 0 ;
+        theSample.pMagX = 0 ;
+        theSample.pMagY = 0 ;
+        theSample.pMagZ = 0 ;
+      }
+
+      theSample.pState = (uint8_t)theCurrentState ;
+
+      FlightStorage_LogSample(&theSample) ;
+    }
 
     //------------------------------------------
     // 4. Send LoRa telemetry (10 Hz)
@@ -374,6 +535,21 @@ static void InitializeHardware(void)
     printf("WARNING: GPS initialization failed\n") ;
   }
 
+  // Initialize flash storage for flight data
+  printf("Initializing flash storage...\n") ;
+  if (FlightStorage_Init())
+  {
+    sFlashOk = true ;
+    uint8_t theFlightCount = FlightStorage_GetFlightCount() ;
+    uint8_t theFreeSlots = FlightStorage_GetFreeSlots() ;
+    printf("Flash storage initialized (%u flights stored, %u slots free)\n",
+      theFlightCount, theFreeSlots) ;
+  }
+  else
+  {
+    printf("WARNING: Flash storage initialization failed\n") ;
+  }
+
   printf("Hardware initialization complete\n\n") ;
 }
 
@@ -473,7 +649,7 @@ static void ProcessButtons(uint32_t inCurrentMs)
 
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      printf("Button A: Previous display mode...\n") ;
+      DEBUG_PRINT("Button A: Previous display mode...\n") ;
       StatusDisplay_PrevMode() ;
     }
   }
@@ -506,7 +682,7 @@ static void ProcessButtons(uint32_t inCurrentMs)
 
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      printf("Button C: Next display mode...\n") ;
+      DEBUG_PRINT("Button C: Next display mode...\n") ;
       StatusDisplay_CycleMode() ;
     }
   }
@@ -553,15 +729,25 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       }
       else
       {
-        // Use compact display showing altitude, GPS, and gateway status
+        // Use compact display showing altitude, GPS, and gateway status with signal quality
+        // Link is active if we're successfully transmitting telemetry
+        // (similar to how gateway tracks connection by receiving packets)
+        bool theLinkActive = sLoRaOk && (sLastLoRaTxMs > 0) &&
+          ((inCurrentMs - sLastLoRaTxMs) < kLoRaTimeoutMs) ;
+
+        // Pass actual RSSI/SNR from ACK packets (0/0 means no ACK data yet)
+        // Display code will show "GW: Active" when RSSI=0/SNR=0 but link is active
         StatusDisplay_UpdateCompact(
           theState,
+          sFlightController.pOrientationMode,
           sFlightController.pCurrentAltitudeM,
           sFlightController.pCurrentVelocityMps,
           sGpsOk,
           theGpsFix,
           theGpsSatellites,
-          sLoRaOk) ;
+          theLinkActive,
+          sGatewayRssi,
+          sGatewaySnr) ;
       }
       break ;
 
@@ -666,6 +852,18 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       }
       break ;
 
+    case kDisplayModeRates:
+      // Show sensor sampling rates
+      // Rates derived from pins.h timing constants
+      StatusDisplay_ShowRates(
+        1000 / kSensorSampleIntervalMs,     // BMP390: 100 Hz
+        kImuAccelOdr,                        // Accel: 416 Hz
+        kImuGyroOdr,                         // Gyro: 416 Hz
+        1,                                   // GPS: 1 Hz (NMEA default)
+        1000 / kTelemetryIntervalMs,         // Telemetry: 10 Hz
+        1000 / kDisplayUpdateIntervalMs) ;   // Display: 5 Hz
+      break ;
+
     case kDisplayModeAbout:
       StatusDisplay_ShowAbout(
         FIRMWARE_VERSION_STRING,
@@ -683,9 +881,10 @@ static void UpdateDisplay(uint32_t inCurrentMs)
 //----------------------------------------------
 static void SendTelemetry(uint32_t inCurrentMs)
 {
-  // Build telemetry packet
+  // Build telemetry packet with IMU data
   LoRaTelemetryPacket thePacket ;
-  uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, &thePacket) ;
+  const ImuData * theImuData = sImuOk ? IMU_GetData(&sImu) : NULL ;
+  uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, theImuData, &thePacket) ;
 
   // Send via LoRa (blocking to ensure packet completes)
   // Timeout increased to 200ms for 42-byte GPS-enabled packet
@@ -693,11 +892,12 @@ static void SendTelemetry(uint32_t inCurrentMs)
   {
     // Mark telemetry as sent (updates timestamp and sequence number)
     FlightControl_MarkTelemetrySent(&sFlightController, inCurrentMs) ;
-    printf("TX: seq=%u len=%u\n", thePacket.pSequence, theLen) ;
+    sLastLoRaTxMs = inCurrentMs ;  // Track successful TX for link status
+    DEBUG_PRINT("TX: seq=%u len=%u\n", thePacket.pSequence, theLen) ;
   }
   else
   {
-    printf("TX FAIL: len=%u\n", theLen) ;
+    DEBUG_PRINT("TX FAIL: len=%u\n", theLen) ;
   }
 
   // Return to receive mode for commands
@@ -749,7 +949,185 @@ static void SendDeviceInfo(void)
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 16) & 0xFF ;
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 24) & 0xFF ;
 
-  printf("LoRa: Sending device info (%d bytes)\n", theOffset) ;
+  DEBUG_PRINT("LoRa: Sending device info (%d bytes)\n", theOffset) ;
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
+}
+
+//----------------------------------------------
+// Function: SendFlashList
+// Purpose: Send list of stored flights over LoRa
+//----------------------------------------------
+static void SendFlashList(void)
+{
+  if (!sFlashOk)
+  {
+    DEBUG_PRINT("Flash: Not initialized\n") ;
+    return ;
+  }
+
+  // Build flight list packet
+  // Format: magic, type, count, then for each flight: slot, flightId, maxAlt, flightTime, sampleCount
+  uint8_t thePacket[128] ;
+  int theOffset = 0 ;
+
+  thePacket[theOffset++] = kLoRaMagic ;
+  thePacket[theOffset++] = kLoRaPacketStorageList ;
+
+  uint8_t theFlightCount = FlightStorage_GetFlightCount() ;
+  thePacket[theOffset++] = theFlightCount ;
+
+  // Add summary for each stored flight
+  for (uint8_t i = 0 ; i < kMaxStoredFlights && theOffset < 120 ; i++)
+  {
+    FlightHeader theHeader ;
+    if (FlightStorage_GetHeader(i, &theHeader))
+    {
+      thePacket[theOffset++] = i ;  // Slot index
+
+      // Flight ID (4 bytes)
+      thePacket[theOffset++] = theHeader.pFlightId & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightId >> 8) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightId >> 16) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightId >> 24) & 0xFF ;
+
+      // Max altitude in cm (4 bytes)
+      int32_t theAltCm = (int32_t)(theHeader.pMaxAltitudeM * 100.0f) ;
+      thePacket[theOffset++] = theAltCm & 0xFF ;
+      thePacket[theOffset++] = (theAltCm >> 8) & 0xFF ;
+      thePacket[theOffset++] = (theAltCm >> 16) & 0xFF ;
+      thePacket[theOffset++] = (theAltCm >> 24) & 0xFF ;
+
+      // Flight time in ms (4 bytes)
+      thePacket[theOffset++] = theHeader.pFlightTimeMs & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightTimeMs >> 8) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightTimeMs >> 16) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pFlightTimeMs >> 24) & 0xFF ;
+
+      // Sample count (4 bytes)
+      thePacket[theOffset++] = theHeader.pSampleCount & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pSampleCount >> 8) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pSampleCount >> 16) & 0xFF ;
+      thePacket[theOffset++] = (theHeader.pSampleCount >> 24) & 0xFF ;
+    }
+  }
+
+  DEBUG_PRINT("LoRa: Sending flash list (%d flights, %d bytes)\n", theFlightCount, theOffset) ;
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
+}
+
+//----------------------------------------------
+// Function: SendFlashData
+// Purpose: Send flight data chunk over LoRa
+// Parameters:
+//   inSlotIndex - Flight slot (0-6)
+//   inStartSample - Starting sample index
+//----------------------------------------------
+static void SendFlashData(uint8_t inSlotIndex, uint32_t inStartSample)
+{
+  if (!sFlashOk)
+  {
+    DEBUG_PRINT("Flash: Not initialized\n") ;
+    return ;
+  }
+
+  // Get flight header to check sample count
+  FlightHeader theHeader ;
+  if (!FlightStorage_GetHeader(inSlotIndex, &theHeader))
+  {
+    DEBUG_PRINT("Flash: Invalid slot %u\n", inSlotIndex) ;
+    return ;
+  }
+
+  // Build data packet
+  // Format: magic, type, slot, startSample, sampleCount, then sample data
+  // LoRa packet limit is ~255 bytes, leave room for header
+  // FlightSample is 52 bytes, so we can fit ~3 samples per packet
+  #define kSamplesPerPacket 3
+  uint8_t thePacket[200] ;
+  int theOffset = 0 ;
+
+  thePacket[theOffset++] = kLoRaMagic ;
+  thePacket[theOffset++] = kLoRaPacketStorageData ;
+  thePacket[theOffset++] = inSlotIndex ;
+
+  // Start sample (4 bytes)
+  thePacket[theOffset++] = inStartSample & 0xFF ;
+  thePacket[theOffset++] = (inStartSample >> 8) & 0xFF ;
+  thePacket[theOffset++] = (inStartSample >> 16) & 0xFF ;
+  thePacket[theOffset++] = (inStartSample >> 24) & 0xFF ;
+
+  // Total samples in flight (4 bytes)
+  thePacket[theOffset++] = theHeader.pSampleCount & 0xFF ;
+  thePacket[theOffset++] = (theHeader.pSampleCount >> 8) & 0xFF ;
+  thePacket[theOffset++] = (theHeader.pSampleCount >> 16) & 0xFF ;
+  thePacket[theOffset++] = (theHeader.pSampleCount >> 24) & 0xFF ;
+
+  // Calculate how many samples to send
+  uint32_t theSamplesRemaining = 0 ;
+  if (inStartSample < theHeader.pSampleCount)
+  {
+    theSamplesRemaining = theHeader.pSampleCount - inStartSample ;
+  }
+  uint8_t theSamplesToSend = (theSamplesRemaining > kSamplesPerPacket) ?
+    kSamplesPerPacket : (uint8_t)theSamplesRemaining ;
+
+  thePacket[theOffset++] = theSamplesToSend ;
+
+  // Add sample data
+  for (uint8_t i = 0 ; i < theSamplesToSend ; i++)
+  {
+    FlightSample theSample ;
+    if (FlightStorage_GetSample(inSlotIndex, inStartSample + i, &theSample))
+    {
+      // Copy sample data directly (packed structure)
+      memcpy(&thePacket[theOffset], &theSample, sizeof(FlightSample)) ;
+      theOffset += sizeof(FlightSample) ;
+    }
+  }
+
+  DEBUG_PRINT("LoRa: Sending flash data slot=%u start=%lu count=%u (%d bytes)\n",
+    inSlotIndex, (unsigned long)inStartSample, theSamplesToSend, theOffset) ;
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
+}
+
+//----------------------------------------------
+// Function: SendFlashHeader
+// Purpose: Send flight header over LoRa
+// Parameters:
+//   inSlotIndex - Flight slot (0-6)
+//----------------------------------------------
+static void SendFlashHeader(uint8_t inSlotIndex)
+{
+  if (!sFlashOk)
+  {
+    DEBUG_PRINT("Flash: Not initialized\n") ;
+    return ;
+  }
+
+  FlightHeader theHeader ;
+  if (!FlightStorage_GetHeader(inSlotIndex, &theHeader))
+  {
+    DEBUG_PRINT("Flash: Invalid slot %u\n", inSlotIndex) ;
+    return ;
+  }
+
+  // Build header packet
+  uint8_t thePacket[100] ;
+  int theOffset = 0 ;
+
+  thePacket[theOffset++] = kLoRaMagic ;
+  thePacket[theOffset++] = kLoRaPacketStorageData ;
+  thePacket[theOffset++] = inSlotIndex ;
+  thePacket[theOffset++] = 0xFF ;  // Marker for header packet (startSample = 0xFFFFFFFF)
+  thePacket[theOffset++] = 0xFF ;
+  thePacket[theOffset++] = 0xFF ;
+  thePacket[theOffset++] = 0xFF ;
+
+  // Copy header data
+  memcpy(&thePacket[theOffset], &theHeader, sizeof(FlightHeader)) ;
+  theOffset += sizeof(FlightHeader) ;
+
+  DEBUG_PRINT("LoRa: Sending flash header slot=%u (%d bytes)\n", inSlotIndex, theOffset) ;
   LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
 }
 
@@ -763,47 +1141,139 @@ static void ProcessLoRaCommands(void)
 
   if (theLen == 0) return ;
 
+  // Debug: show any received packet
+  DEBUG_PRINT("RX: len=%u magic=0x%02X type=0x%02X\n", theLen, theBuffer[0], theLen > 1 ? theBuffer[1] : 0) ;
+
   // Check for valid command packet
-  if (theLen < 3 || theBuffer[0] != kLoRaMagic) return ;
+  if (theLen < 3 || theBuffer[0] != kLoRaMagic)
+  {
+    DEBUG_PRINT("RX: Invalid packet\n") ;
+    return ;
+  }
 
   uint8_t thePacketType = theBuffer[1] ;
 
   // Update last receive time for link status
   sLastLoRaRxMs = to_ms_since_boot(get_absolute_time()) ;
 
-  if (thePacketType == kLoRaPacketCommand)
+  // Handle ACK packets from gateway (contains signal quality info)
+  if (thePacketType == kLoRaPacketAck && theLen >= 5)
+  {
+    // Extract RSSI and SNR from ACK packet
+    // These represent how well the gateway received our telemetry
+    sGatewayRssi = (int16_t)(theBuffer[2] | (theBuffer[3] << 8)) ;
+    sGatewaySnr = (int8_t)theBuffer[4] ;
+    sHasAckData = true ;  // We have valid signal quality data from gateway
+    DEBUG_PRINT("ACK: RSSI=%d SNR=%d\n", sGatewayRssi, sGatewaySnr) ;
+  }
+  else if (thePacketType == kLoRaPacketCommand)
   {
     uint8_t theCommand = theBuffer[2] ;
 
     switch (theCommand)
     {
       case kCmdArm:
-        printf("LoRa: Arm command received\n") ;
+        DEBUG_PRINT("LoRa: Arm command received\n") ;
         FlightControl_Arm(&sFlightController) ;
         break ;
 
       case kCmdDisarm:
-        printf("LoRa: Disarm command received\n") ;
+        DEBUG_PRINT("LoRa: Disarm command received\n") ;
         FlightControl_Disarm(&sFlightController) ;
         break ;
 
       case kCmdStatus:
-        printf("LoRa: Status request received\n") ;
+        DEBUG_PRINT("LoRa: Status request received\n") ;
         // Send status response
         break ;
 
       case kCmdReset:
-        printf("LoRa: Reset command received\n") ;
+        DEBUG_PRINT("LoRa: Reset command received\n") ;
         FlightControl_Reset(&sFlightController) ;
         break ;
 
       case kCmdInfo:
-        printf("LoRa: Info request received\n") ;
+        DEBUG_PRINT("LoRa: Info request received\n") ;
         SendDeviceInfo() ;
         break ;
 
+      case kCmdOrientationMode:
+        {
+          bool theEnabled = (theLen > 3) ? (theBuffer[3] != 0) : false ;
+          DEBUG_PRINT("LoRa: Orientation mode %s\n", theEnabled ? "enabled" : "disabled") ;
+          FlightControl_SetOrientationMode(&sFlightController, theEnabled) ;
+        }
+        break ;
+
+      case kCmdFlashList:
+        DEBUG_PRINT("LoRa: Flash list request\n") ;
+        SendFlashList() ;
+        break ;
+
+      case kCmdFlashRead:
+        {
+          // Format: cmd, slot, startSample (4 bytes)
+          // If startSample == 0xFFFFFFFF, send header instead
+          if (theLen >= 7)
+          {
+            uint8_t theSlot = theBuffer[3] ;
+            uint32_t theStartSample = theBuffer[4] |
+              (theBuffer[5] << 8) |
+              (theBuffer[6] << 16) |
+              ((theLen >= 8) ? (theBuffer[7] << 24) : 0) ;
+
+            DEBUG_PRINT("LoRa: Flash read slot=%u start=%lu\n",
+              theSlot, (unsigned long)theStartSample) ;
+
+            if (theStartSample == 0xFFFFFFFF)
+            {
+              // Request for header
+              SendFlashHeader(theSlot) ;
+            }
+            else
+            {
+              // Request for sample data
+              SendFlashData(theSlot, theStartSample) ;
+            }
+          }
+          else
+          {
+            DEBUG_PRINT("LoRa: Invalid flash read request (len=%u)\n", theLen) ;
+          }
+        }
+        break ;
+
+      case kCmdFlashDelete:
+        {
+          if (theLen >= 4)
+          {
+            uint8_t theSlot = theBuffer[3] ;
+            DEBUG_PRINT("LoRa: Flash delete slot=%u\n", theSlot) ;
+
+            if (theSlot == 0xFF)
+            {
+              // Delete all flights
+              uint8_t theDeleted = FlightStorage_DeleteAllFlights() ;
+              DEBUG_PRINT("Flash: Deleted %u flights\n", theDeleted) ;
+            }
+            else
+            {
+              // Delete specific slot
+              if (FlightStorage_DeleteFlight(theSlot))
+              {
+                DEBUG_PRINT("Flash: Deleted slot %u\n", theSlot) ;
+              }
+              else
+              {
+                DEBUG_PRINT("Flash: Failed to delete slot %u\n", theSlot) ;
+              }
+            }
+          }
+        }
+        break ;
+
       default:
-        printf("LoRa: Unknown command 0x%02X\n", theCommand) ;
+        DEBUG_PRINT("LoRa: Unknown command 0x%02X\n", theCommand) ;
         break ;
     }
   }

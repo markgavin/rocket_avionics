@@ -4,12 +4,15 @@
 //   Avionics Ground Gateway
 // Author: Mark Gavin
 // Created: 2026-01-10
+// Modified: 2026-01-13 (Switched to OLED display)
 // Copyright: (c) 2025-2026 by Mark Gavin
 // License: Proprietary - All Rights Reserved
 //
 // Hardware:
 //   - Adafruit Feather RP2040 with RFM95 LoRa 915MHz (5714)
-//   - Adafruit TFT FeatherWing 3.5" 480x320 (5872)
+//   - Adafruit FeatherWing OLED 128x64 (SSD1306/SH1107) (4650)
+//   - Adafruit BMP390 Barometric Sensor (4816)
+//   - Quad Side-By-Side FeatherWing Kit (4254)
 //
 // Note: The Feather RP2040 RFM95 uses SPI1 (not SPI0!)
 //       with different pins than generic Feather RP2040
@@ -21,7 +24,8 @@
 #include "hardware/i2c.h"
 
 //----------------------------------------------
-// I2C Bus (STEMMA QT) - BMP390 Barometric Sensor
+// I2C Bus (STEMMA QT + FeatherWing bus)
+// Shared by: BMP390, SSD1306 OLED
 //----------------------------------------------
 #define kPinI2cSda          2   // GP2 - I2C SDA (Feather default)
 #define kPinI2cScl          3   // GP3 - I2C SCL (Feather default)
@@ -32,9 +36,10 @@
 // I2C Device Addresses
 //----------------------------------------------
 #define kI2cAddrBMP390      0x77  // Barometric sensor (or 0x76 if SDO to GND)
+#define kI2cAddrSSD1306     0x3C  // OLED display (or 0x3D)
 
 //----------------------------------------------
-// SPI1 - Shared by LoRa Radio and TFT Display
+// SPI1 - LoRa Radio
 // Feather RP2040 RFM95 uses SPI1 on pins 8, 14, 15
 //----------------------------------------------
 #define kPinSpiSck          14  // GP14 - SPI1 SCK
@@ -42,7 +47,6 @@
 #define kPinSpiMiso         8   // GP8 - SPI1 RX/MISO
 #define kSpiPort            spi1
 #define kSpiLoRaBaudrate    1000000   // 1 MHz for LoRa
-#define kSpiTftBaudrate     32000000  // 32 MHz for TFT (faster updates)
 
 //----------------------------------------------
 // LoRa Radio (RFM95 built into Feather RP2040 RFM95)
@@ -53,15 +57,15 @@
 #define kPinLoRaDio1        22  // GP22 - RFM95 DIO1 (optional)
 
 //----------------------------------------------
-// TFT Display (HX8357D on FeatherWing)
-// Shares SPI1 bus with LoRa, different CS/DC pins
+// OLED FeatherWing Buttons
+// Active LOW (internal pull-up, grounded when pressed)
 //----------------------------------------------
-#define kPinTftCs           9   // GP9 - TFT Chip Select (D9)
-#define kPinTftDc           10  // GP10 - TFT Data/Command (D10)
-#define kPinTftRst          (-1) // No reset pin (use software reset)
+#define kPinButtonA         9   // GP9 - Button A (left) - D9
+#define kPinButtonB         6   // GP6 - Button B (middle) - D6
+#define kPinButtonC         5   // GP5 - Button C (right) - D5
 
 //----------------------------------------------
-// Status LED
+// Status LEDs
 //----------------------------------------------
 #define kPinNeoPixel        4   // GP4 - Built-in NeoPixel
 #define kPinLed             13  // GP13 - Built-in red LED (accent LED)
@@ -84,6 +88,15 @@
 #define kLoRaSyncWord       0x14        // Private sync word (must match!)
 
 //----------------------------------------------
+// GPS (Adafruit Ultimate GPS FeatherWing - PA1616D)
+// Uses UART0 on Feather serial pins
+//----------------------------------------------
+#define kPinGpsTx           0   // GP0 - UART0 TX (GPS RX)
+#define kPinGpsRx           1   // GP1 - UART0 RX (GPS TX)
+#define kGpsUartPort        uart0
+#define kGpsUartBaudrate    9600  // GPS default baud rate
+
+//----------------------------------------------
 // USB Serial Settings
 //----------------------------------------------
 #define kUsbBaudrate        115200
@@ -92,6 +105,23 @@
 //----------------------------------------------
 // Protocol Constants
 //----------------------------------------------
-#define kJsonBufferSize     256
+#define kJsonBufferSize     512
 #define kLoRaPacketMaxSize  64
+
+//----------------------------------------------
+// Display Constants (SSD1306/SH1107 128x64)
+//----------------------------------------------
+#define kDisplayWidth               128
+#define kDisplayHeight              64
+
+//----------------------------------------------
+// Button Timing
+//----------------------------------------------
+#define kButtonDebounceMs           50      // Debounce delay
+#define kButtonLongPressMs          1000    // Long press threshold
+
+//----------------------------------------------
+// Display Update Timing
+//----------------------------------------------
+#define kDisplayUpdateIntervalMs    200     // 5 Hz display update
 
