@@ -636,7 +636,7 @@ End
 		  If inIsSd Then
 		    HandleSDListResponse(inFiles)
 		  Else
-		    HandleFlashListResponse(inFiles)
+		    HandleFlashListResponse(inFiles.Count, inFiles)
 		  End If
 		End Sub
 	#tag EndMethod
