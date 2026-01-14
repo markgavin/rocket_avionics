@@ -28,6 +28,7 @@ typedef enum
   kGwDisplayModeLoRa ,            // LoRa configuration
   kGwDisplayModeBarometer ,       // Ground barometer
   kGwDisplayModeGps ,             // GPS location and status
+  kGwDisplayModeDeviceInfo ,      // Device info (hardware status)
   kGwDisplayModeAbout ,           // About screen
   kGwDisplayModeCount             // Number of modes
 } GwDisplayMode ;
@@ -213,4 +214,21 @@ void GatewayDisplay_UpdateGps(
   uint8_t inSatellites,
   float inSpeedMps,
   float inHeadingDeg) ;
+
+//----------------------------------------------
+// Function: GatewayDisplay_ShowDeviceInfo
+// Purpose: Show device info screen at startup
+// Parameters:
+//   inFirmwareVersion - Firmware version string
+//   inLoRaOk - LoRa radio initialized
+//   inBmp390Ok - BMP390 sensor initialized
+//   inGpsOk - GPS module initialized
+//   inDisplayOk - OLED display initialized
+//----------------------------------------------
+void GatewayDisplay_ShowDeviceInfo(
+  const char * inFirmwareVersion,
+  bool inLoRaOk,
+  bool inBmp390Ok,
+  bool inGpsOk,
+  bool inDisplayOk) ;
 

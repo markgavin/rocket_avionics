@@ -20,7 +20,9 @@
 #include "gateway_protocol.h"
 #include "gateway_display.h"
 #include "bmp390.h"
+#if kEnableGps
 #include "gps.h"
+#endif
 
 #include "pico/stdlib.h"
 #include "pico/stdio_usb.h"
@@ -142,11 +144,21 @@ int main(void)
   printf("  Sync Word: 0x%02X\n", kLoRaSyncWord) ;
   printf("\nListening for telemetry...\n\n") ;
 
-  // Show splash screen
+  // Show splash screen, then device info
   if (sDisplayOk)
   {
     GatewayDisplay_ShowSplash() ;
     sleep_ms(kSplashDurationMs) ;
+
+    // Show device info briefly
+    GatewayDisplay_ShowDeviceInfo(
+      FIRMWARE_VERSION_STRING,
+      sLoRaOk,
+      sBmp390Ok,
+      sGpsOk,
+      sDisplayOk) ;
+    sleep_ms(kSplashDurationMs) ;
+
     GatewayDisplay_SetConnectionState(kConnectionDisconnected) ;
   }
 
@@ -174,10 +186,12 @@ int main(void)
     }
 
     // Update GPS
+#if kEnableGps
     if (sGpsOk)
     {
       GPS_Update(theCurrentMs) ;
     }
+#endif
 
     // Process USB serial input
     ProcessUsbInput(theCurrentMs) ;
@@ -275,7 +289,8 @@ static void InitializeHardware(void)
     printf("ERROR: LoRa radio initialization failed!\n") ;
   }
 
-  // Initialize GPS
+  // Initialize GPS (if enabled)
+#if kEnableGps
   printf("Initializing GPS...\n") ;
   if (GPS_Init())
   {
@@ -286,6 +301,10 @@ static void InitializeHardware(void)
   {
     printf("WARNING: GPS initialization failed\n") ;
   }
+#else
+  printf("GPS: Disabled (kEnableGps=0)\n") ;
+  sGpsOk = false ;
+#endif
 
   // Initialize buttons
   InitializeButtons() ;
@@ -473,8 +492,21 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
     LoRaTelemetryPacket * thePacket = (LoRaTelemetryPacket *)theBuffer ;
 
     // Get gateway GPS data
-    const GpsData * theGwGps = sGpsOk ? GPS_GetData() : NULL ;
-    bool theGwGpsValid = (theGwGps != NULL && theGwGps->pValid) ;
+    bool theGwGpsValid = false ;
+    float theGwGpsLat = 0.0f ;
+    float theGwGpsLon = 0.0f ;
+#if kEnableGps
+    if (sGpsOk)
+    {
+      const GpsData * theGwGps = GPS_GetData() ;
+      if (theGwGps != NULL && theGwGps->pValid)
+      {
+        theGwGpsValid = true ;
+        theGwGpsLat = theGwGps->pLatitude ;
+        theGwGpsLon = theGwGps->pLongitude ;
+      }
+    }
+#endif
 
     // Convert to JSON and output to USB
     char theJson[kJsonBufferSize] ;
@@ -484,8 +516,8 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
       sGatewayState.pLastSnr,
       sGroundPressurePa,
       theGwGpsValid,
-      theGwGpsValid ? theGwGps->pLatitude : 0.0f,
-      theGwGpsValid ? theGwGps->pLongitude : 0.0f,
+      theGwGpsLat,
+      theGwGpsLon,
       theJson,
       sizeof(theJson)) ;
 
@@ -686,8 +718,23 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
           else if (theCommandType == kUsbCmdGatewayInfo)
           {
             // Get GPS data
-            const GpsData * theGpsData = sGpsOk ? GPS_GetData() : NULL ;
-            bool theGpsFix = (theGpsData != NULL && theGpsData->pValid) ;
+            bool theGpsFix = false ;
+            float theGpsLat = 0.0f ;
+            float theGpsLon = 0.0f ;
+            uint8_t theGpsSats = 0 ;
+#if kEnableGps
+            if (sGpsOk)
+            {
+              const GpsData * theGpsData = GPS_GetData() ;
+              if (theGpsData != NULL && theGpsData->pValid)
+              {
+                theGpsFix = true ;
+                theGpsLat = theGpsData->pLatitude ;
+                theGpsLon = theGpsData->pLongitude ;
+                theGpsSats = theGpsData->pSatellites ;
+              }
+            }
+#endif
 
             // Build gateway device info JSON response
             printf("{\"type\":\"gw_info\","
@@ -722,9 +769,9 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    sGroundPressurePa,
                    sGroundTemperatureC,
                    theGpsFix ? "true" : "false",
-                   theGpsFix ? theGpsData->pLatitude : 0.0f,
-                   theGpsFix ? theGpsData->pLongitude : 0.0f,
-                   theGpsFix ? theGpsData->pSatellites : 0) ;
+                   theGpsLat,
+                   theGpsLon,
+                   theGpsSats) ;
             stdio_flush() ;
           }
           // Handle flash read commands (slot and sample index)
@@ -982,6 +1029,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
   GatewayDisplay_UpdateBarometer(sGroundPressurePa, sGroundTemperatureC) ;
 
   // Update GPS display data
+#if kEnableGps
   if (sGpsOk)
   {
     const GpsData * theGps = GPS_GetData() ;
@@ -989,6 +1037,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       theGps->pSatellites, theGps->pSpeedMps, theGps->pHeadingDeg) ;
   }
   else
+#endif
   {
     GatewayDisplay_UpdateGps(false, false, 0.0f, 0.0f, 0, 0.0f, 0.0f) ;
   }

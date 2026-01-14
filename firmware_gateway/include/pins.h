@@ -90,7 +90,9 @@
 //----------------------------------------------
 // GPS (Adafruit Ultimate GPS FeatherWing - PA1616D)
 // Uses UART0 on Feather serial pins
+// Set kEnableGps to 0 if GPS FeatherWing is not installed
 //----------------------------------------------
+#define kEnableGps          0   // Set to 1 if GPS FeatherWing is installed
 #define kPinGpsTx           0   // GP0 - UART0 TX (GPS RX)
 #define kPinGpsRx           1   // GP1 - UART0 RX (GPS TX)
 #define kGpsUartPort        uart0

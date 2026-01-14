@@ -23,7 +23,6 @@
 typedef enum
 {
   kDisplayModeLive = 0 ,      // Live altitude/velocity (default)
-  kDisplayModeDeviceInfo ,    // Board, version, sensors
   kDisplayModeFlightStats ,   // Last flight statistics
   kDisplayModeLoRaStatus ,    // LoRa connection info
   kDisplayModeSensors ,       // Raw sensor readings
@@ -32,6 +31,7 @@ typedef enum
   kDisplayModeSpin ,          // Spin rate display
   kDisplayModeCompass ,       // Compass heading display
   kDisplayModeRates ,         // Sensor sampling rates
+  kDisplayModeDeviceInfo ,    // Board, version, sensors
   kDisplayModeAbout ,         // About screen with version/copyright
   kDisplayModeCount           // Number of modes
 } DisplayMode ;

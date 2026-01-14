@@ -56,6 +56,12 @@ static float sCachedGpsHeadingDeg = 0.0f ;
 static char sStatusMessage[32] = "" ;
 static bool sStatusIsError = false ;
 
+// Cached hardware status (for device info screen)
+static char sCachedFirmwareVersion[16] = "0.0.0" ;
+static bool sCachedLoRaOk = false ;
+static bool sCachedBmp390Ok = false ;
+static bool sCachedDisplayOk = false ;
+
 //----------------------------------------------
 // Internal: Draw Header
 //----------------------------------------------
@@ -335,6 +341,30 @@ static void FormatBuildDate(const char * inDate, char * outFormatted, int inMaxL
 }
 
 //----------------------------------------------
+// Internal: Draw Device Info Screen
+//----------------------------------------------
+static void DrawDeviceInfoScreen(void)
+{
+  DrawHeader("DEVICE INFO") ;
+
+  char theBuffer[32] ;
+  snprintf(theBuffer, sizeof(theBuffer), "FW: %s", sCachedFirmwareVersion) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "LoRa:   %s", sCachedLoRaOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 24, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "BMP390: %s", sCachedBmp390Ok ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 34, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "GPS:    %s", sCachedGpsOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 44, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "OLED:   %s", sCachedDisplayOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 54, theBuffer, 1) ;
+}
+
+//----------------------------------------------
 // Internal: Draw About Screen (placeholder - actual content in ShowAbout)
 //----------------------------------------------
 static void DrawAboutScreen(void)
@@ -548,6 +578,10 @@ void GatewayDisplay_Update(void)
       DrawGpsScreen() ;
       break ;
 
+    case kGwDisplayModeDeviceInfo:
+      DrawDeviceInfoScreen() ;
+      break ;
+
     case kGwDisplayModeAbout:
       DrawAboutScreen() ;
       break ;
@@ -629,6 +663,50 @@ void GatewayDisplay_ShowLoRaConfig(
   snprintf(theBuffer, sizeof(theBuffer), "Power: %d dBm", inTxPower) ;
   SSD1306_DrawString(4, 46, theBuffer, 1) ;
 
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: GatewayDisplay_ShowDeviceInfo
+//----------------------------------------------
+void GatewayDisplay_ShowDeviceInfo(
+  const char * inFirmwareVersion,
+  bool inLoRaOk,
+  bool inBmp390Ok,
+  bool inGpsOk,
+  bool inDisplayOk)
+{
+  // Cache the values for use when cycling to device info mode
+  strncpy(sCachedFirmwareVersion, inFirmwareVersion, sizeof(sCachedFirmwareVersion) - 1) ;
+  sCachedFirmwareVersion[sizeof(sCachedFirmwareVersion) - 1] = '\0' ;
+  sCachedLoRaOk = inLoRaOk ;
+  sCachedBmp390Ok = inBmp390Ok ;
+  sCachedGpsOk = inGpsOk ;
+  sCachedDisplayOk = inDisplayOk ;
+
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  SSD1306_DrawStringCentered(0, "DEVICE INFO", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[32] ;
+  snprintf(theBuffer, sizeof(theBuffer), "FW: %s", inFirmwareVersion) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "LoRa:   %s", inLoRaOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 24, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "BMP390: %s", inBmp390Ok ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 34, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "GPS:    %s", inGpsOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 44, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "OLED:   %s", inDisplayOk ? "OK" : "FAIL") ;
+  SSD1306_DrawString(0, 54, theBuffer, 1) ;
 
   SSD1306_Update() ;
 }
