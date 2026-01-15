@@ -99,6 +99,36 @@
 #define kGpsUartBaudrate    9600  // GPS default baud rate
 
 //----------------------------------------------
+// AirLift FeatherWing (ESP32 WiFi Co-processor)
+// Uses SPI0 for communication
+// Set kEnableWifi to 0 if AirLift is not installed
+//
+// Note: Default AirLift CS pin (13) conflicts with red LED.
+//   Using default AirLift pins - red LED disabled when WiFi enabled.
+//----------------------------------------------
+#define kEnableWifi         0   // Disabled - using Heltec Wireless Tracker instead
+
+// SPI1 pins for AirLift WiFi (shared bus with LoRa radio)
+// On Feather RP2040 RFM95, the FeatherWing SPI header uses SPI1, NOT SPI0!
+// The AirLift and LoRa radio share the SPI bus with different CS pins.
+#define kPinWifiSck         14  // GP14 - SPI1 SCK (same as LoRa)
+#define kPinWifiMosi        15  // GP15 - SPI1 TX/MOSI (same as LoRa)
+#define kPinWifiMiso        8   // GP8 - SPI1 RX/MISO (same as LoRa)
+#define kSpiWifiPort        spi1  // Use SPI1 (shared with LoRa)
+#define kSpiWifiBaudrate    8000000  // 8 MHz (NINA firmware max)
+
+// ESP32 control pins (AirLift FeatherWing defaults)
+#define kPinWifiCs          13  // GP13 - ESP32 Chip Select (D13)
+#define kPinWifiBusy        11  // GP11 - ESP32 Busy/Ready (D11)
+#define kPinWifiReset       12  // GP12 - ESP32 Reset (D12)
+
+// WiFi AP Configuration
+#define kWifiSsid           "RocketGateway"
+#define kWifiPassword       ""  // Empty = open AP (for testing)
+#define kWifiChannel        6
+#define kWifiServerPort     5000
+
+//----------------------------------------------
 // USB Serial Settings
 //----------------------------------------------
 #define kUsbBaudrate        115200
