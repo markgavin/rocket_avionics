@@ -41,6 +41,17 @@ Protected Module Module_Preferences
 		        DefaultLocation = theJson.Value("location")
 		      End If
 
+		      // WiFi settings
+		      If theJson.HasKey("connection_type") Then
+		        ConnectionType = theJson.Value("connection_type")
+		      End If
+		      If theJson.HasKey("wifi_host") Then
+		        WifiHost = theJson.Value("wifi_host")
+		      End If
+		      If theJson.HasKey("wifi_port") Then
+		        WifiPort = theJson.Value("wifi_port")
+		      End If
+
 		    Catch theError As IOException
 		      // Use defaults if file can't be read
 		    Catch theError As JSONException
@@ -67,6 +78,11 @@ Protected Module Module_Preferences
 		      theJson.Value("pilot_name") = DefaultPilotName
 		      theJson.Value("rocket_name") = DefaultRocketName
 		      theJson.Value("location") = DefaultLocation
+
+		      // WiFi settings
+		      theJson.Value("connection_type") = ConnectionType
+		      theJson.Value("wifi_host") = WifiHost
+		      theJson.Value("wifi_port") = WifiPort
 
 		      Var theStream As TextOutputStream = TextOutputStream.Create(theFile)
 		      theStream.Write(theJson.ToString)
@@ -157,6 +173,18 @@ Protected Module Module_Preferences
 
 	#tag Property, Flags = &h0
 		DefaultLocation As String = ""
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		ConnectionType As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		WifiHost As String = "192.168.4.1"
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		WifiPort As Integer = 8080
 	#tag EndProperty
 
 

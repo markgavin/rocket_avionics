@@ -1,8 +1,14 @@
 #tag Class
 Protected Class FlightConnection
+	#tag Enum, Name = ConnectionMode, Flags = &h0
+		Serial
+		  WiFi
+	#tag EndEnum
+
 	#tag Method, Flags = &h0
 		Function Connect(inPortName As String) As Boolean
 		  // Connect to gateway via USB Serial
+		  pConnectionMode = ConnectionMode.Serial
 		  If pSerialConnection = Nil Then
 		    LogMessage("SerialConnection is nil, cannot connect", "ERROR")
 		    Return False
@@ -50,8 +56,51 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
+		Function ConnectWifi(inHost As String, inPort As Integer) As Boolean
+		  // Connect to gateway via TCP/WiFi
+		  pConnectionMode = ConnectionMode.WiFi
+
+		  If pTcpSocket = Nil Then
+		    LogMessage("TCPSocket is nil, cannot connect", "ERROR")
+		    Return False
+		  End If
+
+		  // Disconnect any existing connection
+		  If pTcpIsConnected Then
+		    pTcpSocket.Close
+		    pTcpIsConnected = False
+		  End If
+		  If pSerialIsOpen Then
+		    pSerialConnection.Close
+		    pSerialIsOpen = False
+		  End If
+
+		  LogMessage("Connecting to gateway via WiFi: " + inHost + ":" + Str(inPort), "INFO")
+
+		  // Clear buffers
+		  pJsonAccumulator = ""
+		  pJsonBraceDepth = 0
+		  pReceiveBuffer = ""
+
+		  // Connect
+		  Try
+		    pTcpSocket.Address = inHost
+		    pTcpSocket.Port = inPort
+		    pTcpSocket.Connect
+		    Return True  // Actual connection confirmed in Connected event
+		  Catch theError As RuntimeException
+		    LogMessage("Failed to connect: " + theError.Message, "ERROR")
+		    RaiseEvent ErrorReceived("TCP_ERROR", "Failed to connect: " + theError.Message)
+		    Return False
+		  End Try
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
 		Sub Constructor()
 		  // Initialize connection handler
+
+		  // Serial connection
 		  pSerialConnection = New SerialConnection
 		  pSerialConnection.Baud = SerialConnection.Baud115200
 		  pSerialConnection.Bits = SerialConnection.Bits8
@@ -59,6 +108,14 @@ Protected Class FlightConnection
 		  pSerialConnection.StopBit = SerialConnection.StopBits.One
 		  AddHandler pSerialConnection.DataReceived, AddressOf HandleSerialDataReceived
 		  AddHandler pSerialConnection.Error, AddressOf HandleSerialConnectionError
+
+		  // TCP socket for WiFi connection
+		  pTcpSocket = New TCPSocket
+		  AddHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		  AddHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		  AddHandler pTcpSocket.Error, AddressOf HandleTcpError
+
+		  pConnectionMode = ConnectionMode.Serial
 
 		  LogMessage("FlightConnection initialized", "DEBUG")
 		End Sub
@@ -73,6 +130,16 @@ Protected Class FlightConnection
 		    pSerialConnection.Close
 		    pSerialIsOpen = False
 		  End If
+
+		  If pTcpSocket <> Nil Then
+		    RemoveHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		    RemoveHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		    RemoveHandler pTcpSocket.Error, AddressOf HandleTcpError
+		    If pTcpIsConnected Then
+		      pTcpSocket.Close
+		    End If
+		    pTcpIsConnected = False
+		  End If
 		End Sub
 	#tag EndMethod
 
@@ -81,10 +148,17 @@ Protected Class FlightConnection
 		  // Close connection
 		  LogMessage("Disconnecting", "INFO")
 
+		  // Close serial if open
 		  If pSerialIsOpen And pSerialConnection <> Nil Then
 		    pSerialConnection.Close
 		  End If
 		  pSerialIsOpen = False
+
+		  // Close TCP if connected
+		  If pTcpIsConnected And pTcpSocket <> Nil Then
+		    pTcpSocket.Close
+		  End If
+		  pTcpIsConnected = False
 
 		  pReceiveBuffer = ""
 		  pJsonAccumulator = ""
@@ -175,12 +249,76 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h21
+		Private Sub HandleTcpConnected(inSender As TCPSocket)
+		  #Pragma Unused inSender
+		  pTcpIsConnected = True
+		  LogMessage("TCP connected to gateway", "INFO")
+		  RaiseEvent ConnectionChanged(True)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleTcpDataAvailable(inSender As TCPSocket)
+		  // Read available data from TCP socket
+		  Var theData As String = inSender.ReadAll(Encodings.UTF8)
+
+		  // Sanitize data - remove null bytes
+		  Var theSanitized As String = ""
+		  For i As Integer = 0 To theData.Bytes - 1
+		    Var theByte As Integer = theData.Middle(i, 1).Asc
+		    If theByte >= 32 And theByte <= 126 Then
+		      theSanitized = theSanitized + Chr(theByte)
+		    ElseIf theByte = 9 Or theByte = 10 Or theByte = 13 Then
+		      theSanitized = theSanitized + Chr(theByte)
+		    End If
+		  Next
+
+		  If theSanitized.Length > 0 Then
+		    LogData("RX", theSanitized)
+		    pReceiveBuffer = pReceiveBuffer + theSanitized
+		    ProcessReceivedData()
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleTcpError(inSender As TCPSocket, theError As RuntimeException)
+		  #Pragma Unused inSender
+
+		  Var theErrorMsg As String = "TCP connection error"
+		  If theError <> Nil Then
+		    theErrorMsg = theErrorMsg + ": " + theError.Message
+		  End If
+
+		  LogMessage(theErrorMsg, "ERROR")
+
+		  If pTcpIsConnected Then
+		    pTcpIsConnected = False
+		    If pTcpSocket <> Nil Then
+		      Try
+		        pTcpSocket.Close
+		      Catch e As RuntimeException
+		        // Ignore close errors
+		      End Try
+		    End If
+		    RaiseEvent ConnectionChanged(False)
+		  End If
+
+		  RaiseEvent ErrorReceived("TCP_ERROR", theErrorMsg)
+		End Sub
+	#tag EndMethod
+
 	#tag Method, Flags = &h0
 		Function IsConnected() As Boolean
-		  If pSerialConnection = Nil Then
-		    Return False
-		  End If
-		  Return pSerialIsOpen
+		  // Check if connected via either serial or TCP
+		  Return pSerialIsOpen Or pTcpIsConnected
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function GetConnectionMode() As ConnectionMode
+		  Return pConnectionMode
 		End Function
 	#tag EndMethod
 
@@ -393,6 +531,18 @@ Protected Class FlightConnection
 		      LogMessage("Raising DeviceInfoReceived for gateway", "DEBUG")
 		      RaiseEvent DeviceInfoReceived(True, theInfo)
 
+		    Case "wifi_status"
+		      // WiFi status response - forward to WiFi config window
+		      If Window_WifiConfig.Visible Then
+		        Window_WifiConfig.HandleWifiStatus(theJson)
+		      End If
+
+		    Case "wifi_list"
+		      // WiFi network list response - forward to WiFi config window
+		      If Window_WifiConfig.Visible Then
+		        Window_WifiConfig.HandleWifiList(theJson)
+		      End If
+
 		    End Select
 
 		  Catch theError As JSONException
@@ -508,12 +658,15 @@ Protected Class FlightConnection
 
 	#tag Method, Flags = &h21
 		Private Sub SendData(inData As String)
-		  // Send data via serial connection
+		  // Send data via active connection (serial or TCP)
 		  LogData("TX", inData)
 
 		  If pSerialIsOpen And pSerialConnection <> Nil Then
 		    pSerialConnection.Write(inData)
 		    pSerialConnection.Flush
+		  ElseIf pTcpIsConnected And pTcpSocket <> Nil Then
+		    pTcpSocket.Write(inData)
+		    pTcpSocket.Flush
 		  End If
 		End Sub
 	#tag EndMethod
@@ -808,6 +961,18 @@ Protected Class FlightConnection
 
 	#tag Property, Flags = &h21
 		Private pNextCommandId As Integer = 1
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pTcpSocket As TCPSocket
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pTcpIsConnected As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pConnectionMode As ConnectionMode = ConnectionMode.Serial
 	#tag EndProperty
 
 

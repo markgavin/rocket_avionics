@@ -393,6 +393,14 @@ Inherits Application
 	#tag EndMenuHandler
 
 	#tag MenuHandler
+		Function ViewWifiConfig() As Boolean Handles ViewWifiConfig.Action
+		  // Show WiFi configuration window
+		  Window_WifiConfig.Show
+		  Return True
+		End Function
+	#tag EndMenuHandler
+
+	#tag MenuHandler
 		Function WindowBringAllToFront() As Boolean Handles WindowBringAllToFront.Action
 		  // Bring all windows to front
 		  For i As Integer = 0 To WindowCount - 1

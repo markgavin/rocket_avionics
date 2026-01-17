@@ -22,6 +22,7 @@ Module=Module_WindowSettings;Module_WindowSettings.xojo_code;&h000000010000001A;
 Module=Module_Preferences;Module_Preferences.xojo_code;&h000000010000001B;&h0000000000000000;false
 Window=Dialog_Preferences;Dialog_Preferences.xojo_window;&h000000010000001C;&h0000000000000000;false
 Window=Window_Orientation;Window_Orientation.xojo_window;&h000000010000001F;&h0000000000000000;false
+Window=Window_WifiConfig;Window_WifiConfig.xojo_window;&h0000000100000020;&h0000000000000000;false
 BuildSteps=Build Automation;Build Automation.xojo_code;&h000000010000001E;&h0000000000000000;false
 DefaultWindow=Window_Main
 AppMenuBar=MenuBar_Main

@@ -248,6 +248,26 @@ Begin Menu MenuBar_Main
          AutoEnable = True
          Visible = True
       End
+      Begin MenuItem ViewSeparator2
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "-"
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
+      Begin MenuItem ViewWifiConfig
+         SpecialMenu = 0
+         Index = -2147483648
+         Text = "WiFi Configuration..."
+         ShortcutKey = "W"
+         Shortcut = "Cmd+Shift+W"
+         MenuModifier = True
+         AltMenuModifier = True
+         AutoEnabled = True
+         AutoEnable = True
+         Visible = True
+      End
    End
    Begin MenuItem FlightMenu
       SpecialMenu = 0

@@ -33,7 +33,7 @@ Begin Window Window_Main
       FontName        =   "System"
       FontSize        =   0.0
       FontUnit        =   0
-      Height          =   100
+      Height          =   150
       Index           =   -2147483648
       InitialParent   =   ""
       Italic          =   False
@@ -53,6 +53,36 @@ Begin Window Window_Main
       Underline       =   False
       Visible         =   True
       Width           =   280
+      Begin PopupMenu PopupConnectionType
+         AutoDeactivate  =   True
+         Bold            =   False
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupConnection"
+         InitialValue    =   "USB Serial\nWiFi"
+         Italic          =   False
+         Left            =   40
+         ListIndex       =   0
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Scope           =   2
+         TabIndex        =   0
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Tooltip         =   ""
+         Top             =   45
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   True
+         Width           =   160
+      End
       Begin PopupMenu PopupSerialPort
          AutoDeactivate  =   True
          Bold            =   False
@@ -73,11 +103,11 @@ Begin Window Window_Main
          LockRight       =   False
          LockTop         =   True
          Scope           =   2
-         TabIndex        =   0
+         TabIndex        =   1
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   50
+         Top             =   75
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -105,15 +135,79 @@ Begin Window Window_Main
          LockTop         =   True
          MacButtonStyle  =   0
          Scope           =   2
-         TabIndex        =   1
+         TabIndex        =   2
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   50
+         Top             =   75
          Transparent     =   False
          Underline       =   False
          Visible         =   True
          Width           =   25
+      End
+      Begin TextField FieldWifiHost
+         AutoDeactivate  =   True
+         Bold            =   False
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   22
+         Index           =   -2147483648
+         InitialParent   =   "GroupConnection"
+         Italic          =   False
+         Left            =   40
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         MaxLength       =   0
+         Password        =   False
+         ReadOnly        =   False
+         Scope           =   2
+         TabIndex        =   3
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "192.168.4.1"
+         Tooltip         =   "Gateway IP address"
+         Top             =   75
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   False
+         Width           =   120
+      End
+      Begin TextField FieldWifiPort
+         AutoDeactivate  =   True
+         Bold            =   False
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   22
+         Index           =   -2147483648
+         InitialParent   =   "GroupConnection"
+         Italic          =   False
+         Left            =   165
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         MaxLength       =   0
+         Password        =   False
+         ReadOnly        =   False
+         Scope           =   2
+         TabIndex        =   4
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "8080"
+         Tooltip         =   "Gateway port"
+         Top             =   75
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   False
+         Width           =   60
       End
       Begin PushButton ButtonConnect
          AutoDeactivate  =   True
@@ -137,11 +231,11 @@ Begin Window Window_Main
          LockTop         =   True
          MacButtonStyle  =   0
          Scope           =   2
-         TabIndex        =   2
+         TabIndex        =   5
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   50
+         Top             =   75
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -169,18 +263,54 @@ Begin Window Window_Main
          Multiline       =   False
          Scope           =   2
          Selectable      =   False
-         TabIndex        =   2
+         TabIndex        =   6
          TabPanelIndex   =   0
          TabStop         =   True
          Text            =   "Disconnected"
          TextAlign       =   0
          TextColor       =   &c99999900
          Tooltip         =   ""
-         Top             =   80
+         Top             =   105
          Transparent     =   False
          Underline       =   False
          Visible         =   True
          Width           =   200
+      End
+      Begin Label LabelWifiInfo
+         AutoDeactivate  =   True
+         Bold            =   False
+         DataField       =   ""
+         DataSource      =   ""
+         Enabled         =   True
+         FontName        =   "System"
+         FontSize        =   0.0
+         FontUnit        =   0
+         Height          =   20
+         Index           =   -2147483648
+         InitialParent   =   "GroupConnection"
+         Italic          =   False
+         Left            =   40
+         LockBottom      =   False
+         LockedInPosition=   False
+         LockLeft        =   True
+         LockRight       =   False
+         LockTop         =   True
+         Multiline       =   False
+         Scope           =   2
+         Selectable      =   False
+         TabIndex        =   7
+         TabPanelIndex   =   0
+         TabStop         =   True
+         Text            =   "Connect to 'RocketGateway' WiFi first"
+         TextAlign       =   0
+         TextColor       =   &c66666600
+         TextSize        =   10.0
+         Tooltip         =   ""
+         Top             =   125
+         Transparent     =   False
+         Underline       =   False
+         Visible         =   False
+         Width           =   240
       End
    End
    Begin GroupBox GroupTelemetry
@@ -191,7 +321,7 @@ Begin Window Window_Main
       FontName        =   "System"
       FontSize        =   0.0
       FontUnit        =   0
-      Height          =   180
+      Height          =   150
       Index           =   -2147483648
       InitialParent   =   ""
       Italic          =   False
@@ -206,7 +336,7 @@ Begin Window Window_Main
       TabPanelIndex   =   0
       TabStop         =   True
       Tooltip         =   ""
-      Top             =   130
+      Top             =   180
       Transparent     =   False
       Underline       =   False
       Visible         =   True
@@ -219,7 +349,7 @@ Begin Window Window_Main
          Enabled         =   True
          FontName        =   "System"
          FontUnit        =   0
-         Height          =   30
+         Height          =   25
          Index           =   -2147483648
          InitialParent   =   "GroupTelemetry"
          Italic          =   False
@@ -238,9 +368,9 @@ Begin Window Window_Main
          Text            =   "Altitude: --- m"
          TextAlign       =   0
          TextColor       =   &c00000000
-         TextSize        =   18.0
+         TextSize        =   16.0
          Tooltip         =   ""
-         Top             =   160
+         Top             =   205
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -254,7 +384,7 @@ Begin Window Window_Main
          Enabled         =   True
          FontName        =   "System"
          FontUnit        =   0
-         Height          =   25
+         Height          =   22
          Index           =   -2147483648
          InitialParent   =   "GroupTelemetry"
          Italic          =   False
@@ -273,9 +403,9 @@ Begin Window Window_Main
          Text            =   "Velocity: --- m/s"
          TextAlign       =   0
          TextColor       =   &c00000000
-         TextSize        =   16.0
+         TextSize        =   14.0
          Tooltip         =   ""
-         Top             =   195
+         Top             =   230
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -289,7 +419,7 @@ Begin Window Window_Main
          Enabled         =   True
          FontName        =   "System"
          FontUnit        =   0
-         Height          =   25
+         Height          =   22
          Index           =   -2147483648
          InitialParent   =   "GroupTelemetry"
          Italic          =   False
@@ -308,9 +438,9 @@ Begin Window Window_Main
          Text            =   "State: ---"
          TextAlign       =   0
          TextColor       =   &c00660000
-         TextSize        =   16.0
+         TextSize        =   14.0
          Tooltip         =   ""
-         Top             =   225
+         Top             =   252
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -345,7 +475,7 @@ Begin Window Window_Main
          TextColor       =   &c66666600
          TextSize        =   11.0
          Tooltip         =   ""
-         Top             =   260
+         Top             =   274
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -380,7 +510,7 @@ Begin Window Window_Main
          TextColor       =   &c66666600
          TextSize        =   11.0
          Tooltip         =   ""
-         Top             =   280
+         Top             =   296
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -395,7 +525,7 @@ Begin Window Window_Main
       FontName        =   "System"
       FontSize        =   0.0
       FontUnit        =   0
-      Height          =   80
+      Height          =   70
       Index           =   -2147483648
       InitialParent   =   ""
       Italic          =   False
@@ -410,7 +540,7 @@ Begin Window Window_Main
       TabPanelIndex   =   0
       TabStop         =   True
       Tooltip         =   ""
-      Top             =   320
+      Top             =   340
       Transparent     =   False
       Underline       =   False
       Visible         =   True
@@ -444,7 +574,7 @@ Begin Window Window_Main
          TextAlign       =   0
          TextColor       =   &c66666600
          Tooltip         =   ""
-         Top             =   345
+         Top             =   362
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -479,7 +609,7 @@ Begin Window Window_Main
          TextAlign       =   0
          TextColor       =   &c00000000
          Tooltip         =   ""
-         Top             =   365
+         Top             =   382
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -509,7 +639,7 @@ Begin Window Window_Main
       TabPanelIndex   =   0
       TabStop         =   True
       Tooltip         =   ""
-      Top             =   410
+      Top             =   420
       Transparent     =   False
       Underline       =   False
       Visible         =   True
@@ -540,7 +670,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   450
+         Top             =   455
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -572,7 +702,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   450
+         Top             =   455
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -604,7 +734,7 @@ Begin Window Window_Main
          TabPanelIndex   =   0
          TabStop         =   True
          Tooltip         =   ""
-         Top             =   500
+         Top             =   505
          Transparent     =   False
          Underline       =   False
          Visible         =   True
@@ -651,7 +781,13 @@ End
 		Sub Close()
 		  // Save window position
 		  Module_WindowSettings.SaveWindowPosition(Self, "Window_Main")
-		  
+
+		  // Save WiFi preferences
+		  Module_Preferences.ConnectionType = PopupConnectionType.SelectedRowIndex
+		  Module_Preferences.WifiHost = FieldWifiHost.Text
+		  Module_Preferences.WifiPort = Val(FieldWifiPort.Text)
+		  Module_Preferences.SavePreferences()
+
 		  // Clean up
 		  If pConnection <> Nil Then
 		    RemoveHandler pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
@@ -691,6 +827,14 @@ End
 
 		  // Refresh serial ports
 		  RefreshSerialPorts()
+
+		  // Load WiFi preferences
+		  PopupConnectionType.ListIndex = Module_Preferences.ConnectionType
+		  FieldWifiHost.Text = Module_Preferences.WifiHost
+		  FieldWifiPort.Text = Str(Module_Preferences.WifiPort)
+
+		  // Update connection type controls visibility
+		  UpdateConnectionTypeVisibility()
 
 		  // Apply dark mode appearance
 		  ApplyAppearance()
@@ -738,12 +882,31 @@ End
 		End Function
 	#tag EndMethod
 
+	#tag Method, Flags = &h0
+		Sub UpdateConnectionTypeVisibility()
+		  // Show/hide appropriate controls based on connection type
+		  Var theIsWifi As Boolean = (PopupConnectionType.SelectedRowIndex = 1)
+
+		  // Show serial controls when USB Serial selected
+		  PopupSerialPort.Visible = Not theIsWifi
+		  ButtonRefreshPorts.Visible = Not theIsWifi
+
+		  // Show WiFi controls when WiFi selected
+		  FieldWifiHost.Visible = theIsWifi
+		  FieldWifiPort.Visible = theIsWifi
+		  LabelWifiInfo.Visible = theIsWifi
+		End Sub
+	#tag EndMethod
+
 	#tag Method, Flags = &h21
 		Private Sub HandleConnectionChanged(inSender As FlightConnection, inConnected As Boolean)
-		  #Pragma Unused inSender
-		  
 		  If inConnected Then
-		    LabelConnectionStatus.Text = "Connected"
+		    // Show connection type in status
+		    If inSender.GetConnectionMode = FlightConnection.ConnectionMode.WiFi Then
+		      LabelConnectionStatus.Text = "Connected (WiFi)"
+		    Else
+		      LabelConnectionStatus.Text = "Connected (USB)"
+		    End If
 		    LabelConnectionStatus.TextColor = &c00AA00
 		    ButtonConnect.Caption = "Disconnect"
 		    ButtonArm.Enabled = True
@@ -1108,16 +1271,43 @@ End
 		End Sub
 	#tag EndEvent
 #tag EndEvents
+#tag Events PopupConnectionType
+	#tag Event
+		Sub Change()
+		  UpdateConnectionTypeVisibility()
+		End Sub
+	#tag EndEvent
+#tag EndEvents
 #tag Events ButtonConnect
 	#tag Event
 		Sub Action()
 		  If pConnection.IsConnected Then
 		    pConnection.Disconnect
 		  Else
-		    If PopupSerialPort.SelectedRowIndex >= 0 Then
-		      Var thePort As String = PopupSerialPort.Text
-		      If thePort <> "(No ports found)" Then
-		        Call pConnection.Connect(thePort)
+		    // Check connection type
+		    If PopupConnectionType.SelectedRowIndex = 1 Then
+		      // WiFi connection
+		      Var theHost As String = FieldWifiHost.Text.Trim
+		      Var thePort As Integer = Val(FieldWifiPort.Text)
+
+		      If theHost = "" Then
+		        MessageBox("Please enter a gateway IP address.")
+		        Return
+		      End If
+
+		      If thePort <= 0 Or thePort > 65535 Then
+		        MessageBox("Please enter a valid port number (1-65535).")
+		        Return
+		      End If
+
+		      Call pConnection.ConnectWifi(theHost, thePort)
+		    Else
+		      // USB Serial connection
+		      If PopupSerialPort.SelectedRowIndex >= 0 Then
+		        Var thePort As String = PopupSerialPort.Text
+		        If thePort <> "(No ports found)" Then
+		          Call pConnection.Connect(thePort)
+		        End If
 		      End If
 		    End If
 		  End If
