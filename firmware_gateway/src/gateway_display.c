@@ -52,6 +52,14 @@ static uint8_t sCachedGpsSatellites = 0 ;
 static float sCachedGpsSpeedMps = 0.0f ;
 static float sCachedGpsHeadingDeg = 0.0f ;
 
+// Cached WiFi data
+static bool sCachedWifiOk = false ;
+static uint8_t sCachedWifiMode = 0 ;  // 0=none, 1=station, 2=AP
+static char sCachedWifiSsid[33] = "" ;
+static uint8_t sCachedWifiIp[4] = { 0, 0, 0, 0 } ;
+static int8_t sCachedWifiRssi = 0 ;
+static bool sCachedWifiClientConnected = false ;
+
 // Status message
 static char sStatusMessage[32] = "" ;
 static bool sStatusIsError = false ;
@@ -308,6 +316,63 @@ static void DrawGpsScreen(void)
   else
   {
     SSD1306_DrawStringCentered(28, "Acquiring...", 1) ;
+  }
+}
+
+//----------------------------------------------
+// Internal: Draw WiFi Screen
+//----------------------------------------------
+static void DrawWifiScreen(void)
+{
+  DrawHeader("WIFI STATUS") ;
+
+  char theBuffer[32] ;
+
+  if (!sCachedWifiOk)
+  {
+    SSD1306_DrawStringCentered(28, "WIFI NOT FOUND", 1) ;
+    return ;
+  }
+
+  // Mode
+  const char * theModeStr ;
+  if (sCachedWifiMode == 1)
+  {
+    theModeStr = "Station" ;
+  }
+  else if (sCachedWifiMode == 2)
+  {
+    theModeStr = "AP" ;
+  }
+  else
+  {
+    theModeStr = "None" ;
+  }
+  snprintf(theBuffer, sizeof(theBuffer), "Mode: %s", theModeStr) ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  // SSID
+  snprintf(theBuffer, sizeof(theBuffer), "SSID: %s", sCachedWifiSsid) ;
+  SSD1306_DrawString(0, 24, theBuffer, 1) ;
+
+  // IP address
+  snprintf(theBuffer, sizeof(theBuffer), "IP: %d.%d.%d.%d",
+    sCachedWifiIp[0], sCachedWifiIp[1], sCachedWifiIp[2], sCachedWifiIp[3]) ;
+  SSD1306_DrawString(0, 34, theBuffer, 1) ;
+
+  // Mode-specific info
+  if (sCachedWifiMode == 1)
+  {
+    // Station mode - show signal strength
+    snprintf(theBuffer, sizeof(theBuffer), "Signal: %d dBm", sCachedWifiRssi) ;
+    SSD1306_DrawString(0, 44, theBuffer, 1) ;
+  }
+  else if (sCachedWifiMode == 2)
+  {
+    // AP mode - show client status
+    snprintf(theBuffer, sizeof(theBuffer), "Client: %s",
+      sCachedWifiClientConnected ? "Connected" : "None") ;
+    SSD1306_DrawString(0, 44, theBuffer, 1) ;
   }
 }
 
@@ -578,6 +643,10 @@ void GatewayDisplay_Update(void)
       DrawGpsScreen() ;
       break ;
 
+    case kGwDisplayModeWifi:
+      DrawWifiScreen() ;
+      break ;
+
     case kGwDisplayModeDeviceInfo:
       DrawDeviceInfoScreen() ;
       break ;
@@ -709,5 +778,42 @@ void GatewayDisplay_ShowDeviceInfo(
   SSD1306_DrawString(0, 54, theBuffer, 1) ;
 
   SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: GatewayDisplay_UpdateWifi
+//----------------------------------------------
+void GatewayDisplay_UpdateWifi(
+  bool inWifiOk,
+  uint8_t inMode,
+  const char * inSsid,
+  const uint8_t * inIp,
+  int8_t inRssi,
+  bool inClientConnected)
+{
+  sCachedWifiOk = inWifiOk ;
+  sCachedWifiMode = inMode ;
+
+  if (inSsid != NULL)
+  {
+    strncpy(sCachedWifiSsid, inSsid, sizeof(sCachedWifiSsid) - 1) ;
+    sCachedWifiSsid[sizeof(sCachedWifiSsid) - 1] = '\0' ;
+  }
+  else
+  {
+    sCachedWifiSsid[0] = '\0' ;
+  }
+
+  if (inIp != NULL)
+  {
+    memcpy(sCachedWifiIp, inIp, 4) ;
+  }
+  else
+  {
+    memset(sCachedWifiIp, 0, 4) ;
+  }
+
+  sCachedWifiRssi = inRssi ;
+  sCachedWifiClientConnected = inClientConnected ;
 }
 

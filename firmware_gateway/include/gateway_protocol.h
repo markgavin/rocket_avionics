@@ -118,7 +118,14 @@ typedef enum
   kUsbCmdSdDelete ,
   kUsbCmdFlashList = 20 ,
   kUsbCmdFlashRead ,
-  kUsbCmdFlashDelete
+  kUsbCmdFlashDelete ,
+  // WiFi configuration commands (30+)
+  kUsbCmdWifiList = 30 ,
+  kUsbCmdWifiAdd ,
+  kUsbCmdWifiRemove ,
+  kUsbCmdWifiSave ,
+  kUsbCmdWifiStatus ,
+  kUsbCmdWifiSetAp
 } UsbCommandType ;
 
 //----------------------------------------------
@@ -421,3 +428,47 @@ int GatewayProtocol_FlashDataToJson(
   int inLen,
   char * outJson,
   int inMaxLen) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiAddParams
+// Purpose: Parse SSID, password, and priority from wifi_add command
+// Parameters:
+//   inJson - JSON string to parse
+//   outSsid - Buffer for SSID (33 bytes min)
+//   outPassword - Buffer for password (65 bytes min)
+//   outPriority - Pointer to priority value
+// Returns: true if parameters found
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiAddParams(
+  const char * inJson,
+  char * outSsid,
+  char * outPassword,
+  uint8_t * outPriority) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiRemoveParams
+// Purpose: Parse network index from wifi_remove command
+// Parameters:
+//   inJson - JSON string to parse
+//   outIndex - Pointer to network index
+// Returns: true if parameters found
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiRemoveParams(
+  const char * inJson,
+  uint8_t * outIndex) ;
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiApParams
+// Purpose: Parse AP settings from wifi_set_ap command
+// Parameters:
+//   inJson - JSON string to parse
+//   outSsid - Buffer for AP SSID (33 bytes min)
+//   outPassword - Buffer for AP password (65 bytes min)
+//   outChannel - Pointer to channel value
+// Returns: true if parameters found
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiApParams(
+  const char * inJson,
+  char * outSsid,
+  char * outPassword,
+  uint8_t * outChannel) ;

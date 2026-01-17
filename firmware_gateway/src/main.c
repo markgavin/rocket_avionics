@@ -20,8 +20,13 @@
 #include "gateway_protocol.h"
 #include "gateway_display.h"
 #include "bmp390.h"
+#include "neopixel.h"
 #if kEnableGps
 #include "gps.h"
+#endif
+#if kEnableWifi
+#include "wifi_nina.h"
+#include "wifi_config.h"
 #endif
 
 #include "pico/stdlib.h"
@@ -37,8 +42,8 @@
 // Module Constants
 //----------------------------------------------
 #define kMainLoopIntervalMs     1
-#define kLedBlinkFastMs         100
-#define kLedBlinkSlowMs         500
+#define kLedBlinkFastMs         250
+#define kLedBlinkSlowMs         1000
 #define kLinkTimeoutMs          5000
 #define kUsbLineBufferSize      256
 #define kStartupDelayMs         1000
@@ -58,6 +63,17 @@
   #define DEBUG_PRINT(...)  printf(__VA_ARGS__)
 #else
   #define DEBUG_PRINT(...)  ((void)0)
+#endif
+
+//----------------------------------------------
+// Output Helper (USB + optional WiFi)
+//----------------------------------------------
+#if kEnableWifi
+  // Forward declaration - implemented at end of file
+  static void OutputToAll(const char * inJson) ;
+  #define OUTPUT_JSON(json) OutputToAll(json)
+#else
+  #define OUTPUT_JSON(json) do { printf("%s", json); stdio_flush(); } while(0)
 #endif
 
 //----------------------------------------------
@@ -98,6 +114,17 @@ static uint32_t sButtonCLastMs = 0 ;
 static char sUsbLineBuffer[kUsbLineBufferSize] ;
 static int sUsbLinePos = 0 ;
 
+// WiFi state (conditional)
+#if kEnableWifi
+static bool sWifiOk = false ;
+static WifiMode_t sWifiMode = kWifiModeNone ;
+static int8_t sWifiServerSocket = -1 ;
+static int8_t sWifiClientSocket = -1 ;
+static bool sWifiClientConnected = false ;
+static char sWifiLineBuffer[kUsbLineBufferSize] ;
+static int sWifiLinePos = 0 ;
+#endif
+
 //----------------------------------------------
 // Forward Declarations
 //----------------------------------------------
@@ -111,6 +138,11 @@ static void ProcessButtons(uint32_t inCurrentMs) ;
 static void UpdateLed(uint32_t inCurrentMs) ;
 static void UpdateDisplay(uint32_t inCurrentMs) ;
 static void ReadGroundBarometer(uint32_t inCurrentMs) ;
+#if kEnableWifi
+static void ProcessWifiInput(uint32_t inCurrentMs) ;
+static void ProcessCommandLine(const char * inLine, bool inIsWifi) ;
+static void OutputToAll(const char * inJson) ;
+#endif
 
 //----------------------------------------------
 // Function: main
@@ -140,6 +172,25 @@ int main(void)
   printf("  Display: %s\n", sDisplayOk ? "OK" : "FAIL") ;
   printf("  BMP390: %s\n", sBmp390Ok ? "OK" : "FAIL") ;
   printf("  GPS: %s\n", sGpsOk ? "OK" : "FAIL") ;
+#if kEnableWifi
+  printf("  WiFi: %s\n", sWifiOk ? "OK" : "FAIL") ;
+  if (sWifiOk)
+  {
+    const WifiStatus_t * theStatus = WifiConfig_GetStatus() ;
+    if (sWifiMode == kWifiModeStation)
+    {
+      printf("  WiFi Mode: Station\n") ;
+      printf("  WiFi SSID: %s\n", theStatus->ssid) ;
+      printf("  WiFi IP: %d.%d.%d.%d\n", theStatus->ip[0], theStatus->ip[1], theStatus->ip[2], theStatus->ip[3]) ;
+    }
+    else
+    {
+      printf("  WiFi Mode: AP\n") ;
+      printf("  WiFi SSID: %s\n", theStatus->ssid) ;
+    }
+    printf("  WiFi Port: %d\n", kWifiServerPort) ;
+  }
+#endif
   printf("  Frequency: %lu Hz\n", (unsigned long)kLoRaFrequency) ;
   printf("  Sync Word: 0x%02X\n", kLoRaSyncWord) ;
   printf("\nListening for telemetry...\n\n") ;
@@ -196,6 +247,48 @@ int main(void)
     // Process USB serial input
     ProcessUsbInput(theCurrentMs) ;
 
+    // Process WiFi input
+#if kEnableWifi
+    if (sWifiOk)
+    {
+      // Check for new client connections
+      if (!sWifiClientConnected)
+      {
+        int8_t theClient = WiFi_ServerHasClient(sWifiServerSocket) ;
+        if (theClient >= 0)
+        {
+          sWifiClientSocket = theClient ;
+          sWifiClientConnected = true ;
+          sWifiLinePos = 0 ;
+          printf("{\"type\":\"link\",\"status\":\"wifi_connected\"}\n") ;
+          stdio_flush() ;
+          printf("WiFi: Client connected on socket %d\n", theClient) ;
+        }
+      }
+      else
+      {
+        // Check if client is still connected
+        if (!WiFi_ClientConnected(sWifiClientSocket))
+        {
+          sWifiClientConnected = false ;
+          sWifiClientSocket = -1 ;
+          sWifiLinePos = 0 ;
+          printf("{\"type\":\"link\",\"status\":\"wifi_disconnected\"}\n") ;
+          stdio_flush() ;
+          DEBUG_PRINT("WiFi: Client disconnected\n") ;
+        }
+        else
+        {
+          // Process WiFi input
+          ProcessWifiInput(theCurrentMs) ;
+        }
+      }
+
+      // Poll WiFi
+      WiFi_Poll() ;
+    }
+#endif
+
     // Process button inputs
     ProcessButtons(theCurrentMs) ;
 
@@ -246,10 +339,17 @@ static void InitializeHardware(void)
   // Initialize SPI bus
   InitializeSPI() ;
 
-  // Initialize LED
-  gpio_init(kPinLed) ;
-  gpio_set_dir(kPinLed, GPIO_OUT) ;
-  gpio_put(kPinLed, 0) ;
+  // Initialize NeoPixel for status indication
+  printf("Initializing NeoPixel...\n") ;
+  if (NeoPixel_Init(kPinNeoPixel))
+  {
+    printf("NeoPixel initialized on GPIO %d\n", kPinNeoPixel) ;
+    NeoPixel_SetColor(NEOPIXEL_DIM_BLUE) ;  // Blue during init
+  }
+  else
+  {
+    printf("WARNING: NeoPixel initialization failed\n") ;
+  }
 
   // Initialize BMP390 barometric sensor
   printf("Initializing BMP390...\n") ;
@@ -308,6 +408,119 @@ static void InitializeHardware(void)
 
   // Initialize buttons
   InitializeButtons() ;
+
+  // Initialize WiFi (if enabled)
+#if kEnableWifi
+  printf("Initializing WiFi (AirLift)...\n") ;
+
+  // Initialize WiFi configuration first (loads from flash)
+  WifiConfig_Init() ;
+  const WifiConfig_t * theWifiConfig = WifiConfig_Get() ;
+
+  if (WiFi_Init())
+  {
+    printf("WiFi hardware initialized\n") ;
+
+    // Try to connect to stored station networks first
+    bool theConnected = false ;
+    uint8_t theEnabledCount = WifiConfig_GetEnabledCount() ;
+
+    if (theEnabledCount > 0)
+    {
+      printf("Found %d stored WiFi networks, trying station mode...\n", theEnabledCount) ;
+
+      // Try each enabled network in priority order
+      for (uint8_t thePriority = 0 ; thePriority < WIFI_CONFIG_MAX_NETWORKS && !theConnected ; thePriority++)
+      {
+        const WifiNetwork_t * theNetwork = WifiConfig_GetNetworkByPriority(thePriority) ;
+        if (theNetwork == NULL)
+        {
+          break ;  // No more networks
+        }
+
+        printf("Trying network: %s (priority %d)...\n", theNetwork->ssid, theNetwork->priority) ;
+
+        if (WiFi_Connect(theNetwork->ssid, theNetwork->password))
+        {
+          // Wait for connection with timeout
+          if (WiFi_WaitForConnection(10000))  // 10 second timeout
+          {
+            // Get IP address
+            uint8_t theIp[4] ;
+            if (WiFi_GetLocalIP(theIp))
+            {
+              printf("Connected to %s\n", theNetwork->ssid) ;
+              printf("IP Address: %d.%d.%d.%d\n", theIp[0], theIp[1], theIp[2], theIp[3]) ;
+
+              // Get RSSI
+              int8_t theRssi = WiFi_GetRSSI() ;
+              printf("Signal strength: %d dBm\n", theRssi) ;
+
+              // Update WiFi config status
+              WifiConfig_SetStatus(kWifiModeStation, theNetwork->ssid, theIp, theRssi, true) ;
+              sWifiMode = kWifiModeStation ;
+              theConnected = true ;
+            }
+          }
+          else
+          {
+            printf("Connection timeout to %s\n", theNetwork->ssid) ;
+          }
+        }
+        else
+        {
+          printf("Failed to initiate connection to %s\n", theNetwork->ssid) ;
+        }
+      }
+    }
+    else
+    {
+      printf("No stored WiFi networks configured\n") ;
+    }
+
+    // If no station connection, fall back to AP mode
+    if (!theConnected)
+    {
+      printf("Station mode failed, starting AP: %s\n", theWifiConfig->apSsid) ;
+      if (WiFi_StartAP(theWifiConfig->apSsid, theWifiConfig->apPassword, theWifiConfig->apChannel))
+      {
+        printf("WiFi AP started on channel %d\n", theWifiConfig->apChannel) ;
+
+        // Update WiFi config status
+        uint8_t theApIp[4] = { 192, 168, 4, 1 } ;  // Standard AP mode IP
+        WifiConfig_SetStatus(kWifiModeAP, theWifiConfig->apSsid, theApIp, 0, false) ;
+        sWifiMode = kWifiModeAP ;
+        theConnected = true ;
+      }
+      else
+      {
+        printf("WARNING: WiFi AP failed to start\n") ;
+      }
+    }
+
+    // Start TCP server (works in both modes)
+    if (theConnected)
+    {
+      printf("Starting TCP server on port %d...\n", kWifiServerPort) ;
+      sWifiServerSocket = WiFi_StartServer(kWifiServerPort) ;
+      if (sWifiServerSocket >= 0)
+      {
+        sWifiOk = true ;
+        printf("WiFi TCP server started on socket %d\n", sWifiServerSocket) ;
+      }
+      else
+      {
+        printf("WARNING: WiFi TCP server failed to start\n") ;
+      }
+    }
+  }
+  else
+  {
+    printf("WARNING: WiFi hardware initialization failed\n") ;
+  }
+#else
+  printf("WiFi: Disabled (kEnableWifi=0)\n") ;
+#endif
 
   // Initialize OLED display
   printf("Initializing OLED display...\n") ;
@@ -523,8 +736,7 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
 
     if (theJsonLen > 0)
     {
-      printf("%s", theJson) ;
-      stdio_flush() ;
+      OUTPUT_JSON(theJson) ;
     }
 
     // Update display with telemetry
@@ -573,8 +785,7 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
 
     if (theJsonLen > 0)
     {
-      printf("%s", theJson) ;
-      stdio_flush() ;
+      OUTPUT_JSON(theJson) ;
     }
   }
   // Handle storage data chunk (Flash)
@@ -588,8 +799,7 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
 
     if (theJsonLen > 0)
     {
-      printf("%s", theJson) ;
-      stdio_flush() ;
+      OUTPUT_JSON(theJson) ;
     }
   }
   // Handle device info response
@@ -889,6 +1099,124 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
               stdio_flush() ;
             }
           }
+#if kEnableWifi
+          // WiFi configuration commands (handled locally)
+          else if (theCommandType == kUsbCmdWifiList)
+          {
+            const WifiConfig_t * theConfig = WifiConfig_Get() ;
+            char theResponse[512] ;
+            int theResponseLen = snprintf(theResponse, sizeof(theResponse),
+              "{\"type\":\"wifi_list\",\"id\":%lu,\"count\":%u,\"networks\":[",
+              (unsigned long)theCommandId, theConfig->networkCount) ;
+
+            for (int i = 0 ; i < theConfig->networkCount && theResponseLen < (int)sizeof(theResponse) - 100 ; i++)
+            {
+              if (i > 0) theResponseLen += snprintf(theResponse + theResponseLen, sizeof(theResponse) - theResponseLen, ",") ;
+              theResponseLen += snprintf(theResponse + theResponseLen, sizeof(theResponse) - theResponseLen,
+                "{\"ssid\":\"%s\",\"priority\":%u,\"enabled\":%s}",
+                theConfig->networks[i].ssid,
+                theConfig->networks[i].priority,
+                theConfig->networks[i].enabled ? "true" : "false") ;
+            }
+            theResponseLen += snprintf(theResponse + theResponseLen, sizeof(theResponse) - theResponseLen, "]}\n") ;
+            printf("%s", theResponse) ;
+            stdio_flush() ;
+          }
+          else if (theCommandType == kUsbCmdWifiAdd)
+          {
+            char theSsid[33] ;
+            char thePassword[65] ;
+            uint8_t thePriority = 0 ;
+
+            if (GatewayProtocol_ParseWifiAddParams(sUsbLineBuffer, theSsid, thePassword, &thePriority))
+            {
+              int theIdx = WifiConfig_AddNetwork(theSsid, thePassword, thePriority) ;
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, (theIdx >= 0), theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+            else
+            {
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+          }
+          else if (theCommandType == kUsbCmdWifiRemove)
+          {
+            uint8_t theIndex = 0 ;
+            if (GatewayProtocol_ParseWifiRemoveParams(sUsbLineBuffer, &theIndex))
+            {
+              bool theSuccess = WifiConfig_RemoveNetworkByIndex(theIndex) ;
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, theSuccess, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+            else
+            {
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+          }
+          else if (theCommandType == kUsbCmdWifiSave)
+          {
+            bool theSuccess = WifiConfig_Save() ;
+            char theResponse[64] ;
+            GatewayProtocol_BuildAckJson(theCommandId, theSuccess, theResponse, sizeof(theResponse)) ;
+            printf("%s", theResponse) ;
+            stdio_flush() ;
+          }
+          else if (theCommandType == kUsbCmdWifiStatus)
+          {
+            const WifiStatus_t * theStatus = WifiConfig_GetStatus() ;
+            char theResponse[256] ;
+            snprintf(theResponse, sizeof(theResponse),
+              "{\"type\":\"wifi_status\",\"id\":%lu,"
+              "\"mode\":\"%s\","
+              "\"ssid\":\"%s\","
+              "\"ip\":\"%d.%d.%d.%d\","
+              "\"rssi\":%d,"
+              "\"connected\":%s}\n",
+              (unsigned long)theCommandId,
+              theStatus->mode == kWifiModeStation ? "station" : (theStatus->mode == kWifiModeAP ? "ap" : "none"),
+              theStatus->ssid,
+              theStatus->ip[0], theStatus->ip[1], theStatus->ip[2], theStatus->ip[3],
+              theStatus->rssi,
+              theStatus->connected ? "true" : "false") ;
+            printf("%s", theResponse) ;
+            stdio_flush() ;
+          }
+          else if (theCommandType == kUsbCmdWifiSetAp)
+          {
+            char theSsid[33] ;
+            char thePassword[65] ;
+            uint8_t theChannel = 0 ;
+
+            if (GatewayProtocol_ParseWifiApParams(sUsbLineBuffer, theSsid, thePassword, &theChannel))
+            {
+              WifiConfig_SetAP(
+                theSsid[0] ? theSsid : NULL,
+                thePassword[0] ? thePassword : NULL,
+                theChannel) ;
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+            else
+            {
+              char theResponse[64] ;
+              GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+          }
+#endif
           // Forward other commands to flight computer (arm, disarm, reset, sd_list, flash_list, info, etc.)
           else if (sLoRaOk)
           {
@@ -935,6 +1263,10 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
 
 //----------------------------------------------
 // Function: UpdateLed
+// Uses NeoPixel for status indication:
+//   - Green blinking fast: Connected to flight computer
+//   - Blue blinking slow: Searching for signal
+//   - Red: Error state
 //----------------------------------------------
 static void UpdateLed(uint32_t inCurrentMs)
 {
@@ -944,7 +1276,24 @@ static void UpdateLed(uint32_t inCurrentMs)
   {
     sLastLedToggleMs = inCurrentMs ;
     sLedState = !sLedState ;
-    gpio_put(kPinLed, sLedState) ;
+
+    if (sLedState)
+    {
+      // LED on - show status color
+      if (sGatewayState.pConnected)
+      {
+        NeoPixel_SetColor(NEOPIXEL_DIM_GREEN) ;  // Connected = green
+      }
+      else
+      {
+        NeoPixel_SetColor(NEOPIXEL_DIM_BLUE) ;   // Searching = blue
+      }
+    }
+    else
+    {
+      // LED off (dim)
+      NeoPixel_SetColor(NEOPIXEL_OFF) ;
+    }
   }
 }
 
@@ -1042,6 +1391,22 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     GatewayDisplay_UpdateGps(false, false, 0.0f, 0.0f, 0, 0.0f, 0.0f) ;
   }
 
+  // Update WiFi display data
+#if kEnableWifi
+  {
+    const WifiStatus_t * theWifiStatus = WifiConfig_GetStatus() ;
+    GatewayDisplay_UpdateWifi(
+      sWifiOk,
+      (uint8_t)theWifiStatus->mode,
+      theWifiStatus->ssid,
+      theWifiStatus->ip,
+      theWifiStatus->rssi,
+      sWifiClientConnected) ;
+  }
+#else
+  GatewayDisplay_UpdateWifi(false, 0, NULL, NULL, 0, false) ;
+#endif
+
   // Handle About screen specially with version info
   if (GatewayDisplay_GetMode() == kGwDisplayModeAbout)
   {
@@ -1053,3 +1418,396 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     GatewayDisplay_Update() ;
   }
 }
+
+//----------------------------------------------
+// WiFi Functions (conditional)
+//----------------------------------------------
+#if kEnableWifi
+
+//----------------------------------------------
+// Function: OutputToAll
+// Purpose: Output JSON to both USB and WiFi
+//----------------------------------------------
+static void OutputToAll(const char * inJson)
+{
+  // Output to USB
+  printf("%s", inJson) ;
+  stdio_flush() ;
+
+  // Output to WiFi client if connected
+  if (sWifiClientConnected && sWifiClientSocket >= 0)
+  {
+    int theLen = strlen(inJson) ;
+    WiFi_Write(sWifiClientSocket, (const uint8_t *)inJson, theLen) ;
+  }
+}
+
+//----------------------------------------------
+// Function: ProcessWifiInput
+// Purpose: Process incoming WiFi commands
+//----------------------------------------------
+static void ProcessWifiInput(uint32_t inCurrentMs)
+{
+  (void)inCurrentMs ;  // May be used later for timeouts
+
+  // Read available data from WiFi
+  uint8_t theBuffer[256] ;
+  int theLen = WiFi_Read(sWifiClientSocket, theBuffer, sizeof(theBuffer) - 1) ;
+
+  if (theLen <= 0)
+  {
+    return ;
+  }
+
+  // Process received characters
+  for (int i = 0 ; i < theLen ; i++)
+  {
+    char theChar = (char)theBuffer[i] ;
+
+    if (theChar == '\n' || theChar == '\r')
+    {
+      // End of line - process command
+      if (sWifiLinePos > 0)
+      {
+        sWifiLineBuffer[sWifiLinePos] = '\0' ;
+        ProcessCommandLine(sWifiLineBuffer, true) ;
+      }
+      sWifiLinePos = 0 ;
+    }
+    else if (sWifiLinePos < (int)sizeof(sWifiLineBuffer) - 1)
+    {
+      // Add character to buffer
+      sWifiLineBuffer[sWifiLinePos++] = theChar ;
+    }
+  }
+}
+
+//----------------------------------------------
+// Function: ProcessCommandLine
+// Purpose: Process a command line from USB or WiFi
+//----------------------------------------------
+static void ProcessCommandLine(const char * inLine, bool inIsWifi)
+{
+  (void)inIsWifi ;  // Could be used to route responses differently
+
+  // Parse command
+  UsbCommandType theCommandType ;
+  uint32_t theCommandId ;
+
+  if (!GatewayProtocol_ParseCommand(inLine, &theCommandType, &theCommandId))
+  {
+    return ;
+  }
+
+  // Handle ping locally
+  if (theCommandType == kUsbCmdPing)
+  {
+    char theResponse[64] ;
+    GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+    OutputToAll(theResponse) ;
+  }
+  // Handle status locally
+  else if (theCommandType == kUsbCmdStatus)
+  {
+    char theResponse[kJsonBufferSize] ;
+    GatewayProtocol_BuildStatusJson(&sGatewayState, theCommandId, theResponse, sizeof(theResponse)) ;
+    OutputToAll(theResponse) ;
+  }
+  // Handle gateway info locally
+  else if (theCommandType == kUsbCmdGatewayInfo)
+  {
+    // Get GPS data
+    bool theGpsFix = false ;
+    float theGpsLat = 0.0f ;
+    float theGpsLon = 0.0f ;
+    uint8_t theGpsSats = 0 ;
+#if kEnableGps
+    if (sGpsOk)
+    {
+      const GpsData * theGpsData = GPS_GetData() ;
+      if (theGpsData != NULL && theGpsData->pValid)
+      {
+        theGpsFix = true ;
+        theGpsLat = theGpsData->pLatitude ;
+        theGpsLon = theGpsData->pLongitude ;
+        theGpsSats = theGpsData->pSatellites ;
+      }
+    }
+#endif
+
+    // Build gateway device info JSON response (with WiFi info)
+    char theResponse[512] ;
+    snprintf(theResponse, sizeof(theResponse),
+      "{\"type\":\"gw_info\","
+      "\"version\":\"%s\","
+      "\"build\":\"%s %s\","
+      "\"lora\":%s,"
+      "\"bmp390\":%s,"
+      "\"gps\":%s,"
+      "\"wifi\":%s,"
+      "\"display\":%s,"
+      "\"connected\":%s,"
+      "\"wifi_client\":%s,"
+      "\"rx\":%lu,"
+      "\"tx\":%lu,"
+      "\"rssi\":%d,"
+      "\"snr\":%d,"
+      "\"ground_pres\":%.0f,"
+      "\"ground_temp\":%.1f,"
+      "\"gps_fix\":%s,"
+      "\"gps_lat\":%.6f,"
+      "\"gps_lon\":%.6f,"
+      "\"gps_sats\":%u}\n",
+      FIRMWARE_VERSION_STRING,
+      __DATE__, __TIME__,
+      sLoRaOk ? "true" : "false",
+      sBmp390Ok ? "true" : "false",
+      sGpsOk ? "true" : "false",
+      sWifiOk ? "true" : "false",
+      sDisplayOk ? "true" : "false",
+      sGatewayState.pConnected ? "true" : "false",
+      sWifiClientConnected ? "true" : "false",
+      (unsigned long)sGatewayState.pPacketsReceived,
+      (unsigned long)sGatewayState.pPacketsSent,
+      sGatewayState.pLastRssi,
+      sGatewayState.pLastSnr,
+      sGroundPressurePa,
+      sGroundTemperatureC,
+      theGpsFix ? "true" : "false",
+      theGpsLat,
+      theGpsLon,
+      theGpsSats) ;
+    OutputToAll(theResponse) ;
+  }
+  // Handle flash list/read/delete commands
+  else if (theCommandType == kUsbCmdFlashRead && sLoRaOk)
+  {
+    uint8_t theSlot = 0 ;
+    uint32_t theSample = 0 ;
+
+    if (GatewayProtocol_ParseFlashParams(inLine, &theSlot, &theSample))
+    {
+      uint8_t thePacket[16] ;
+      int theLen = GatewayProtocol_BuildFlashReadCommand(
+        theSlot, theSample, thePacket, sizeof(thePacket)) ;
+
+      if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+      {
+        sGatewayState.pPacketsSent++ ;
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      else
+      {
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      LoRa_StartReceive(&sLoRaRadio) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  else if (theCommandType == kUsbCmdFlashDelete && sLoRaOk)
+  {
+    uint8_t theSlot = 0 ;
+    uint32_t theSample = 0 ;
+
+    if (GatewayProtocol_ParseFlashParams(inLine, &theSlot, &theSample))
+    {
+      uint8_t thePacket[8] ;
+      int theLen = GatewayProtocol_BuildFlashDeleteCommand(
+        theSlot, thePacket, sizeof(thePacket)) ;
+
+      if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+      {
+        sGatewayState.pPacketsSent++ ;
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      else
+      {
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      LoRa_StartReceive(&sLoRaRadio) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  else if (theCommandType == kUsbCmdOrientationMode && sLoRaOk)
+  {
+    bool theEnabled = false ;
+    if (GatewayProtocol_ParseOrientationModeEnabled(inLine, &theEnabled))
+    {
+      uint8_t thePacket[8] ;
+      int theLen = GatewayProtocol_BuildOrientationModeCommand(theEnabled, thePacket, sizeof(thePacket)) ;
+
+      if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+      {
+        sGatewayState.pPacketsSent++ ;
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      else
+      {
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      LoRa_StartReceive(&sLoRaRadio) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  // WiFi configuration commands (handled locally)
+  else if (theCommandType == kUsbCmdWifiList)
+  {
+    // Build JSON response with stored WiFi networks
+    const WifiConfig_t * theConfig = WifiConfig_Get() ;
+    char theResponse[512] ;
+    int theLen = snprintf(theResponse, sizeof(theResponse),
+      "{\"type\":\"wifi_list\",\"id\":%lu,\"count\":%u,\"networks\":[",
+      (unsigned long)theCommandId, theConfig->networkCount) ;
+
+    for (int i = 0 ; i < theConfig->networkCount && theLen < (int)sizeof(theResponse) - 100 ; i++)
+    {
+      if (i > 0) theLen += snprintf(theResponse + theLen, sizeof(theResponse) - theLen, ",") ;
+      theLen += snprintf(theResponse + theLen, sizeof(theResponse) - theLen,
+        "{\"ssid\":\"%s\",\"priority\":%u,\"enabled\":%s}",
+        theConfig->networks[i].ssid,
+        theConfig->networks[i].priority,
+        theConfig->networks[i].enabled ? "true" : "false") ;
+    }
+    theLen += snprintf(theResponse + theLen, sizeof(theResponse) - theLen, "]}\n") ;
+    OutputToAll(theResponse) ;
+  }
+  else if (theCommandType == kUsbCmdWifiAdd)
+  {
+    char theSsid[33] ;
+    char thePassword[65] ;
+    uint8_t thePriority = 0 ;
+
+    if (GatewayProtocol_ParseWifiAddParams(inLine, theSsid, thePassword, &thePriority))
+    {
+      int theIdx = WifiConfig_AddNetwork(theSsid, thePassword, thePriority) ;
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, (theIdx >= 0), theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  else if (theCommandType == kUsbCmdWifiRemove)
+  {
+    uint8_t theIndex = 0 ;
+    if (GatewayProtocol_ParseWifiRemoveParams(inLine, &theIndex))
+    {
+      bool theSuccess = WifiConfig_RemoveNetworkByIndex(theIndex) ;
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, theSuccess, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  else if (theCommandType == kUsbCmdWifiSave)
+  {
+    bool theSuccess = WifiConfig_Save() ;
+    char theResponse[64] ;
+    GatewayProtocol_BuildAckJson(theCommandId, theSuccess, theResponse, sizeof(theResponse)) ;
+    OutputToAll(theResponse) ;
+  }
+  else if (theCommandType == kUsbCmdWifiStatus)
+  {
+    const WifiStatus_t * theStatus = WifiConfig_GetStatus() ;
+    char theResponse[256] ;
+    snprintf(theResponse, sizeof(theResponse),
+      "{\"type\":\"wifi_status\",\"id\":%lu,"
+      "\"mode\":\"%s\","
+      "\"ssid\":\"%s\","
+      "\"ip\":\"%d.%d.%d.%d\","
+      "\"rssi\":%d,"
+      "\"connected\":%s}\n",
+      (unsigned long)theCommandId,
+      theStatus->mode == kWifiModeStation ? "station" : (theStatus->mode == kWifiModeAP ? "ap" : "none"),
+      theStatus->ssid,
+      theStatus->ip[0], theStatus->ip[1], theStatus->ip[2], theStatus->ip[3],
+      theStatus->rssi,
+      theStatus->connected ? "true" : "false") ;
+    OutputToAll(theResponse) ;
+  }
+  else if (theCommandType == kUsbCmdWifiSetAp)
+  {
+    char theSsid[33] ;
+    char thePassword[65] ;
+    uint8_t theChannel = 0 ;
+
+    if (GatewayProtocol_ParseWifiApParams(inLine, theSsid, thePassword, &theChannel))
+    {
+      WifiConfig_SetAP(
+        theSsid[0] ? theSsid : NULL,
+        thePassword[0] ? thePassword : NULL,
+        theChannel) ;
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+    else
+    {
+      char theResponse[64] ;
+      GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+      OutputToAll(theResponse) ;
+    }
+  }
+  // Forward other commands to flight computer
+  else if (sLoRaOk)
+  {
+    uint8_t thePacket[8] ;
+    int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, thePacket, sizeof(thePacket)) ;
+
+    if (theLen > 0)
+    {
+      if (LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+      {
+        sGatewayState.pPacketsSent++ ;
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      else
+      {
+        char theResponse[64] ;
+        GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+        OutputToAll(theResponse) ;
+      }
+      LoRa_StartReceive(&sLoRaRadio) ;
+    }
+  }
+}
+
+#endif // kEnableWifi

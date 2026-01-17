@@ -290,6 +290,31 @@ bool GatewayProtocol_ParseCommand(
   {
     *outCommandType = kUsbCmdOrientationMode ;
   }
+  // WiFi configuration commands
+  else if (strncmp(theCmdStart, "wifi_list", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiList ;
+  }
+  else if (strncmp(theCmdStart, "wifi_add", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiAdd ;
+  }
+  else if (strncmp(theCmdStart, "wifi_remove", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiRemove ;
+  }
+  else if (strncmp(theCmdStart, "wifi_save", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiSave ;
+  }
+  else if (strncmp(theCmdStart, "wifi_status", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiStatus ;
+  }
+  else if (strncmp(theCmdStart, "wifi_set_ap", theCmdLen) == 0)
+  {
+    *outCommandType = kUsbCmdWifiSetAp ;
+  }
   else
   {
     return false ;
@@ -930,4 +955,144 @@ int GatewayProtocol_FlashDataToJson(
   theJsonLen += snprintf(outJson + theJsonLen, inMaxLen - theJsonLen, "\"}\n") ;
 
   return theJsonLen ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiAddParams
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiAddParams(
+  const char * inJson,
+  char * outSsid,
+  char * outPassword,
+  uint8_t * outPriority)
+{
+  if (inJson == NULL || outSsid == NULL || outPassword == NULL || outPriority == NULL)
+  {
+    return false ;
+  }
+
+  outSsid[0] = '\0' ;
+  outPassword[0] = '\0' ;
+  *outPriority = 0 ;
+
+  // Find SSID: "ssid":"..."
+  const char * theSsidStart = strstr(inJson, "\"ssid\":\"") ;
+  if (theSsidStart == NULL) return false ;
+  theSsidStart += 8 ;  // Skip past "ssid":"
+  const char * theSsidEnd = strchr(theSsidStart, '"') ;
+  if (theSsidEnd == NULL) return false ;
+  int theSsidLen = theSsidEnd - theSsidStart ;
+  if (theSsidLen > 32) theSsidLen = 32 ;
+  memcpy(outSsid, theSsidStart, theSsidLen) ;
+  outSsid[theSsidLen] = '\0' ;
+
+  // Find password: "password":"..."
+  const char * thePassStart = strstr(inJson, "\"password\":\"") ;
+  if (thePassStart != NULL)
+  {
+    thePassStart += 12 ;  // Skip past "password":"
+    const char * thePassEnd = strchr(thePassStart, '"') ;
+    if (thePassEnd != NULL)
+    {
+      int thePassLen = thePassEnd - thePassStart ;
+      if (thePassLen > 64) thePassLen = 64 ;
+      memcpy(outPassword, thePassStart, thePassLen) ;
+      outPassword[thePassLen] = '\0' ;
+    }
+  }
+
+  // Find priority: "priority":N
+  const char * thePriorityStart = strstr(inJson, "\"priority\":") ;
+  if (thePriorityStart != NULL)
+  {
+    thePriorityStart += 11 ;  // Skip past "priority":
+    *outPriority = (uint8_t)strtoul(thePriorityStart, NULL, 10) ;
+  }
+
+  return (outSsid[0] != '\0') ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiRemoveParams
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiRemoveParams(
+  const char * inJson,
+  uint8_t * outIndex)
+{
+  if (inJson == NULL || outIndex == NULL) return false ;
+
+  *outIndex = 0 ;
+
+  // Find index: "index":N
+  const char * theIndexStart = strstr(inJson, "\"index\":") ;
+  if (theIndexStart == NULL) return false ;
+
+  theIndexStart += 8 ;  // Skip past "index":
+  *outIndex = (uint8_t)strtoul(theIndexStart, NULL, 10) ;
+
+  return true ;
+}
+
+//----------------------------------------------
+// Function: GatewayProtocol_ParseWifiApParams
+//----------------------------------------------
+bool GatewayProtocol_ParseWifiApParams(
+  const char * inJson,
+  char * outSsid,
+  char * outPassword,
+  uint8_t * outChannel)
+{
+  if (inJson == NULL || outSsid == NULL || outPassword == NULL || outChannel == NULL)
+  {
+    return false ;
+  }
+
+  outSsid[0] = '\0' ;
+  outPassword[0] = '\0' ;
+  *outChannel = 0 ;
+
+  bool theHasAnyParam = false ;
+
+  // Find SSID: "ssid":"..."
+  const char * theSsidStart = strstr(inJson, "\"ssid\":\"") ;
+  if (theSsidStart != NULL)
+  {
+    theSsidStart += 8 ;  // Skip past "ssid":"
+    const char * theSsidEnd = strchr(theSsidStart, '"') ;
+    if (theSsidEnd != NULL)
+    {
+      int theSsidLen = theSsidEnd - theSsidStart ;
+      if (theSsidLen > 32) theSsidLen = 32 ;
+      memcpy(outSsid, theSsidStart, theSsidLen) ;
+      outSsid[theSsidLen] = '\0' ;
+      theHasAnyParam = true ;
+    }
+  }
+
+  // Find password: "password":"..."
+  const char * thePassStart = strstr(inJson, "\"password\":\"") ;
+  if (thePassStart != NULL)
+  {
+    thePassStart += 12 ;  // Skip past "password":"
+    const char * thePassEnd = strchr(thePassStart, '"') ;
+    if (thePassEnd != NULL)
+    {
+      int thePassLen = thePassEnd - thePassStart ;
+      if (thePassLen > 64) thePassLen = 64 ;
+      memcpy(outPassword, thePassStart, thePassLen) ;
+      outPassword[thePassLen] = '\0' ;
+      theHasAnyParam = true ;
+    }
+  }
+
+  // Find channel: "channel":N
+  const char * theChannelStart = strstr(inJson, "\"channel\":") ;
+  if (theChannelStart != NULL)
+  {
+    theChannelStart += 10 ;  // Skip past "channel":
+    *outChannel = (uint8_t)strtoul(theChannelStart, NULL, 10) ;
+    theHasAnyParam = true ;
+  }
+
+  return theHasAnyParam ;
 }

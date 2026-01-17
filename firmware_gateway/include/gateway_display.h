@@ -28,6 +28,7 @@ typedef enum
   kGwDisplayModeLoRa ,            // LoRa configuration
   kGwDisplayModeBarometer ,       // Ground barometer
   kGwDisplayModeGps ,             // GPS location and status
+  kGwDisplayModeWifi ,            // WiFi status and connection
   kGwDisplayModeDeviceInfo ,      // Device info (hardware status)
   kGwDisplayModeAbout ,           // About screen
   kGwDisplayModeCount             // Number of modes
@@ -231,4 +232,23 @@ void GatewayDisplay_ShowDeviceInfo(
   bool inBmp390Ok,
   bool inGpsOk,
   bool inDisplayOk) ;
+
+//----------------------------------------------
+// Function: GatewayDisplay_UpdateWifi
+// Purpose: Update WiFi status display
+// Parameters:
+//   inWifiOk - WiFi module initialized
+//   inMode - WiFi mode (0=none, 1=station, 2=AP)
+//   inSsid - Connected/AP SSID
+//   inIp - IP address (4 bytes)
+//   inRssi - Signal strength (station mode)
+//   inClientConnected - Client connected (AP mode)
+//----------------------------------------------
+void GatewayDisplay_UpdateWifi(
+  bool inWifiOk,
+  uint8_t inMode,
+  const char * inSsid,
+  const uint8_t * inIp,
+  int8_t inRssi,
+  bool inClientConnected) ;
 

@@ -37,6 +37,9 @@ add_executable(rocket_gateway
   src/gateway_display.c
   src/bmp390.c
   src/gps.c
+  src/wifi_nina.c
+  src/wifi_config.c
+  src/neopixel.c
 )
 
 # Include directories
@@ -52,6 +55,10 @@ target_link_libraries(rocket_gateway
   hardware_gpio
   hardware_i2c
   hardware_uart
+  hardware_flash
+  hardware_sync
+  hardware_pio
+  hardware_clocks
 )
 
 # Enable USB serial output (disable UART)
