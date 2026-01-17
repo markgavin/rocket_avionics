@@ -31,6 +31,7 @@ pico_sdk_init()
 #----------------------------------------------
 add_executable(rocket_gateway
   src/main.c
+  src/version.c
   src/lora_radio.c
   src/gateway_protocol.c
   src/ssd1306.c
@@ -40,6 +41,13 @@ add_executable(rocket_gateway
   src/wifi_nina.c
   src/wifi_config.c
   src/neopixel.c
+)
+
+# Force version.c to rebuild every time (updates build date/time)
+add_custom_command(
+  TARGET rocket_gateway PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
+  COMMENT "Touching version.c to update build timestamp"
 )
 
 # Include directories

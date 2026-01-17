@@ -34,6 +34,7 @@ pico_sdk_init()
 # Main executable
 add_executable(rocket_avionics_flight
     src/main.c
+    src/version.c
     src/flight_control.c
     src/lora_radio.c
     src/bmp390.c
@@ -45,6 +46,13 @@ add_executable(rocket_avionics_flight
     src/heartbeat_led.c
     src/base64.c
     src/gps.c
+)
+
+# Force version.c to rebuild every time (updates build date/time)
+add_custom_command(
+    TARGET rocket_avionics_flight PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
+    COMMENT "Touching version.c to update build timestamp"
 )
 
 # Generate PIO header for WS2812 NeoPixel

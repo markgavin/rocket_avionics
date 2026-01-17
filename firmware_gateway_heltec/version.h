@@ -1,10 +1,9 @@
 //----------------------------------------------
 // Module: version.h
 // Description: Firmware version information
-//   for Ground Gateway
+//   for Heltec Wireless Tracker Gateway
 // Author: Mark Gavin
-// Created: 2026-01-10
-// Modified: 2026-01-17 (Added build date/time externs)
+// Created: 2026-01-17
 // Copyright: (c) 2025-2026 by Mark Gavin
 // License: Proprietary - All Rights Reserved
 //----------------------------------------------
@@ -18,11 +17,11 @@
 #define FIRMWARE_VERSION_MINOR      0
 #define FIRMWARE_VERSION_PATCH      0
 #define FIRMWARE_VERSION_STRING     "1.0.0"
-#define FIRMWARE_BUILD_TYPE         "Gateway"
+#define FIRMWARE_BUILD_TYPE         "HeltecGateway"
 
 //----------------------------------------------
-// Build Timestamp (defined in version.c)
-// These are updated on every build via force-rebuild
+// Build Timestamp
+// Arduino IDE rebuilds all files, so these are always current
 //----------------------------------------------
-extern const char * const kBuildDate ;
-extern const char * const kBuildTime ;
+#define FIRMWARE_BUILD_DATE         __DATE__
+#define FIRMWARE_BUILD_TIME         __TIME__

@@ -157,7 +157,7 @@ int main(void)
   printf("======================================\n") ;
   printf("  ROCKET AVIONICS GROUND GATEWAY\n") ;
   printf("  Version %s\n", FIRMWARE_VERSION_STRING) ;
-  printf("  Build: %s %s\n", __DATE__, __TIME__) ;
+  printf("  Build: %s %s\n", kBuildDate, kBuildTime) ;
   printf("======================================\n\n") ;
 
   // Initialize hardware
@@ -966,7 +966,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    "\"gps_lon\":%.6f,"
                    "\"gps_sats\":%u}\n",
                    FIRMWARE_VERSION_STRING,
-                   __DATE__, __TIME__,
+                   kBuildDate, kBuildTime,
                    sLoRaOk ? "true" : "false",
                    sBmp390Ok ? "true" : "false",
                    sGpsOk ? "true" : "false",
@@ -1410,7 +1410,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
   // Handle About screen specially with version info
   if (GatewayDisplay_GetMode() == kGwDisplayModeAbout)
   {
-    GatewayDisplay_ShowAbout(FIRMWARE_VERSION_STRING, __DATE__, __TIME__) ;
+    GatewayDisplay_ShowAbout(FIRMWARE_VERSION_STRING, kBuildDate, kBuildTime) ;
   }
   else
   {
@@ -1559,7 +1559,7 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
       "\"gps_lon\":%.6f,"
       "\"gps_sats\":%u}\n",
       FIRMWARE_VERSION_STRING,
-      __DATE__, __TIME__,
+      kBuildDate, kBuildTime,
       sLoRaOk ? "true" : "false",
       sBmp390Ok ? "true" : "false",
       sGpsOk ? "true" : "false",

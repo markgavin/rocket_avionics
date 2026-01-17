@@ -127,7 +127,7 @@ int main(void)
   printf("======================================\n") ;
   printf("  ROCKET AVIONICS FLIGHT COMPUTER\n") ;
   printf("  Version %s\n", FIRMWARE_VERSION_STRING) ;
-  printf("  Build: %s %s\n", __DATE__, __TIME__) ;
+  printf("  Build: %s %s\n", kBuildDate, kBuildTime) ;
   printf("======================================\n\n") ;
 
   // Initialize all hardware
@@ -867,8 +867,8 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     case kDisplayModeAbout:
       StatusDisplay_ShowAbout(
         FIRMWARE_VERSION_STRING,
-        FIRMWARE_BUILD_DATE,
-        FIRMWARE_BUILD_TIME) ;
+        kBuildDate,
+        kBuildTime) ;
       break ;
 
     default:
@@ -925,7 +925,9 @@ static void SendDeviceInfo(void)
   theOffset += theVersionLen ;
 
   // Build date
-  const char * theBuildDate = __DATE__ " " __TIME__ ;
+  char theBuildDateBuf[32] ;
+  snprintf(theBuildDateBuf, sizeof(theBuildDateBuf), "%s %s", kBuildDate, kBuildTime) ;
+  const char * theBuildDate = theBuildDateBuf ;
   uint8_t theBuildLen = strlen(theBuildDate) ;
   thePacket[theOffset++] = theBuildLen ;
   memcpy(&thePacket[theOffset], theBuildDate, theBuildLen) ;

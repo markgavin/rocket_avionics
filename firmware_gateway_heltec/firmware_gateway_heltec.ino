@@ -14,6 +14,7 @@
 #include <WiFi.h>
 #include <TinyGPSPlus.h>
 #include "HT_SSD1306Wire.h"
+#include "version.h"
 
 //----------------------------------------------
 // Pin Definitions for Heltec Wireless Tracker
@@ -98,7 +99,9 @@ void setup() {
     delay(1000);
 
     Serial.println("\n========================================");
-    Serial.println("Rocket Avionics Gateway - Heltec Wireless Tracker");
+    Serial.println("  ROCKET AVIONICS GATEWAY - HELTEC");
+    Serial.printf("  Version %s\n", FIRMWARE_VERSION_STRING);
+    Serial.printf("  Build: %s %s\n", FIRMWARE_BUILD_DATE, FIRMWARE_BUILD_TIME);
     Serial.println("========================================\n");
 
     // Initialize display
