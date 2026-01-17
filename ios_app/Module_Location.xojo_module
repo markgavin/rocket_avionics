@@ -1,0 +1,206 @@
+#tag Module
+Protected Module Module_Location
+	#tag Method, Flags = &h0
+		Sub Initialize()
+		  // Initialize the location manager
+		  // Call this once at app startup
+
+		  If pLocation = Nil Then
+		    pLocation = New MobileLocation
+		    AddHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
+		    AddHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
+		    AddHandler pLocation.Error, AddressOf HandleLocationError
+		  End If
+
+		  pPhoneLatitude = 0.0
+		  pPhoneLongitude = 0.0
+		  pPhoneAltitude = 0.0
+		  pPhoneAccuracy = 0.0
+		  pHasLocation = False
+		  pIsUpdating = False
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub Shutdown()
+		  // Clean up location manager
+		  // Call this at app shutdown
+
+		  If pLocation <> Nil Then
+		    If pIsUpdating Then
+		      pLocation.Stop
+		    End If
+		    RemoveHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
+		    RemoveHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
+		    RemoveHandler pLocation.Error, AddressOf HandleLocationError
+		    pLocation = Nil
+		  End If
+
+		  pIsUpdating = False
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub StartUpdating()
+		  // Start receiving location updates
+
+		  If pLocation = Nil Then
+		    Initialize()
+		  End If
+
+		  If Not pIsUpdating Then
+		    pLocation.DesiredAccuracy = MobileLocation.Accuracies.Best
+		    pLocation.Start
+		    pIsUpdating = True
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub StopUpdating()
+		  // Stop receiving location updates
+
+		  If pLocation <> Nil And pIsUpdating Then
+		    pLocation.Stop
+		    pIsUpdating = False
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function IsAuthorized() As Boolean
+		  // Check if we have location authorization
+
+		  If pLocation = Nil Then Return False
+
+		  Return pLocation.IsAuthorized
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub RequestAuthorization()
+		  // Request location authorization from user
+
+		  If pLocation = Nil Then
+		    Initialize()
+		  End If
+
+		  pLocation.RequestInUseAuthorization
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleLocationChanged(inSender As MobileLocation, inLatitude As Double, inLongitude As Double)
+		  #Pragma Unused inSender
+
+		  pPhoneLatitude = inLatitude
+		  pPhoneLongitude = inLongitude
+		  pPhoneAltitude = inSender.Altitude
+		  pPhoneAccuracy = inSender.HorizontalAccuracy
+		  pHasLocation = True
+		  pLastUpdateTime = DateTime.Now
+
+		  // Notify any listeners
+		  RaiseEvent LocationUpdated(inLatitude, inLongitude)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleAuthorizationChanged(inSender As MobileLocation, inStatus As MobileLocation.AuthorizationStates)
+		  #Pragma Unused inSender
+
+		  // Notify listeners of authorization change
+		  RaiseEvent AuthorizationChanged(inStatus)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleLocationError(inSender As MobileLocation, theError As RuntimeException)
+		  #Pragma Unused inSender
+
+		  // Notify listeners of error
+		  RaiseEvent LocationError(theError.Message)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function GetDistanceToRocket(inRocketLat As Double, inRocketLon As Double) As Double
+		  // Calculate distance from phone to rocket in meters
+		  // Returns -1 if phone location not available
+
+		  If Not pHasLocation Then Return -1
+
+		  Return Module_Navigation.CalculateDistanceM(pPhoneLatitude, pPhoneLongitude, inRocketLat, inRocketLon)
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function GetBearingToRocket(inRocketLat As Double, inRocketLon As Double) As Double
+		  // Calculate bearing from phone to rocket in degrees
+		  // Returns -1 if phone location not available
+
+		  If Not pHasLocation Then Return -1
+
+		  Return Module_Navigation.CalculateBearingDeg(pPhoneLatitude, pPhoneLongitude, inRocketLat, inRocketLon)
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function GetLocationAgeSeconds() As Integer
+		  // Return age of last location update in seconds
+
+		  If pLastUpdateTime = Nil Then Return 999999
+
+		  Return DateTime.Now.SecondsFrom1970 - pLastUpdateTime.SecondsFrom1970
+		End Function
+	#tag EndMethod
+
+
+	#tag Property, Flags = &h21
+		Private pLocation As MobileLocation
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPhoneLatitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPhoneLongitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPhoneAltitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPhoneAccuracy As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pHasLocation As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pIsUpdating As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pLastUpdateTime As DateTime
+	#tag EndProperty
+
+
+	#tag Hook, Flags = &h0
+		Event LocationUpdated(inLatitude As Double, inLongitude As Double)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event AuthorizationChanged(inStatus As MobileLocation.AuthorizationStates)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event LocationError(inMessage As String)
+	#tag EndHook
+
+
+End Module
+#tag EndModule

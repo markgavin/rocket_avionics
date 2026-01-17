@@ -40,7 +40,7 @@ Begin MobileScreen Screen_Settings
       ControlCount    =   0
       Enabled         =   True
       Height          =   44
-      Hint            =   "192.168.1.100"
+      Hint            =   "192.168.4.1"
       KeyboardType    =   8
       Left            =   20
       LockBottom      =   False
@@ -146,7 +146,7 @@ Begin MobileScreen Screen_Settings
       LockRight       =   False
       LockTop         =   False
       Scope           =   2
-      Text            =   "Connect to a ground station computer running the desktop app with network bridge enabled, or directly to a WiFi-enabled gateway."
+      Text            =   "Connect to the 'RocketGateway' WiFi hotspot, then use 192.168.4.1:8080 to connect. Or connect to a desktop bridge on your local network."
       TextAlignment   =   1
       TextColor       =   &c66666600
       TextFont        =   ""

@@ -86,6 +86,44 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h0
+		Sub SendFlashList()
+		  // Request list of stored flights in flash
+		  SendCommand("flash_list")
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendFlashRead(inSlot As Integer, inSample As Integer)
+		  // Request flash data chunk
+		  If Not pIsConnected Then Return
+
+		  pCommandId = pCommandId + 1
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "flash_read"
+		  theJson.Value("id") = pCommandId
+		  theJson.Value("slot") = inSlot
+		  theJson.Value("sample") = inSample
+
+		  pSocket.Write(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendFlashDelete(inSlot As Integer)
+		  // Delete a stored flight from flash
+		  If Not pIsConnected Then Return
+
+		  pCommandId = pCommandId + 1
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "flash_delete"
+		  theJson.Value("id") = pCommandId
+		  theJson.Value("slot") = inSlot
+
+		  pSocket.Write(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
 	#tag Method, Flags = &h21
 		Private Sub SendCommand(inCommand As String)
 		  // Send a JSON command to the gateway
@@ -158,6 +196,15 @@ Protected Class FlightConnection
 		        theSample.pState = theJson.Lookup("state", "")
 		        theSample.pRssi = theJson.Lookup("rssi", 0)
 		        theSample.pSnr = theJson.Lookup("snr", 0)
+
+		        // GPS data
+		        theSample.pGpsLatitude = theJson.Lookup("lat", 0.0)
+		        theSample.pGpsLongitude = theJson.Lookup("lon", 0.0)
+		        theSample.pGpsSpeedMps = theJson.Lookup("gspd", 0.0)
+		        theSample.pGpsHeadingDeg = theJson.Lookup("hdg", 0.0)
+		        theSample.pGpsSatellites = theJson.Lookup("sat", 0)
+		        theSample.pGpsFix = theJson.Lookup("gps", False)
+
 		        RaiseEvent TelemetryReceived(theSample)
 
 		      Case "link"
@@ -176,6 +223,35 @@ Protected Class FlightConnection
 		        Var theCode As String = theJson.Lookup("code", "")
 		        Var theMessage As String = theJson.Lookup("msg", "")
 		        RaiseEvent ErrorReceived(theCode, theMessage)
+
+		      Case "flash_list"
+		        // Flash storage list response
+		        Var theFlights() As Dictionary
+		        Var theCount As Integer = theJson.Lookup("count", 0)
+
+		        If theJson.HasKey("flights") Then
+		          Var theFlightsArray As JSONItem = theJson.Value("flights")
+		          For i As Integer = 0 To theFlightsArray.Count - 1
+		            Var theFlightJson As JSONItem = theFlightsArray.ChildAt(i)
+		            Var theFlight As New Dictionary
+		            theFlight.Value("slot") = theFlightJson.Lookup("slot", 0)
+		            theFlight.Value("id") = theFlightJson.Lookup("id", 0)
+		            theFlight.Value("altitude") = theFlightJson.Lookup("alt", 0.0)
+		            theFlight.Value("time_ms") = theFlightJson.Lookup("time", 0)
+		            theFlight.Value("samples") = theFlightJson.Lookup("samples", 0)
+		            theFlights.Add(theFlight)
+		          Next
+		        End If
+
+		        RaiseEvent FlashListReceived(theCount, theFlights)
+
+		      Case "flash_data"
+		        // Flash data chunk response
+		        Var theSlot As Integer = theJson.Lookup("slot", 0)
+		        Var theStart As Integer = theJson.Lookup("start", 0)
+		        Var theTotal As Integer = theJson.Lookup("total", 0)
+		        Var theData As String = theJson.Lookup("data", "")
+		        RaiseEvent FlashDataReceived(theSlot, theStart, theTotal, theData)
 
 		      End Select
 		    End If
@@ -222,6 +298,14 @@ Protected Class FlightConnection
 
 	#tag Hook, Flags = &h0
 		Event ErrorReceived(inCode As String, inMessage As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event FlashListReceived(inCount As Integer, inFlights() As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event FlashDataReceived(inSlot As Integer, inStart As Integer, inTotal As Integer, inData As String)
 	#tag EndHook
 
 

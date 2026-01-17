@@ -74,6 +74,30 @@ Protected Class TelemetrySample
 		pSnr As Integer = 0
 	#tag EndProperty
 
+	#tag Property, Flags = &h0
+		pGpsLatitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGpsLongitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGpsSpeedMps As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGpsHeadingDeg As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGpsSatellites As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGpsFix As Boolean = False
+	#tag EndProperty
+
 
 End Class
 #tag EndClass

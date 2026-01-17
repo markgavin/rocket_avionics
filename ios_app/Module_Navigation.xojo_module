@@ -1,0 +1,119 @@
+#tag Module
+Protected Module Module_Navigation
+	#tag Method, Flags = &h0
+		Function CalculateDistanceM(inLat1 As Double, inLon1 As Double, inLat2 As Double, inLon2 As Double) As Double
+		  // Haversine formula for great-circle distance
+		  // Returns distance in meters
+
+		  Const kEarthRadiusM As Double = 6371000.0
+		  Const kDegToRad As Double = 0.01745329252
+
+		  Var theLat1Rad As Double = inLat1 * kDegToRad
+		  Var theLat2Rad As Double = inLat2 * kDegToRad
+		  Var theDeltaLat As Double = (inLat2 - inLat1) * kDegToRad
+		  Var theDeltaLon As Double = (inLon2 - inLon1) * kDegToRad
+
+		  Var theA As Double = Sin(theDeltaLat / 2) * Sin(theDeltaLat / 2) + _
+		  Cos(theLat1Rad) * Cos(theLat2Rad) * Sin(theDeltaLon / 2) * Sin(theDeltaLon / 2)
+
+		  Var theC As Double = 2 * ATan2(Sqrt(theA), Sqrt(1 - theA))
+
+		  Return kEarthRadiusM * theC
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function CalculateBearingDeg(inLat1 As Double, inLon1 As Double, inLat2 As Double, inLon2 As Double) As Double
+		  // Calculate initial bearing from point 1 to point 2
+		  // Returns bearing in degrees (0-360, 0 = North)
+
+		  Const kDegToRad As Double = 0.01745329252
+		  Const kRadToDeg As Double = 57.29577951
+
+		  Var theLat1Rad As Double = inLat1 * kDegToRad
+		  Var theLat2Rad As Double = inLat2 * kDegToRad
+		  Var theDeltaLon As Double = (inLon2 - inLon1) * kDegToRad
+
+		  Var theY As Double = Sin(theDeltaLon) * Cos(theLat2Rad)
+		  Var theX As Double = Cos(theLat1Rad) * Sin(theLat2Rad) - _
+		  Sin(theLat1Rad) * Cos(theLat2Rad) * Cos(theDeltaLon)
+
+		  Var theBearing As Double = ATan2(theY, theX) * kRadToDeg
+
+		  // Normalize to 0-360
+		  If theBearing < 0 Then
+		    theBearing = theBearing + 360.0
+		  End If
+
+		  Return theBearing
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function BearingToCompass(inBearing As Double) As String
+		  // Convert bearing to compass direction
+		  // Returns "N", "NE", "E", "SE", "S", "SW", "W", "NW"
+
+		  // Normalize bearing
+		  Var theBearing As Double = inBearing
+		  While theBearing < 0
+		    theBearing = theBearing + 360
+		  Wend
+		  While theBearing >= 360
+		    theBearing = theBearing - 360
+		  Wend
+
+		  // 8 compass directions at 45 degree intervals
+		  // N = 337.5 to 22.5, NE = 22.5 to 67.5, etc.
+		  Var theIndex As Integer = Round(theBearing / 45.0)
+		  If theIndex >= 8 Then theIndex = 0
+
+		  Var theDirections() As String = Array("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+		  Return theDirections(theIndex)
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function FormatDistance(inMeters As Double) As String
+		  // Format distance for display
+		  // Returns string like "1,234 m" or "1.2 km"
+
+		  If inMeters < 1000 Then
+		    Return Format(inMeters, "#,##0") + " m"
+		  Else
+		    Return Format(inMeters / 1000.0, "#,##0.0") + " km"
+		  End If
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function FormatBearing(inBearing As Double) As String
+		  // Format bearing for display
+		  // Returns string like "NE 47 deg"
+
+		  Var theCompass As String = BearingToCompass(inBearing)
+		  Return theCompass + " " + Format(inBearing, "0") + Chr(&hB0)  // degree symbol
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Function FormatCoordinate(inDegrees As Double, inIsLatitude As Boolean) As String
+		  // Format coordinate for display
+		  // Returns string like "38.897957 deg N" or "-77.036560 deg W"
+
+		  Var theDirection As String
+		  Var theValue As Double = Abs(inDegrees)
+
+		  If inIsLatitude Then
+		    theDirection = If(inDegrees >= 0, "N", "S")
+		  Else
+		    theDirection = If(inDegrees >= 0, "E", "W")
+		  End If
+
+		  Return Format(theValue, "0.000000") + Chr(&hB0) + " " + theDirection
+		End Function
+	#tag EndMethod
+
+
+End Module
+#tag EndModule

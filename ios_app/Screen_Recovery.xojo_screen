@@ -1,0 +1,392 @@
+#tag MobileScreen
+Begin MobileScreen Screen_Recovery
+   BackButtonCaption=   ""
+   HasNavigationBar=   True
+   TabIcon   =   0
+   Title   =   "Recovery"
+   Begin MobileLabel LabelStatus
+      AutoLayout   =   "LabelStatus,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelStatus,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelStatus,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelStatus,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   24
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Status: Offline"
+      TextAlignment=   "1"
+      TextColor   =   &c666666
+      Top   =   8
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileCanvas CanvasCompass
+      AutoLayout   =   "CanvasCompass,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,CanvasCompass,0,False,cmbLayoutStandardValue,,1,True,LabelStatus,3,False,16,CanvasCompass,6,False,cmbLayoutStandardValue,200,1,False,Parent,11,False,cmbLayoutStandardValue,CanvasCompass,7,False,cmbLayoutStandardValue,200,1,False,Parent,11,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   200
+      Left   =   60
+      Scope   =   0
+      Top   =   48
+      Visible   =   True
+      Width   =   200
+   End
+   Begin MobileLabel LabelDistance
+      AutoLayout   =   "LabelDistance,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelDistance,0,False,cmbLayoutStandardValue,,1,True,CanvasCompass,3,False,16,LabelDistance,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelDistance,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   32
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Distance: --"
+      TextAlignment=   "1"
+      TextColor   =   &c000000
+      Top   =   264
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelBearing
+      AutoLayout   =   "LabelBearing,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelBearing,0,False,cmbLayoutStandardValue,,1,True,LabelDistance,3,False,8,LabelBearing,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelBearing,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   24
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Bearing: --"
+      TextAlignment=   "1"
+      TextColor   =   &c000000
+      Top   =   304
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelRocketHeader
+      AutoLayout   =   "LabelRocketHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelRocketHeader,0,False,cmbLayoutStandardValue,,1,True,LabelBearing,3,False,16,LabelRocketHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelRocketHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   20
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Rocket Position:"
+      TextAlignment=   "0"
+      TextColor   =   &c333333
+      Top   =   344
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelRocketCoords
+      AutoLayout   =   "LabelRocketCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelRocketCoords,0,False,cmbLayoutStandardValue,,1,True,LabelRocketHeader,3,False,4,LabelRocketCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelRocketCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   48
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "No GPS data"
+      TextAlignment=   "0"
+      TextColor   =   &c000000
+      Top   =   368
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelRocketInfo
+      AutoLayout   =   "LabelRocketInfo,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelRocketInfo,0,False,cmbLayoutStandardValue,,1,True,LabelRocketCoords,3,False,4,LabelRocketInfo,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelRocketInfo,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   20
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Alt: -- | Sats: -- | State: --"
+      TextAlignment=   "0"
+      TextColor   =   &c666666
+      Top   =   420
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelRocketAge
+      AutoLayout   =   "LabelRocketAge,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelRocketAge,0,False,cmbLayoutStandardValue,,1,True,LabelRocketInfo,3,False,4,LabelRocketAge,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelRocketAge,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   20
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Updated: --"
+      TextAlignment=   "0"
+      TextColor   =   &c999999
+      Top   =   444
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelPhoneHeader
+      AutoLayout   =   "LabelPhoneHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelPhoneHeader,0,False,cmbLayoutStandardValue,,1,True,LabelRocketAge,3,False,16,LabelPhoneHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelPhoneHeader,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   20
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Your Position:"
+      TextAlignment=   "0"
+      TextColor   =   &c333333
+      Top   =   480
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileLabel LabelPhoneCoords
+      AutoLayout   =   "LabelPhoneCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,LabelPhoneCoords,0,False,cmbLayoutStandardValue,,1,True,LabelPhoneHeader,3,False,4,LabelPhoneCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,LabelPhoneCoords,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      Enabled   =   True
+      Height   =   48
+      Left   =   8
+      LineBreakMode=   "0"
+      Scope   =   0
+      Text   =   "Waiting for GPS..."
+      TextAlignment=   "0"
+      TextColor   =   &c000000
+      Top   =   504
+      Visible   =   True
+      Width   =   300
+   End
+   Begin MobileButton ButtonOpenMaps
+      AutoLayout   =   "ButtonOpenMaps,0,False,cmbLayoutStandardValue,,1,False,Parent,11,False,cmbLayoutStandardValue,ButtonOpenMaps,0,False,cmbLayoutStandardValue,,1,False,Parent,12,False,cmbLayoutStandardValue,ButtonOpenMaps,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue,ButtonOpenMaps,0,False,cmbLayoutStandardValue,,1,False,Parent,4,False,cmbLayoutStandardValue"
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      Caption   =   "Open in Maps"
+      Enabled   =   True
+      Height   =   44
+      Left   =   8
+      Scope   =   0
+      Top   =   580
+      Visible   =   True
+      Width   =   300
+   End
+   Begin Timer TimerUpdate
+      Enabled   =   True
+      Period   =   1000
+      RunMode   =   "2"
+      Scope   =   0
+   End
+End MobileScreen
+#tag EndMobileScreen
+
+#tag Events CanvasCompass
+	#tag Event
+		Sub Paint(g As Graphics)
+		  // Draw compass with bearing indicator
+
+		  Var theCenterX As Double = g.Width / 2
+		  Var theCenterY As Double = g.Height / 2
+		  Var theRadius As Double = Min(theCenterX, theCenterY) - 10
+
+		  // Draw outer circle
+		  g.DrawingColor = &c333333
+		  g.PenSize = 2
+		  g.DrawOval(theCenterX - theRadius, theCenterY - theRadius, theRadius * 2, theRadius * 2)
+
+		  // Draw compass points
+		  g.DrawingColor = &c666666
+		  g.FontSize = 14
+
+		  // N, E, S, W
+		  g.DrawText("N", theCenterX - g.TextWidth("N") / 2, theCenterY - theRadius + 18)
+		  g.DrawText("S", theCenterX - g.TextWidth("S") / 2, theCenterY + theRadius - 6)
+		  g.DrawText("E", theCenterX + theRadius - g.TextWidth("E") - 6, theCenterY + 5)
+		  g.DrawText("W", theCenterX - theRadius + 6, theCenterY + 5)
+
+		  // Draw bearing arrow if we have valid data
+		  If pBearingValid Then
+		    // Convert bearing to radians (0 = North = up = -PI/2)
+		    Var theBearingRad As Double = (pBearing - 90) * 0.01745329252
+
+		    Var theArrowLength As Double = theRadius - 30
+		    Var theArrowX As Double = theCenterX + Cos(theBearingRad) * theArrowLength
+		    Var theArrowY As Double = theCenterY + Sin(theBearingRad) * theArrowLength
+
+		    // Draw arrow line
+		    g.DrawingColor = &cFF3300
+		    g.PenSize = 4
+		    g.DrawLine(theCenterX, theCenterY, theArrowX, theArrowY)
+
+		    // Draw arrowhead
+		    Var theHeadSize As Double = 15
+		    Var theHeadAngle1 As Double = theBearingRad + 2.5  // ~143 degrees back
+		    Var theHeadAngle2 As Double = theBearingRad - 2.5
+
+		    g.FillPolygon( _
+		    theArrowX, theArrowY, _
+		    theArrowX + Cos(theHeadAngle1) * theHeadSize, theArrowY + Sin(theHeadAngle1) * theHeadSize, _
+		    theArrowX + Cos(theHeadAngle2) * theHeadSize, theArrowY + Sin(theHeadAngle2) * theHeadSize)
+
+		    // Draw bearing text in center
+		    g.DrawingColor = &c000000
+		    g.FontSize = 24
+		    Var theBearingText As String = Format(pBearing, "0") + Chr(&hB0)
+		    g.DrawText(theBearingText, theCenterX - g.TextWidth(theBearingText) / 2, theCenterY + 8)
+		  Else
+		    // Draw question mark when no valid bearing
+		    g.DrawingColor = &c999999
+		    g.FontSize = 48
+		    g.DrawText("?", theCenterX - g.TextWidth("?") / 2, theCenterY + 16)
+		  End If
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Events ButtonOpenMaps
+	#tag Event
+		Sub Pressed()
+		  // Open Apple Maps with directions to rocket
+
+		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid() Then
+		    // No valid rocket location
+		    MobileMessageBox("No valid rocket GPS coordinates available.")
+		    Return
+		  End If
+
+		  // Build Apple Maps URL
+		  // Format: maps://?daddr=lat,lon
+		  Var theUrl As String = "maps://?daddr=" + _
+		  Format(pRocketLocation.pLatitude, "0.000000") + "," + _
+		  Format(pRocketLocation.pLongitude, "0.000000")
+
+		  // Open in Maps app
+		  System.GotoURL(theUrl)
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Events TimerUpdate
+	#tag Event
+		Sub Run()
+		  // Update display
+
+		  UpdateRocketDisplay()
+		  UpdatePhoneDisplay()
+		  UpdateNavigationDisplay()
+		  CanvasCompass.Refresh
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Methods
+	#tag Method, Flags = &h0
+		Sub Opening()
+		  // Initialize when screen opens
+
+		  // Get reference to rocket location from App
+		  pRocketLocation = App.pRocketLocation
+
+		  // Start location updates if not already running
+		  Module_Location.StartUpdating()
+
+		  // Initial display update
+		  UpdateRocketDisplay()
+		  UpdatePhoneDisplay()
+		  UpdateNavigationDisplay()
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h0
+		Sub Closing()
+		  // Don't stop location updates - keep tracking in background
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h21
+		Private Sub UpdateRocketDisplay()
+		  // Update rocket position labels
+
+		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid() Then
+		    LabelRocketCoords.Text = "No GPS data received"
+		    LabelRocketInfo.Text = "Alt: -- | Sats: -- | State: --"
+		    LabelRocketAge.Text = "Updated: --"
+		    Return
+		  End If
+
+		  // Coordinates
+		  LabelRocketCoords.Text = _
+		  Module_Navigation.FormatCoordinate(pRocketLocation.pLatitude, True) + EndOfLine + _
+		  Module_Navigation.FormatCoordinate(pRocketLocation.pLongitude, False)
+
+		  // Info line
+		  LabelRocketInfo.Text = "Alt: " + Format(pRocketLocation.pAltitude, "#,##0") + " m | " + _
+		  "Sats: " + Str(pRocketLocation.pSatellites) + " | " + _
+		  "State: " + If(pRocketLocation.pFlightState <> "", pRocketLocation.pFlightState, "--")
+
+		  // Age
+		  LabelRocketAge.Text = "Updated: " + pRocketLocation.GetAgeString()
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h21
+		Private Sub UpdatePhoneDisplay()
+		  // Update phone position labels
+
+		  If Not Module_Location.pHasLocation Then
+		    LabelPhoneCoords.Text = "Waiting for GPS..."
+		    Return
+		  End If
+
+		  LabelPhoneCoords.Text = _
+		  Module_Navigation.FormatCoordinate(Module_Location.pPhoneLatitude, True) + EndOfLine + _
+		  Module_Navigation.FormatCoordinate(Module_Location.pPhoneLongitude, False)
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h21
+		Private Sub UpdateNavigationDisplay()
+		  // Update distance, bearing, and status
+
+		  // Check if we have both locations
+		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid() Then
+		    LabelDistance.Text = "Distance: -- (no rocket GPS)"
+		    LabelBearing.Text = "Bearing: --"
+		    pBearingValid = False
+		    Return
+		  End If
+
+		  If Not Module_Location.pHasLocation Then
+		    LabelDistance.Text = "Distance: -- (no phone GPS)"
+		    LabelBearing.Text = "Bearing: --"
+		    pBearingValid = False
+		    Return
+		  End If
+
+		  // Calculate distance and bearing
+		  Var theDistance As Double = Module_Location.GetDistanceToRocket( _
+		  pRocketLocation.pLatitude, pRocketLocation.pLongitude)
+
+		  pBearing = Module_Location.GetBearingToRocket( _
+		  pRocketLocation.pLatitude, pRocketLocation.pLongitude)
+
+		  pBearingValid = True
+
+		  // Update labels
+		  LabelDistance.Text = "Distance: " + Module_Navigation.FormatDistance(theDistance)
+		  LabelBearing.Text = "Bearing: " + Module_Navigation.FormatBearing(pBearing)
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h0
+		Sub UpdateStatus(inConnected As Boolean)
+		  // Update connection status display
+
+		  If inConnected Then
+		    LabelStatus.Text = "Status: Connected"
+		    LabelStatus.TextColor = &c009900
+		  Else
+		    LabelStatus.Text = "Status: Offline"
+		    LabelStatus.TextColor = &c666666
+		  End If
+		End Sub
+	#tag EndMethod
+	#tag Method, Flags = &h0
+		Sub UpdateFromTelemetry(inSample As TelemetrySample)
+		  // Called when new telemetry received - update rocket location
+
+		  If pRocketLocation <> Nil Then
+		    pRocketLocation.UpdateFromTelemetry(inSample)
+		    pRocketLocation.Save()
+		    UpdateRocketDisplay()
+		    UpdateNavigationDisplay()
+		    CanvasCompass.Refresh
+		  End If
+		End Sub
+	#tag EndMethod
+#tag EndMethods
+#tag Properties
+	#tag Property, Flags = &h21
+		Private pRocketLocation As RocketLocation
+	#tag EndProperty
+	#tag Property, Flags = &h21
+		Private pBearing As Double = 0.0
+	#tag EndProperty
+	#tag Property, Flags = &h21
+		Private pBearingValid As Boolean = False
+	#tag EndProperty
+#tag EndProperties
