@@ -168,6 +168,15 @@ Gateway Ready!
 - Move to area with clear sky view
 - Wait 1-2 minutes for cold start fix
 
+## Claude Code Notes
+
+**WARNING: Do not attempt to read serial output from this board using cat, screen, or similar commands.** The USB serial connection on the Heltec Wireless Tracker causes Claude Code sessions to hang indefinitely when attempting to read from it.
+
+For debugging:
+- Use the TFT display to verify operation
+- Connect via WiFi TCP and send `status` or `gw_info` commands
+- Use the Arduino IDE Serial Monitor if manual serial debugging is needed
+
 ## Differences from RP2040 Gateway
 
 | Feature | RP2040 Gateway | Heltec Gateway |
