@@ -967,6 +967,45 @@ void handleClientCommand(int clientIdx, const String& command) {
         loraPacket[3] = (uint8_t)slot;
         packetLen = 4;
     }
+    else if (cmd == "download") {
+        loraPacket[2] = 0x05;  // kCmdDownload
+        packetLen = 3;
+    }
+    else if (cmd == "sd_list") {
+        loraPacket[2] = 0x10;  // kCmdSdList
+        packetLen = 3;
+    }
+    else if (cmd == "sd_read") {
+        loraPacket[2] = 0x11;  // kCmdSdRead
+        // Extract filename and offset
+        String filename = extractJsonString(command, "file");
+        int offset = extractJsonInt(command, "offset", 0);
+        // Filename length + filename + offset (4 bytes)
+        uint8_t fnLen = filename.length();
+        if (fnLen > 32) fnLen = 32;  // Limit filename length
+        loraPacket[3] = fnLen;
+        for (int i = 0; i < fnLen; i++) {
+            loraPacket[4 + i] = filename.charAt(i);
+        }
+        int offIdx = 4 + fnLen;
+        loraPacket[offIdx] = offset & 0xFF;
+        loraPacket[offIdx + 1] = (offset >> 8) & 0xFF;
+        loraPacket[offIdx + 2] = (offset >> 16) & 0xFF;
+        loraPacket[offIdx + 3] = (offset >> 24) & 0xFF;
+        packetLen = offIdx + 4;
+    }
+    else if (cmd == "sd_delete") {
+        loraPacket[2] = 0x12;  // kCmdSdDelete
+        // Extract filename
+        String filename = extractJsonString(command, "file");
+        uint8_t fnLen = filename.length();
+        if (fnLen > 32) fnLen = 32;
+        loraPacket[3] = fnLen;
+        for (int i = 0; i < fnLen; i++) {
+            loraPacket[4 + i] = filename.charAt(i);
+        }
+        packetLen = 4 + fnLen;
+    }
     else {
         Serial.printf("Unknown command: %s\n", cmd.c_str());
         // Send error response
@@ -1021,6 +1060,29 @@ int extractJsonInt(const String& json, const char* key, int defaultVal) {
 
     if (numStr.length() == 0) return defaultVal;
     return numStr.toInt();
+}
+
+//----------------------------------------------
+// Extract string from JSON
+//----------------------------------------------
+String extractJsonString(const String& json, const char* key) {
+    String searchKey = String("\"") + key + "\":";
+    int keyStart = json.indexOf(searchKey);
+    if (keyStart < 0) return "";
+
+    keyStart += searchKey.length();
+    // Skip whitespace
+    while (keyStart < json.length() && json.charAt(keyStart) == ' ') keyStart++;
+
+    // Check for opening quote
+    if (keyStart >= json.length() || json.charAt(keyStart) != '"') return "";
+    keyStart++;  // Skip opening quote
+
+    // Find closing quote
+    int keyEnd = json.indexOf("\"", keyStart);
+    if (keyEnd < 0) return "";
+
+    return json.substring(keyStart, keyEnd);
 }
 
 //----------------------------------------------
