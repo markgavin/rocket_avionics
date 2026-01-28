@@ -42,9 +42,10 @@
 #define TFT_BL      21      // Backlight control
 #define TFT_POWER   3       // VEXT power control (shared with GPS)
 
-// Battery voltage ADC
-#define BATTERY_ADC_PIN     37      // GPIO37 for battery voltage divider
-#define BATTERY_SAMPLES     10      // Average multiple samples for stability
+// Battery monitoring disabled - ADC pin undocumented and readings unstable
+// #define BATTERY_ADC_PIN     4
+// #define BATTERY_DIVIDER     6.4
+// #define BATTERY_SAMPLES     10
 
 // Display dimensions
 #define TFT_WIDTH   160
@@ -181,10 +182,10 @@ uint8_t currentBacklight = TFT_BL_BRIGHTNESS;  // 0-255
 int8_t currentLoraTxPower = LORA_TX_POWER;     // 2-20 dBm for SX1262
 int8_t currentWifiTxPower = 8;                 // WiFi power level (index into power table)
 
-// Battery monitoring
-float batteryVoltage = 0.0;
-uint32_t lastBatteryRead = 0;
-float prevBatteryVoltage = -1.0;
+// Battery monitoring disabled - Wireless Tracker ADC pin undocumented
+// float batteryVoltage = 0.0;
+// uint32_t lastBatteryRead = 0;
+// float prevBatteryVoltage = -1.0;
 
 //----------------------------------------------
 // LoRa Receive Callback (ISR)
@@ -210,11 +211,7 @@ void setup() {
     initDisplay();
     displaySplash();
 
-    // Initialize battery ADC
-    pinMode(BATTERY_ADC_PIN, INPUT);
-    analogSetAttenuation(ADC_11db);  // Full range 0-3.3V
-    readBatteryVoltage();  // Initial reading
-    Serial.printf("Battery: %.2fV (%d%%)\n", batteryVoltage, getBatteryPercent());
+    // Battery monitoring disabled - Wireless Tracker ADC pin undocumented
 
     // Initialize GPS (also powers VEXT for GPS)
     initGPS();
@@ -264,9 +261,6 @@ void loop() {
 
     // Read GPS
     readGPS();
-
-    // Read battery voltage (has internal rate limiting)
-    readBatteryVoltage();
 
     // Update display periodically (partial updates only redraw changed values)
     if (millis() - lastDisplayUpdate > 1000) {
@@ -1135,8 +1129,6 @@ void sendGatewayStatus(int clientIdx) {
     response += ",\"snr\":" + String((int)lastSnr);
     response += ",\"clients\":" + String(clientCount);
     response += ",\"uptime\":" + String(millis() / 1000);
-    response += ",\"battery_v\":" + String(batteryVoltage, 2);
-    response += ",\"battery_pct\":" + String(getBatteryPercent());
     response += "}";
 
     clients[clientIdx].println(response);
@@ -1274,10 +1266,6 @@ void sendGatewayInfo(int clientIdx) {
     }
     response += ",\"gps_sats\":" + String(gps.satellites.value());
 
-    // Battery status
-    response += ",\"battery_v\":" + String(batteryVoltage, 2);
-    response += ",\"battery_pct\":" + String(getBatteryPercent());
-
     response += "}";
 
     clients[clientIdx].println(response);
@@ -1291,47 +1279,6 @@ void readGPS() {
     while (gpsSerial.available()) {
         gps.encode(gpsSerial.read());
     }
-}
-
-//----------------------------------------------
-// Read Battery Voltage
-// Heltec Wireless Tracker uses GPIO37 with voltage divider
-//----------------------------------------------
-void readBatteryVoltage() {
-    // Only read every 2 seconds to reduce overhead
-    if (millis() - lastBatteryRead < 2000 && lastBatteryRead > 0) {
-        return;
-    }
-    lastBatteryRead = millis();
-
-    // Average multiple samples for stability
-    uint32_t sum = 0;
-    for (int i = 0; i < BATTERY_SAMPLES; i++) {
-        sum += analogRead(BATTERY_ADC_PIN);
-        delayMicroseconds(100);
-    }
-    uint32_t avgReading = sum / BATTERY_SAMPLES;
-
-    // Convert to voltage
-    // ESP32-S3 ADC: 12-bit (0-4095), reference 3.3V
-    // Heltec uses 2:1 voltage divider, so multiply by 2
-    // Actual calibration: reading * (3.3 / 4095) * 2
-    batteryVoltage = (avgReading * 3.3 * 2.0) / 4095.0;
-
-    // Clamp to reasonable LiPo range
-    if (batteryVoltage < 2.5) batteryVoltage = 0.0;  // No battery connected
-    if (batteryVoltage > 4.5) batteryVoltage = 4.5;  // Clamp max
-}
-
-//----------------------------------------------
-// Get Battery Percentage (approximate)
-//----------------------------------------------
-int getBatteryPercent() {
-    // LiPo voltage to percentage (approximate)
-    // 4.2V = 100%, 3.0V = 0%
-    if (batteryVoltage >= 4.2) return 100;
-    if (batteryVoltage <= 3.0) return 0;
-    return (int)((batteryVoltage - 3.0) / 1.2 * 100);
 }
 
 //----------------------------------------------
@@ -1434,39 +1381,20 @@ void updateDisplay() {
         prevLastPacket = lastLoraPacket;
     }
 
-    // Row 5: Time and Battery (only if changed)
-    bool timeUpdated = false;
+    // Row 5: Time (only if changed - update once per second)
     if (gps.time.isValid()) {
         uint8_t h = gps.time.hour();
         uint8_t m = gps.time.minute();
         uint8_t s = gps.time.second();
         if (h != prevGpsHour || m != prevGpsMin || s != prevGpsSec) {
-            tft.fillRect(2, 66, 70, 10, COLOR_BLACK);
+            tft.fillRect(2, 66, 100, 10, COLOR_BLACK);
             tft.setTextColor(COLOR_DARK_GRAY);
             tft.setCursor(2, 66);
-            tft.printf("%02d:%02d:%02d", h, m, s);
+            tft.printf("%02d:%02d:%02d UTC", h, m, s);
             prevGpsHour = h;
             prevGpsMin = m;
             prevGpsSec = s;
-            timeUpdated = true;
         }
-    }
-
-    // Battery voltage (right side of Row 5)
-    if (batteryVoltage != prevBatteryVoltage || timeUpdated) {
-        tft.fillRect(100, 66, 60, 10, COLOR_BLACK);
-        if (batteryVoltage > 0.0) {
-            // Color based on charge level
-            uint16_t batColor;
-            if (batteryVoltage >= 3.8) batColor = COLOR_GREEN;
-            else if (batteryVoltage >= 3.5) batColor = COLOR_YELLOW;
-            else batColor = COLOR_RED;
-
-            tft.setTextColor(batColor);
-            tft.setCursor(100, 66);
-            tft.printf("%.2fV %d%%", batteryVoltage, getBatteryPercent());
-        }
-        prevBatteryVoltage = batteryVoltage;
     }
 }
 
