@@ -150,6 +150,7 @@ String lastLoraPacket = "";
 uint8_t lastLoraPacketBinary[256];
 uint8_t lastLoraPacketLen = 0;
 uint32_t loraPacketCount = 0;
+uint32_t loraTxCount = 0;
 uint32_t lastDisplayUpdate = 0;
 uint32_t lastStatusPrint = 0;
 int clientCount = 0;
@@ -445,13 +446,38 @@ void handleLoRa() {
                       loraPacketCount, lastRssi, lastSnr, lastLoraPacketLen);
 
         // Decode and forward to WiFi clients as JSON
-        if (lastLoraPacketLen >= 4 && lastLoraPacketBinary[0] == LORA_MAGIC) {
-            if (lastLoraPacketBinary[1] == LORA_PACKET_TELEMETRY &&
-                lastLoraPacketLen >= sizeof(LoRaTelemetryPacket)) {
-                forwardTelemetryAsJson();
-            } else {
-                // Unknown packet type - forward as hex for debugging
-                forwardAsHex();
+        if (lastLoraPacketLen >= 2 && lastLoraPacketBinary[0] == LORA_MAGIC) {
+            uint8_t packetType = lastLoraPacketBinary[1];
+
+            switch (packetType) {
+                case LORA_PACKET_TELEMETRY:  // 0x01
+                    if (lastLoraPacketLen >= sizeof(LoRaTelemetryPacket)) {
+                        forwardTelemetryAsJson();
+                    } else {
+                        forwardAsHex();
+                    }
+                    break;
+
+                case 0x04:  // kLoRaPacketAck
+                    forwardAckAsJson();
+                    break;
+
+                case 0x06:  // kLoRaPacketStorageList (flash_list)
+                    forwardFlashListAsJson();
+                    break;
+
+                case 0x07:  // kLoRaPacketStorageData (flash_data/flash_header)
+                    forwardFlashDataAsJson();
+                    break;
+
+                case 0x08:  // kLoRaPacketInfo (fc_info)
+                    forwardDeviceInfoAsJson();
+                    break;
+
+                default:
+                    // Unknown packet type - forward as hex for debugging
+                    forwardAsHex();
+                    break;
             }
         } else {
             // Not a recognized packet - forward as hex
@@ -553,6 +579,239 @@ void forwardAsHex() {
 }
 
 //----------------------------------------------
+// Forward ACK Packet as JSON
+//----------------------------------------------
+void forwardAckAsJson() {
+    // Format: magic, type, cmdId, success
+    if (lastLoraPacketLen < 4) {
+        forwardAsHex();
+        return;
+    }
+
+    uint8_t cmdId = lastLoraPacketBinary[2];
+    bool success = lastLoraPacketBinary[3] != 0;
+
+    String json = "{\"type\":\"ack\"";
+    json += ",\"id\":" + String(cmdId);
+    json += ",\"ok\":" + String(success ? "true" : "false");
+    json += "}";
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] && clients[i].connected()) {
+            clients[i].println(json);
+        }
+    }
+    Serial.println("Forwarded ack");
+}
+
+//----------------------------------------------
+// Forward Device Info (fc_info) as JSON
+//----------------------------------------------
+void forwardDeviceInfoAsJson() {
+    // Format: magic, type, versionLen, version[], buildLen, build[], flags, state, sampleCount(4)
+    if (lastLoraPacketLen < 5) {
+        forwardAsHex();
+        return;
+    }
+
+    int offset = 2;
+
+    // Version string
+    uint8_t versionLen = lastLoraPacketBinary[offset++];
+    String version = "";
+    for (int i = 0; i < versionLen && offset < lastLoraPacketLen; i++) {
+        version += (char)lastLoraPacketBinary[offset++];
+    }
+
+    // Build string
+    String build = "";
+    if (offset < lastLoraPacketLen) {
+        uint8_t buildLen = lastLoraPacketBinary[offset++];
+        for (int i = 0; i < buildLen && offset < lastLoraPacketLen; i++) {
+            build += (char)lastLoraPacketBinary[offset++];
+        }
+    }
+
+    // Hardware flags
+    uint8_t flags = 0;
+    if (offset < lastLoraPacketLen) {
+        flags = lastLoraPacketBinary[offset++];
+    }
+
+    // Flight state
+    uint8_t state = 0;
+    if (offset < lastLoraPacketLen) {
+        state = lastLoraPacketBinary[offset++];
+    }
+
+    // Sample count
+    uint32_t samples = 0;
+    if (offset + 3 < lastLoraPacketLen) {
+        samples = lastLoraPacketBinary[offset] |
+                  (lastLoraPacketBinary[offset+1] << 8) |
+                  (lastLoraPacketBinary[offset+2] << 16) |
+                  (lastLoraPacketBinary[offset+3] << 24);
+    }
+
+    String json = "{\"type\":\"fc_info\"";
+    json += ",\"version\":\"" + version + "\"";
+    json += ",\"build\":\"" + build + "\"";
+    json += ",\"bmp390\":" + String((flags & 0x01) ? "true" : "false");
+    json += ",\"lora\":" + String((flags & 0x02) ? "true" : "false");
+    json += ",\"imu\":" + String((flags & 0x04) ? "true" : "false");
+    json += ",\"oled\":" + String((flags & 0x10) ? "true" : "false");
+    json += ",\"gps\":" + String((flags & 0x20) ? "true" : "false");
+    json += ",\"state\":\"" + String(flightStateNames[state > 7 ? 0 : state]) + "\"";
+    json += ",\"samples\":" + String(samples);
+    json += "}";
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] && clients[i].connected()) {
+            clients[i].println(json);
+        }
+    }
+    Serial.println("Forwarded fc_info");
+}
+
+//----------------------------------------------
+// Forward Flash List as JSON
+//----------------------------------------------
+void forwardFlashListAsJson() {
+    // Format: magic, type, count, then for each: slot, flightId(4), altCm(4), timeMs(4), sampleCount(4)
+    if (lastLoraPacketLen < 3) {
+        forwardAsHex();
+        return;
+    }
+
+    uint8_t flightCount = lastLoraPacketBinary[2];
+    int offset = 3;
+
+    String json = "{\"type\":\"flash_list\"";
+    json += ",\"count\":" + String(flightCount);
+    json += ",\"flights\":[";
+
+    bool first = true;
+    while (offset + 17 <= lastLoraPacketLen) {  // Each entry is 17 bytes
+        uint8_t slot = lastLoraPacketBinary[offset++];
+
+        uint32_t flightId = lastLoraPacketBinary[offset] |
+                            (lastLoraPacketBinary[offset+1] << 8) |
+                            (lastLoraPacketBinary[offset+2] << 16) |
+                            (lastLoraPacketBinary[offset+3] << 24);
+        offset += 4;
+
+        int32_t altCm = lastLoraPacketBinary[offset] |
+                        (lastLoraPacketBinary[offset+1] << 8) |
+                        (lastLoraPacketBinary[offset+2] << 16) |
+                        (lastLoraPacketBinary[offset+3] << 24);
+        offset += 4;
+
+        uint32_t timeMs = lastLoraPacketBinary[offset] |
+                          (lastLoraPacketBinary[offset+1] << 8) |
+                          (lastLoraPacketBinary[offset+2] << 16) |
+                          (lastLoraPacketBinary[offset+3] << 24);
+        offset += 4;
+
+        uint32_t samples = lastLoraPacketBinary[offset] |
+                           (lastLoraPacketBinary[offset+1] << 8) |
+                           (lastLoraPacketBinary[offset+2] << 16) |
+                           (lastLoraPacketBinary[offset+3] << 24);
+        offset += 4;
+
+        if (!first) json += ",";
+        first = false;
+
+        json += "{\"slot\":" + String(slot);
+        json += ",\"id\":" + String(flightId);
+        json += ",\"alt\":" + String(altCm / 100.0, 1);
+        json += ",\"time\":" + String(timeMs);
+        json += ",\"samples\":" + String(samples);
+        json += "}";
+    }
+
+    json += "]}";
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] && clients[i].connected()) {
+            clients[i].println(json);
+        }
+    }
+    Serial.println("Forwarded flash_list");
+}
+
+//----------------------------------------------
+// Forward Flash Data/Header as JSON
+//----------------------------------------------
+void forwardFlashDataAsJson() {
+    // Format: magic, type, slot, startSample(4), totalSamples(4), count, then sample data
+    // If startSample == 0xFFFFFFFF, it's a header packet
+    if (lastLoraPacketLen < 12) {
+        forwardAsHex();
+        return;
+    }
+
+    uint8_t slot = lastLoraPacketBinary[2];
+
+    uint32_t startSample = lastLoraPacketBinary[3] |
+                           (lastLoraPacketBinary[4] << 8) |
+                           (lastLoraPacketBinary[5] << 16) |
+                           (lastLoraPacketBinary[6] << 24);
+
+    // Check if this is a header packet
+    if (startSample == 0xFFFFFFFF) {
+        // Header packet - forward the raw hex data for desktop to decode
+        String json = "{\"type\":\"flash_header\"";
+        json += ",\"slot\":" + String(slot);
+        json += ",\"data\":\"";
+        for (int i = 7; i < lastLoraPacketLen && i < 64; i++) {
+            char buf[3];
+            sprintf(buf, "%02X", lastLoraPacketBinary[i]);
+            json += buf;
+        }
+        json += "\"}";
+
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i] && clients[i].connected()) {
+                clients[i].println(json);
+            }
+        }
+        Serial.println("Forwarded flash_header");
+        return;
+    }
+
+    // Data packet
+    uint32_t totalSamples = lastLoraPacketBinary[7] |
+                            (lastLoraPacketBinary[8] << 8) |
+                            (lastLoraPacketBinary[9] << 16) |
+                            (lastLoraPacketBinary[10] << 24);
+
+    uint8_t sampleCount = lastLoraPacketBinary[11];
+
+    // Forward sample data as hex (desktop will decode the FlightSample structs)
+    String json = "{\"type\":\"flash_data\"";
+    json += ",\"slot\":" + String(slot);
+    json += ",\"start\":" + String(startSample);
+    json += ",\"total\":" + String(totalSamples);
+    json += ",\"count\":" + String(sampleCount);
+    json += ",\"data\":\"";
+
+    // Hex encode the sample data starting at offset 12
+    for (int i = 12; i < lastLoraPacketLen; i++) {
+        char buf[3];
+        sprintf(buf, "%02X", lastLoraPacketBinary[i]);
+        json += buf;
+    }
+    json += "\"}";
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] && clients[i].connected()) {
+            clients[i].println(json);
+        }
+    }
+    Serial.println("Forwarded flash_data");
+}
+
+//----------------------------------------------
 // Forward String to WiFi Clients
 //----------------------------------------------
 void forwardToClients(const String& data) {
@@ -604,53 +863,232 @@ void handleWiFiClients() {
 
 //----------------------------------------------
 // Handle Command from WiFi Client
+// Parses JSON commands and routes appropriately
 //----------------------------------------------
 void handleClientCommand(int clientIdx, const String& command) {
     Serial.printf("WiFi RX [%d]: %s\n", clientIdx, command.c_str());
 
-    // Check if it's a gateway info request
-    if (command.indexOf("\"cmd\":\"gw_info\"") >= 0) {
+    // Extract command type from JSON
+    // Handle both "cmd":"value" and "cmd": "value" (with space)
+    String cmd = "";
+    int cmdStart = command.indexOf("\"cmd\":");
+    if (cmdStart >= 0) {
+        cmdStart += 6;  // Skip past "cmd":
+        // Skip whitespace and opening quote
+        while (cmdStart < command.length()) {
+            char c = command.charAt(cmdStart);
+            if (c == '"') {
+                cmdStart++;
+                break;
+            } else if (c == ' ' || c == '\t') {
+                cmdStart++;
+            } else {
+                break;
+            }
+        }
+        int cmdEnd = command.indexOf("\"", cmdStart);
+        if (cmdEnd > cmdStart) {
+            cmd = command.substring(cmdStart, cmdEnd);
+        }
+    }
+
+    Serial.printf("Parsed cmd: %s\n", cmd.c_str());
+
+    //------------------------------------------
+    // Gateway-local commands
+    //------------------------------------------
+    if (cmd == "gw_info") {
         sendGatewayInfo(clientIdx);
         return;
     }
 
-    // Otherwise, forward to LoRa (to flight computer)
-    String txData = command;  // RadioLib needs non-const
-    int state = radio.transmit(txData);
-    if (state == RADIOLIB_ERR_NONE) {
-        Serial.println("LoRa TX: OK");
-    } else {
-        Serial.printf("LoRa TX error: %d\n", state);
+    if (cmd == "status") {
+        sendGatewayStatus(clientIdx);
+        return;
     }
 
-    // Restart receiving after transmit
-    radio.startReceive();
+    if (cmd == "ping") {
+        sendPingResponse(clientIdx);
+        return;
+    }
+
+    //------------------------------------------
+    // Flight computer commands - convert to binary
+    //------------------------------------------
+    uint8_t loraPacket[32];
+    uint8_t packetLen = 0;
+
+    loraPacket[0] = LORA_MAGIC;
+    loraPacket[1] = 0x03;  // kLoRaPacketCommand
+
+    if (cmd == "arm") {
+        loraPacket[2] = 0x01;  // kCmdArm
+        packetLen = 3;
+    }
+    else if (cmd == "disarm") {
+        loraPacket[2] = 0x02;  // kCmdDisarm
+        packetLen = 3;
+    }
+    else if (cmd == "reset") {
+        loraPacket[2] = 0x04;  // kCmdReset
+        packetLen = 3;
+    }
+    else if (cmd == "fc_info" || cmd == "info") {
+        loraPacket[2] = 0x07;  // kCmdInfo
+        packetLen = 3;
+    }
+    else if (cmd == "orientation_mode") {
+        loraPacket[2] = 0x08;  // kCmdOrientationMode
+        // Extract enabled parameter
+        bool enabled = command.indexOf("\"enabled\":true") >= 0;
+        loraPacket[3] = enabled ? 1 : 0;
+        packetLen = 4;
+    }
+    else if (cmd == "flash_list") {
+        loraPacket[2] = 0x20;  // kCmdFlashList
+        packetLen = 3;
+    }
+    else if (cmd == "flash_read") {
+        loraPacket[2] = 0x21;  // kCmdFlashRead
+        // Extract slot and sample/header parameters
+        int slot = extractJsonInt(command, "slot", 0);
+        bool isHeader = command.indexOf("\"header\":true") >= 0;
+        int sample = isHeader ? 0xFFFFFFFF : extractJsonInt(command, "sample", 0);
+        loraPacket[3] = (uint8_t)slot;
+        loraPacket[4] = sample & 0xFF;
+        loraPacket[5] = (sample >> 8) & 0xFF;
+        loraPacket[6] = (sample >> 16) & 0xFF;
+        loraPacket[7] = (sample >> 24) & 0xFF;
+        packetLen = 8;
+    }
+    else if (cmd == "flash_delete") {
+        loraPacket[2] = 0x22;  // kCmdFlashDelete
+        int slot = extractJsonInt(command, "slot", 255);
+        loraPacket[3] = (uint8_t)slot;
+        packetLen = 4;
+    }
+    else {
+        Serial.printf("Unknown command: %s\n", cmd.c_str());
+        // Send error response
+        String err = "{\"type\":\"error\",\"code\":\"UNKNOWN_CMD\",\"message\":\"Unknown command: " + cmd + "\"}";
+        clients[clientIdx].println(err);
+        return;
+    }
+
+    // Send binary command via LoRa
+    if (packetLen > 0) {
+        int state = radio.transmit(loraPacket, packetLen);
+        if (state == RADIOLIB_ERR_NONE) {
+            loraTxCount++;
+            Serial.printf("LoRa TX: cmd=%s len=%d OK\n", cmd.c_str(), packetLen);
+        } else {
+            Serial.printf("LoRa TX error: %d\n", state);
+            String err = "{\"type\":\"error\",\"code\":\"LORA_TX_FAIL\",\"message\":\"LoRa transmit failed\"}";
+            clients[clientIdx].println(err);
+        }
+
+        // Restart receiving after transmit
+        radio.startReceive();
+    }
+}
+
+//----------------------------------------------
+// Extract integer from JSON string
+//----------------------------------------------
+int extractJsonInt(const String& json, const char* key, int defaultVal) {
+    String searchKey = String("\"") + key + "\":";
+    int keyStart = json.indexOf(searchKey);
+    if (keyStart < 0) return defaultVal;
+
+    keyStart += searchKey.length();
+    // Skip whitespace
+    while (keyStart < json.length() && json.charAt(keyStart) == ' ') keyStart++;
+
+    // Read number
+    String numStr = "";
+    while (keyStart < json.length()) {
+        char c = json.charAt(keyStart);
+        if (c >= '0' && c <= '9') {
+            numStr += c;
+            keyStart++;
+        } else if (c == '-' && numStr.length() == 0) {
+            numStr += c;
+            keyStart++;
+        } else {
+            break;
+        }
+    }
+
+    if (numStr.length() == 0) return defaultVal;
+    return numStr.toInt();
+}
+
+//----------------------------------------------
+// Send Gateway Status Response
+//----------------------------------------------
+void sendGatewayStatus(int clientIdx) {
+    String response = "{\"type\":\"status\"";
+    response += ",\"connected\":" + String(loraPacketCount > 0 ? "true" : "false");
+    response += ",\"rx\":" + String(loraPacketCount);
+    response += ",\"tx\":" + String(loraTxCount);
+    response += ",\"rssi\":" + String((int)lastRssi);
+    response += ",\"snr\":" + String((int)lastSnr);
+    response += ",\"clients\":" + String(clientCount);
+    response += ",\"uptime\":" + String(millis() / 1000);
+    response += "}";
+
+    clients[clientIdx].println(response);
+    Serial.println("Sent gateway status");
+}
+
+//----------------------------------------------
+// Send Ping Response
+//----------------------------------------------
+void sendPingResponse(int clientIdx) {
+    String response = "{\"type\":\"ack\",\"id\":0,\"ok\":true}";
+    clients[clientIdx].println(response);
+    Serial.println("Sent ping response");
 }
 
 //----------------------------------------------
 // Send Gateway Info Response
+// Field names must match what desktop app expects
 //----------------------------------------------
 void sendGatewayInfo(int clientIdx) {
-    String response = "{\"type\":\"gw_info\",";
-    response += "\"fw_ver\":\"" + String(FIRMWARE_VERSION_STRING) + "\",";
-    response += "\"hw\":\"Heltec Wireless Tracker\",";
-    response += "\"lora_freq\":" + String(LORA_FREQUENCY, 1) + ",";
-    response += "\"lora_sf\":" + String(LORA_SPREAD_FACTOR) + ",";
-    response += "\"lora_bw\":" + String(LORA_BANDWIDTH, 0) + ",";
-    response += "\"wifi_mode\":\"" + String(wifiIsStationMode ? "station" : "ap") + "\",";
-    response += "\"wifi_ssid\":\"" + String(wifiIsStationMode ? WIFI_STA_SSID : WIFI_AP_SSID) + "\",";
-    response += "\"wifi_ip\":\"" + wifiCurrentIP + "\",";
-    response += "\"gps_fix\":" + String(gps.location.isValid() ? "true" : "false");
+    String response = "{\"type\":\"gw_info\"";
 
+    // Version and build info
+    response += ",\"version\":\"" + String(FIRMWARE_VERSION_STRING) + "\"";
+    response += ",\"build\":\"" + String(__DATE__) + " " + String(__TIME__) + "\"";
+
+    // Hardware status booleans
+    response += ",\"lora\":true";           // LoRa is working if we got here
+    response += ",\"bmp390\":false";        // Heltec doesn't have BMP390
+    response += ",\"gps\":" + String(gps.satellites.value() > 0 ? "true" : "false");
+    response += ",\"display\":true";        // TFT display is working
+
+    // Connection status
+    response += ",\"connected\":" + String(loraPacketCount > 0 ? "true" : "false");
+    response += ",\"rx\":" + String(loraPacketCount);
+    response += ",\"tx\":" + String(loraTxCount);
+    response += ",\"rssi\":" + String((int)lastRssi);
+    response += ",\"snr\":" + String((int)lastSnr);
+
+    // Ground reference (not applicable for Heltec gateway)
+    response += ",\"ground_pres\":0";
+    response += ",\"ground_temp\":0";
+
+    // GPS data
+    response += ",\"gps_fix\":" + String(gps.location.isValid() ? "true" : "false");
     if (gps.location.isValid()) {
         response += ",\"gps_lat\":" + String(gps.location.lat(), 6);
         response += ",\"gps_lon\":" + String(gps.location.lng(), 6);
-        response += ",\"gps_alt\":" + String(gps.altitude.meters(), 1);
-        response += ",\"gps_sats\":" + String(gps.satellites.value());
+    } else {
+        response += ",\"gps_lat\":0";
+        response += ",\"gps_lon\":0";
     }
+    response += ",\"gps_sats\":" + String(gps.satellites.value());
 
-    response += ",\"lora_pkts\":" + String(loraPacketCount);
-    response += ",\"clients\":" + String(clientCount);
     response += "}";
 
     clients[clientIdx].println(response);
