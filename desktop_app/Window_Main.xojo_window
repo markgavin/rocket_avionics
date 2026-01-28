@@ -797,6 +797,7 @@ End
 		    RemoveHandler pConnection.StorageListReceived, AddressOf HandleStorageListReceived
 		    RemoveHandler pConnection.StorageDataReceived, AddressOf HandleStorageDataReceived
 		    RemoveHandler pConnection.DeviceInfoReceived, AddressOf HandleDeviceInfoReceived
+		    RemoveHandler pConnection.GatewaySettingsReceived, AddressOf HandleGatewaySettingsReceived
 		    pConnection.Disconnect
 		  End If
 		End Sub
@@ -821,7 +822,8 @@ End
 		  AddHandler pConnection.StorageListReceived, AddressOf HandleStorageListReceived
 		  AddHandler pConnection.StorageDataReceived, AddressOf HandleStorageDataReceived
 		  AddHandler pConnection.DeviceInfoReceived, AddressOf HandleDeviceInfoReceived
-		  
+		  AddHandler pConnection.GatewaySettingsReceived, AddressOf HandleGatewaySettingsReceived
+
 		  // Initialize current flight data
 		  pCurrentFlight = New FlightData
 
@@ -1009,6 +1011,17 @@ End
 		  // Forward to device storage window if visible
 		  If Window_DeviceStorage.Visible Then
 		    Window_DeviceStorage.HandleStorageList(inIsSd, inFiles)
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleGatewaySettingsReceived(inSender As FlightConnection, inBacklight As Integer, inBacklightMax As Integer, inLoraTxPower As Integer, inLoraTxMin As Integer, inLoraTxMax As Integer, inWifiTxPower As Integer, inWifiTxMin As Integer, inWifiTxMax As Integer)
+		  #Pragma Unused inSender
+
+		  // Forward to gateway settings dialog if visible
+		  If Dialog_GatewaySettings.Visible Then
+		    Dialog_GatewaySettings.HandleGatewaySettings(inBacklight, inBacklightMax, inLoraTxPower, inLoraTxMin, inLoraTxMax, inWifiTxPower, inWifiTxMin, inWifiTxMax)
 		  End If
 		End Sub
 	#tag EndMethod

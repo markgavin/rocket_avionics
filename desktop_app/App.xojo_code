@@ -401,6 +401,18 @@ Inherits Application
 	#tag EndMenuHandler
 
 	#tag MenuHandler
+		Function ViewGatewaySettings() As Boolean Handles ViewGatewaySettings.Action
+		  // Show gateway settings dialog
+		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
+		    Dialog_GatewaySettings.Show
+		  Else
+		    MsgBox("Not connected to gateway")
+		  End If
+		  Return True
+		End Function
+	#tag EndMenuHandler
+
+	#tag MenuHandler
 		Function WindowBringAllToFront() As Boolean Handles WindowBringAllToFront.Action
 		  // Bring all windows to front
 		  For i As Integer = 0 To WindowCount - 1

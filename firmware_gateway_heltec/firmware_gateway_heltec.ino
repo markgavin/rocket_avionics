@@ -172,6 +172,11 @@ uint8_t prevGpsHour = 255;
 uint8_t prevGpsMin = 255;
 uint8_t prevGpsSec = 255;
 
+// Runtime-adjustable settings
+uint8_t currentBacklight = TFT_BL_BRIGHTNESS;  // 0-255
+int8_t currentLoraTxPower = LORA_TX_POWER;     // 2-20 dBm for SX1262
+int8_t currentWifiTxPower = 8;                 // WiFi power level (index into power table)
+
 //----------------------------------------------
 // LoRa Receive Callback (ISR)
 //----------------------------------------------
@@ -917,6 +922,16 @@ void handleClientCommand(int clientIdx, const String& command) {
         return;
     }
 
+    if (cmd == "gw_get_settings") {
+        sendGatewaySettings(clientIdx);
+        return;
+    }
+
+    if (cmd == "gw_set") {
+        applyGatewaySettings(clientIdx, command);
+        return;
+    }
+
     //------------------------------------------
     // Flight computer commands - convert to binary
     //------------------------------------------
@@ -1115,6 +1130,89 @@ void sendPingResponse(int clientIdx) {
     String response = "{\"type\":\"ack\",\"id\":0,\"ok\":true}";
     clients[clientIdx].println(response);
     Serial.println("Sent ping response");
+}
+
+//----------------------------------------------
+// Send Gateway Settings
+//----------------------------------------------
+void sendGatewaySettings(int clientIdx) {
+    String response = "{\"type\":\"gw_settings\"";
+    response += ",\"backlight\":" + String(currentBacklight);
+    response += ",\"backlight_max\":255";
+    response += ",\"lora_tx_power\":" + String(currentLoraTxPower);
+    response += ",\"lora_tx_power_min\":2";
+    response += ",\"lora_tx_power_max\":20";
+    response += ",\"wifi_tx_power\":" + String(currentWifiTxPower);
+    response += ",\"wifi_tx_power_min\":0";
+    response += ",\"wifi_tx_power_max\":20";
+    response += "}";
+
+    clients[clientIdx].println(response);
+    Serial.println("Sent gateway settings");
+}
+
+//----------------------------------------------
+// Apply Gateway Settings
+//----------------------------------------------
+void applyGatewaySettings(int clientIdx, const String& command) {
+    bool changed = false;
+    String changes = "";
+
+    // Check for backlight setting
+    if (command.indexOf("\"backlight\"") >= 0) {
+        int newBacklight = extractJsonInt(command, "backlight", -1);
+        if (newBacklight >= 0 && newBacklight <= 255) {
+            currentBacklight = newBacklight;
+            ledcWrite(TFT_BL, currentBacklight);
+            changes += "backlight=" + String(currentBacklight) + " ";
+            changed = true;
+        }
+    }
+
+    // Check for LoRa TX power setting
+    if (command.indexOf("\"lora_tx_power\"") >= 0) {
+        int newPower = extractJsonInt(command, "lora_tx_power", -1);
+        if (newPower >= 2 && newPower <= 20) {
+            currentLoraTxPower = newPower;
+            radio.setOutputPower(currentLoraTxPower);
+            changes += "lora_tx=" + String(currentLoraTxPower) + "dBm ";
+            changed = true;
+        }
+    }
+
+    // Check for WiFi TX power setting
+    if (command.indexOf("\"wifi_tx_power\"") >= 0) {
+        int newPower = extractJsonInt(command, "wifi_tx_power", -1);
+        if (newPower >= 0 && newPower <= 20) {
+            currentWifiTxPower = newPower;
+            // WiFi power is set using predefined levels
+            // Map 0-20 to actual dBm values
+            wifi_power_t wifiPower;
+            if (newPower <= 5) wifiPower = WIFI_POWER_5dBm;
+            else if (newPower <= 7) wifiPower = WIFI_POWER_7dBm;
+            else if (newPower <= 8) wifiPower = WIFI_POWER_8_5dBm;
+            else if (newPower <= 11) wifiPower = WIFI_POWER_11dBm;
+            else if (newPower <= 13) wifiPower = WIFI_POWER_13dBm;
+            else if (newPower <= 15) wifiPower = WIFI_POWER_15dBm;
+            else if (newPower <= 17) wifiPower = WIFI_POWER_17dBm;
+            else if (newPower <= 18) wifiPower = WIFI_POWER_18_5dBm;
+            else if (newPower <= 19) wifiPower = WIFI_POWER_19dBm;
+            else wifiPower = WIFI_POWER_19_5dBm;
+            WiFi.setTxPower(wifiPower);
+            changes += "wifi_tx=" + String(currentWifiTxPower) + "dBm ";
+            changed = true;
+        }
+    }
+
+    // Send response
+    String response;
+    if (changed) {
+        response = "{\"type\":\"ack\",\"ok\":true,\"changes\":\"" + changes + "\"}";
+        Serial.printf("Applied settings: %s\n", changes.c_str());
+    } else {
+        response = "{\"type\":\"ack\",\"ok\":false,\"error\":\"No valid settings provided\"}";
+    }
+    clients[clientIdx].println(response);
 }
 
 //----------------------------------------------

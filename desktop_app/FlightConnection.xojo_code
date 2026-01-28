@@ -543,6 +543,18 @@ Protected Class FlightConnection
 		        Window_WifiConfig.HandleWifiList(theJson)
 		      End If
 
+		    Case "gw_settings"
+		      // Gateway settings response
+		      Var theBacklight As Integer = theJson.Lookup("backlight", 0)
+		      Var theBacklightMax As Integer = theJson.Lookup("backlight_max", 255)
+		      Var theLoraTxPower As Integer = theJson.Lookup("lora_tx_power", 0)
+		      Var theLoraTxMin As Integer = theJson.Lookup("lora_tx_power_min", 2)
+		      Var theLoraTxMax As Integer = theJson.Lookup("lora_tx_power_max", 20)
+		      Var theWifiTxPower As Integer = theJson.Lookup("wifi_tx_power", 0)
+		      Var theWifiTxMin As Integer = theJson.Lookup("wifi_tx_power_min", 0)
+		      Var theWifiTxMax As Integer = theJson.Lookup("wifi_tx_power_max", 20)
+		      RaiseEvent GatewaySettingsReceived(theBacklight, theBacklightMax, theLoraTxPower, theLoraTxMin, theLoraTxMax, theWifiTxPower, theWifiTxMin, theWifiTxMax)
+
 		    End Select
 
 		  Catch theError As JSONException
@@ -877,6 +889,42 @@ Protected Class FlightConnection
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h0
+		Sub SendGetGatewaySettings()
+		  // Request gateway settings (backlight, TX power, etc.)
+		  SendCommand("gw_get_settings")
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendGatewaySettings(inBacklight As Integer = -1, inLoraTxPower As Integer = -1, inWifiTxPower As Integer = -1)
+		  // Set gateway settings (pass -1 to leave unchanged)
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "gw_set"
+		  theJson.Value("id") = theId
+
+		  If inBacklight >= 0 Then
+		    theJson.Value("backlight") = inBacklight
+		  End If
+		  If inLoraTxPower >= 0 Then
+		    theJson.Value("lora_tx_power") = inLoraTxPower
+		  End If
+		  If inWifiTxPower >= 0 Then
+		    theJson.Value("wifi_tx_power") = inWifiTxPower
+		  End If
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
 
 	#tag Hook, Flags = &h0
 		Event ConnectionChanged(inConnected As Boolean)
@@ -936,6 +984,10 @@ Protected Class FlightConnection
 
 	#tag Hook, Flags = &h0
 		Event FlashHeaderReceived(inSlot As Integer, inData As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event GatewaySettingsReceived(inBacklight As Integer, inBacklightMax As Integer, inLoraTxPower As Integer, inLoraTxMin As Integer, inLoraTxMax As Integer, inWifiTxPower As Integer, inWifiTxMin As Integer, inWifiTxMax As Integer)
 	#tag EndHook
 
 
