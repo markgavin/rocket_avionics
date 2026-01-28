@@ -47,7 +47,7 @@
 #define TFT_HEIGHT  80
 
 // Backlight PWM (0-255, lower = dimmer = cooler)
-#define TFT_BL_BRIGHTNESS  128   // 50% brightness to reduce heat
+#define TFT_BL_BRIGHTNESS  64    // 25% brightness to reduce heat
 
 //----------------------------------------------
 // Color Definitions (RGB565)
@@ -72,7 +72,7 @@
 #define LORA_CODING_RATE    5           // 4/5
 #define LORA_SYNC_WORD      0x14        // Private sync word
 #define LORA_PREAMBLE_LEN   8
-#define LORA_TX_POWER       20          // dBm
+#define LORA_TX_POWER       14          // dBm (reduced from 20 to lower heat)
 
 //----------------------------------------------
 // WiFi Configuration
@@ -256,6 +256,9 @@ void loop() {
         printStatus();
         lastStatusPrint = millis();
     }
+
+    // Small delay to reduce CPU heat - yield to other tasks
+    delay(1);
 }
 
 //----------------------------------------------
@@ -383,6 +386,7 @@ void initWiFi() {
         Serial.printf("  Connecting to: %s\n", WIFI_STA_SSID);
 
         WiFi.mode(WIFI_STA);
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // Reduce WiFi TX power to lower heat
         WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
 
         uint32_t startTime = millis();
@@ -410,6 +414,7 @@ void initWiFi() {
 
     WiFi.mode(WIFI_AP);
 
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);  // Reduce WiFi TX power to lower heat
     if (strlen(WIFI_AP_PASSWORD) >= 8) {
         WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD, WIFI_AP_CHANNEL);
     } else {
