@@ -14,9 +14,9 @@
 // Version Components
 //----------------------------------------------
 #define FIRMWARE_VERSION_MAJOR      1
-#define FIRMWARE_VERSION_MINOR      0
+#define FIRMWARE_VERSION_MINOR      2
 #define FIRMWARE_VERSION_PATCH      0
-#define FIRMWARE_VERSION_STRING     "1.0.0"
+#define FIRMWARE_VERSION_STRING     "1.2.0"
 #define FIRMWARE_BUILD_TYPE         "HeltecGateway"
 
 //----------------------------------------------

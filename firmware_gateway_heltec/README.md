@@ -1,36 +1,50 @@
-# Rocket Avionics Gateway - Heltec Wireless Tracker
+# Heltec Gateway Firmware (ESP32-S3)
 
-Ground station gateway using Heltec Wireless Tracker (ESP32-S3 + SX1262 + GPS).
+## Overview
 
-## Hardware Required
+Ground station gateway firmware for Heltec Wireless Tracker. Bridges LoRa telemetry from flight computer to WiFi TCP clients with built-in GPS for ground station location.
 
-- Heltec Wireless Tracker (915MHz version)
-- 915MHz LoRa antenna (U.FL/IPEX connector)
-- GPS/GNSS antenna (U.FL/IPEX connector, active recommended)
-- Optional: 3.7V LiPo battery with SH1.25 connector
+## Hardware
+
+- **Board:** Heltec Wireless Tracker (ESP32-S3 + SX1262 LoRa + GPS)
+- **LoRa:** SX1262 915MHz with onboard PCB antenna
+- **Display:** Built-in 0.96" TFT (ST7735, 160x80 pixels, color)
+- **GPS:** Built-in UC6580 GPS module with ceramic chip antenna
+- **WiFi:** Built-in ESP32-S3 WiFi
+
+## Antennas
+
+The Wireless Tracker has **built-in antennas** - no external antennas required:
+
+| Antenna | Type | Notes |
+|---------|------|-------|
+| **LoRa** | Onboard spring/wire antenna | Ready to use |
+| **GPS** | Ceramic chip antenna on PCB | Needs clear sky view for fix |
+
+For extended LoRa range, you can optionally add an external 915MHz antenna via the U.FL connector (if present on your board version).
 
 ## Arduino IDE Setup
 
 ### 1. Install Heltec Board Support
 
-In Arduino IDE, go to **File > Preferences** and add this URL to "Additional Board Manager URLs":
+Add this URL to **File > Preferences > Additional Board Manager URLs**:
 ```
-https://github.com/Heltec-Aaron-Lee/WiFi_Kit_series/releases/download/0.0.9/package_heltec_esp32_index.json
+https://resource.heltec.cn/download/package_heltec_esp32_index.json
 ```
 
-Then go to **Tools > Board > Board Manager**, search for "Heltec" and install **Heltec ESP32 Series Dev-boards**.
+Install **Heltec ESP32 Series Dev-boards** from Board Manager.
 
 ### 2. Install Required Libraries
 
 Go to **Tools > Manage Libraries** and install:
-- **RadioLib** by Jan Gromes (for SX1262 LoRa)
-- **TinyGPSPlus** by Mikal Hart (for GPS parsing)
-
-The display library is included with Heltec board support.
+- **RadioLib** by Jan Gromes
+- **TinyGPSPlus** by Mikal Hart
+- **Adafruit GFX Library** by Adafruit
+- **Adafruit ST7735 and ST7789 Library** by Adafruit
 
 ### 3. Select Board and Port
 
-- **Board**: Heltec Wireless Tracker
+- **Board**: Tools → Board → Heltec Wireless Tracker
 - **Port**: Select the USB serial port
 - **Upload Speed**: 921600
 
@@ -38,9 +52,15 @@ The display library is included with Heltec board support.
 
 Open `firmware_gateway_heltec.ino` and click Upload.
 
+**If upload fails**, enter bootloader mode manually:
+1. Hold **USER** button
+2. Press **RESET** button
+3. Release RESET, then release USER
+4. Try upload again
+
 ## Configuration
 
-LoRa settings in the firmware MUST match your flight computer:
+### LoRa Settings (must match flight computer)
 
 ```cpp
 #define LORA_FREQUENCY      915.0       // MHz
@@ -50,66 +70,117 @@ LoRa settings in the firmware MUST match your flight computer:
 #define LORA_SYNC_WORD      0x14        // Private sync word
 ```
 
-WiFi settings (fallback mode - tries station first, then AP):
-```cpp
-// Station mode - connect to existing network
-#define WIFI_STA_SSID       "YourHomeWiFi"    // Leave empty to skip station mode
-#define WIFI_STA_PASSWORD   "YourPassword"
-#define WIFI_STA_TIMEOUT_MS 10000             // 10 second timeout
+### WiFi Settings
 
-// AP mode - create hotspot (fallback)
+```cpp
+// Station mode (connect to existing network)
+#define WIFI_STA_SSID       "YourHomeWiFi"
+#define WIFI_STA_PASSWORD   "YourPassword"
+#define WIFI_STA_TIMEOUT_MS 10000
+
+// AP mode (create hotspot) - fallback
 #define WIFI_AP_SSID        "RocketGateway"
-#define WIFI_AP_PASSWORD    ""                // Empty = open AP
+#define WIFI_AP_PASSWORD    ""          // Empty = open
 #define TCP_PORT            5000
 ```
 
-## Usage
+## WiFi Fallback Mode
 
-### WiFi Fallback Mode
-
-The gateway uses a fallback WiFi strategy:
-
-1. **Station mode first**: If `WIFI_STA_SSID` is configured, it tries to connect to your existing WiFi network
-2. **AP fallback**: If station mode fails (or isn't configured), it creates the "RocketGateway" hotspot
+1. **Station mode first:** If `WIFI_STA_SSID` is configured, attempts to connect to existing WiFi
+2. **AP fallback:** If station mode fails (or SSID empty), creates "RocketGateway" hotspot
+3. Display shows current mode ([STA] or [AP]) and IP address
 
 ### Connecting
 
-**If using Station mode** (connected to your home/field network):
-1. Power on the gateway
-2. Check serial output or display for the assigned IP address
-3. Connect to TCP port 5000 at that IP
+**Station mode:**
+- Check display for assigned IP
+- Connect to port 5000 at that IP
 
-**If using AP mode** (hotspot):
-1. Power on the gateway
-2. Connect your device to WiFi network "RocketGateway"
-3. Connect to TCP port 5000 (IP: 192.168.4.1)
+**AP mode:**
+- Connect to WiFi "RocketGateway"
+- Connect to `192.168.4.1:5000`
 
-### Data Flow
+## Pin Definitions
 
-- LoRa telemetry from flight computer is forwarded to all connected TCP clients
-- Commands sent from TCP clients are forwarded via LoRa to flight computer
+```cpp
+// LoRa SX1262
+#define LORA_NSS    8
+#define LORA_DIO1   14
+#define LORA_RST    12
+#define LORA_BUSY   13
 
-## Display
+// GPS UART
+#define GPS_RX      33
+#define GPS_TX      34
 
-The LCD shows:
-- Line 1: "Rocket Gateway"
-- Line 2: WiFi SSID and client count
-- Line 3: LoRa packet count
-- Line 4: GPS status
-- Line 5: Last packet preview
+// TFT Display (ST7735 160x80)
+#define TFT_MOSI    42
+#define TFT_SCLK    41
+#define TFT_CS      38
+#define TFT_DC      40
+#define TFT_RST     39
+#define TFT_BL      21      // Backlight
+#define TFT_POWER   3       // VEXT (shared with GPS)
+```
+
+## Display Layout
+
+The 160x80 color TFT shows:
+
+```
+┌────────────────────────────┐
+│ GATEWAY            [AP]    │
+├────────────────────────────┤
+│ 192.168.4.1          C:1   │
+│ LoRa:1234      -45dB       │
+│ 38.8970,-77.0360           │
+│ {"type":"tel"...           │
+│ 12:34:56 UTC               │
+└────────────────────────────┘
+```
+
+- Row 0: Gateway title + WiFi mode (cyan/orange)
+- Row 1: IP address + client count
+- Row 2: LoRa packet count + RSSI
+- Row 3: GPS coordinates (green when valid)
+- Row 4: Last packet preview
+- Row 5: UTC time from GPS
+
+## Data Flow
+
+```
+Flight Computer → LoRa → Heltec → WiFi TCP → Desktop/iOS App
+                                    ↓
+                                 Display
+```
 
 ## Troubleshooting
 
+### Upload fails
+- Enter bootloader mode manually (USER + RESET)
+- Try lower upload speed (460800)
+
 ### No LoRa packets received
-- Check antenna connection
 - Verify frequency/SF/BW match flight computer
 - Check sync word matches (0x14)
+- Move closer to transmitter for testing
 
 ### WiFi not visible
-- Check if board is powered
+- Check serial output for errors
 - Try resetting the board
 
 ### GPS no fix
-- Ensure GPS antenna is connected
 - Move to area with clear sky view
 - Wait 1-2 minutes for cold start fix
+- Keep the PCB oriented with clear view up
+
+### Display blank
+- VEXT (GPIO3) must be HIGH for display power
+- Backlight (GPIO21) must be HIGH
+
+## Hardware Versions
+
+| Version | GPS Power Pin | Notes |
+|---------|---------------|-------|
+| V1.0 | GPIO37 | Original |
+| V1.1+ | GPIO3 | Current, firmware configured for this |
