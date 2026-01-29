@@ -10,13 +10,16 @@ Protected Module Module_Location
 		    AddHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
 		    AddHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
 		    AddHandler pLocation.Error, AddressOf HandleLocationError
+		    AddHandler pLocation.HeadingChanged, AddressOf HandleHeadingChanged
 		  End If
 
 		  pPhoneLatitude = 0.0
 		  pPhoneLongitude = 0.0
 		  pPhoneAltitude = 0.0
 		  pPhoneAccuracy = 0.0
+		  pPhoneHeading = 0.0
 		  pHasLocation = False
+		  pHasHeading = False
 		  pIsUpdating = False
 		End Sub
 	#tag EndMethod
@@ -33,16 +36,18 @@ Protected Module Module_Location
 		    RemoveHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
 		    RemoveHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
 		    RemoveHandler pLocation.Error, AddressOf HandleLocationError
+		    RemoveHandler pLocation.HeadingChanged, AddressOf HandleHeadingChanged
 		    pLocation = Nil
 		  End If
 
 		  pIsUpdating = False
+		  pHasHeading = False
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
 		Sub StartUpdating()
-		  // Start receiving location updates
+		  // Start receiving location and heading updates
 
 		  If pLocation = Nil Then
 		    Initialize()
@@ -51,6 +56,7 @@ Protected Module Module_Location
 		  If Not pIsUpdating Then
 		    pLocation.DesiredAccuracy = MobileLocation.Accuracies.Best
 		    pLocation.Start
+		    pLocation.StartHeading  // Also start compass/heading updates
 		    pIsUpdating = True
 		  End If
 		End Sub
@@ -58,10 +64,11 @@ Protected Module Module_Location
 
 	#tag Method, Flags = &h0
 		Sub StopUpdating()
-		  // Stop receiving location updates
+		  // Stop receiving location and heading updates
 
 		  If pLocation <> Nil And pIsUpdating Then
 		    pLocation.Stop
+		    pLocation.StopHeading
 		    pIsUpdating = False
 		  End If
 		End Sub
@@ -102,6 +109,19 @@ Protected Module Module_Location
 
 		  // Notify any listeners
 		  RaiseEvent LocationUpdated(inLatitude, inLongitude)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleHeadingChanged(inSender As MobileLocation, inHeading As Double)
+		  #Pragma Unused inSender
+
+		  // inHeading is magnetic heading in degrees (0-360, 0=North)
+		  pPhoneHeading = inHeading
+		  pHasHeading = True
+
+		  // Notify listeners
+		  RaiseEvent HeadingUpdated(inHeading)
 		End Sub
 	#tag EndMethod
 
@@ -180,6 +200,14 @@ Protected Module Module_Location
 		pHasLocation As Boolean = False
 	#tag EndProperty
 
+	#tag Property, Flags = &h0
+		pPhoneHeading As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pHasHeading As Boolean = False
+	#tag EndProperty
+
 	#tag Property, Flags = &h21
 		Private pIsUpdating As Boolean = False
 	#tag EndProperty
@@ -199,6 +227,10 @@ Protected Module Module_Location
 
 	#tag Hook, Flags = &h0
 		Event LocationError(inMessage As String)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event HeadingUpdated(inHeading As Double)
 	#tag EndHook
 
 
