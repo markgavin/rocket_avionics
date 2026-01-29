@@ -187,6 +187,12 @@ int8_t currentWifiTxPower = 8;                 // WiFi power level (index into p
 // uint32_t lastBatteryRead = 0;
 // float prevBatteryVoltage = -1.0;
 
+// Distance to rocket
+float rocketLat = 0.0;
+float rocketLon = 0.0;
+float distanceToRocket = 0.0;    // meters
+float prevDistanceToRocket = -1.0;
+
 //----------------------------------------------
 // LoRa Receive Callback (ISR)
 //----------------------------------------------
@@ -520,6 +526,25 @@ void handleLoRa() {
 }
 
 //----------------------------------------------
+// Calculate distance between two GPS coordinates (Haversine formula)
+// Returns distance in meters
+//----------------------------------------------
+float calculateDistance(float lat1, float lon1, float lat2, float lon2) {
+    // Return 0 if either position is invalid
+    if (lat1 == 0.0 && lon1 == 0.0) return 0.0;
+    if (lat2 == 0.0 && lon2 == 0.0) return 0.0;
+
+    const float R = 6371000.0;  // Earth radius in meters
+    float dLat = radians(lat2 - lat1);
+    float dLon = radians(lon2 - lon1);
+    float a = sin(dLat/2) * sin(dLat/2) +
+              cos(radians(lat1)) * cos(radians(lat2)) *
+              sin(dLon/2) * sin(dLon/2);
+    float c = 2 * atan2(sqrt(a), sqrt(1-a));
+    return R * c;
+}
+
+//----------------------------------------------
 // Forward Telemetry as JSON
 //----------------------------------------------
 void forwardTelemetryAsJson() {
@@ -565,6 +590,17 @@ void forwardTelemetryAsJson() {
     // Add RSSI/SNR
     json += ",\"rssi\":" + String(lastRssi, 1);
     json += ",\"snr\":" + String(lastSnr, 1);
+
+    // Calculate distance to rocket if both GPS positions are valid
+    rocketLat = pkt->gpsLatitude / 1000000.0;
+    rocketLon = pkt->gpsLongitude / 1000000.0;
+    if (gps.location.isValid() && rocketLat != 0.0 && rocketLon != 0.0) {
+        distanceToRocket = calculateDistance(
+            gps.location.lat(), gps.location.lng(),
+            rocketLat, rocketLon
+        );
+        json += ",\"dist\":" + String(distanceToRocket, 1);
+    }
 
     json += "}";
 
@@ -1366,19 +1402,25 @@ void updateDisplay() {
         prevGpsLon = gpsLon;
     }
 
-    // Row 4: Last packet preview (only if changed)
-    if (lastLoraPacket != prevLastPacket) {
+    // Row 4: Distance to rocket (only if changed)
+    if (distanceToRocket != prevDistanceToRocket) {
         tft.fillRect(2, 52, 156, 10, COLOR_BLACK);
-        tft.setTextColor(COLOR_LIGHT_GRAY);
         tft.setCursor(2, 52);
-        if (lastLoraPacket.length() > 0) {
-            String preview = lastLoraPacket.substring(0, 25);
-            if (lastLoraPacket.length() > 25) preview += "..";
-            tft.print(preview);
+        if (distanceToRocket > 0) {
+            tft.setTextColor(COLOR_CYAN);
+            if (distanceToRocket >= 1000) {
+                tft.printf("Dist: %.2f km", distanceToRocket / 1000.0);
+            } else {
+                tft.printf("Dist: %.0f m", distanceToRocket);
+            }
+        } else if (loraPacketCount > 0) {
+            tft.setTextColor(COLOR_DARK_GRAY);
+            tft.print("Dist: waiting GPS...");
         } else {
-            tft.print("Waiting for data...");
+            tft.setTextColor(COLOR_DARK_GRAY);
+            tft.print("Dist: no data");
         }
-        prevLastPacket = lastLoraPacket;
+        prevDistanceToRocket = distanceToRocket;
     }
 
     // Row 5: Time (only if changed - update once per second)
