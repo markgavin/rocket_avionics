@@ -20,12 +20,15 @@
 //----------------------------------------------
 // Flash Layout Constants
 //----------------------------------------------
-// Adafruit Feather RP2350 has 8MB (0x800000) flash
-// Use last sector for calibration storage
-// Use second-to-last sector for device settings
+// Adafruit Feather RP2040 has 8MB (0x800000) flash
+// Layout (from end of flash):
+//   0x7FF000 - Calibration (last sector) - used by storage.c
+//   0x7FE000 - Flight index - used by flight_storage.c
+//   0x7FD000 - Device settings (rocket ID, etc.) - used by storage.c
+//   0x780000-0x7FCFFF - Flight data slots - used by flight_storage.c
 #define kFeatherFlashSize     0x800000    // 8MB
-#define kFlashTargetOffset    (kFeatherFlashSize - FLASH_SECTOR_SIZE)
-#define kFlashSettingsOffset  (kFeatherFlashSize - (2 * FLASH_SECTOR_SIZE))
+#define kFlashTargetOffset    (kFeatherFlashSize - FLASH_SECTOR_SIZE)           // 0x7FF000
+#define kFlashSettingsOffset  (kFeatherFlashSize - (3 * FLASH_SECTOR_SIZE))     // 0x7FD000
 
 // Pointer to flash storage location (read as memory-mapped)
 #define kFlashStoragePtr ((const CalibrationData *)(XIP_BASE + kFlashTargetOffset))
