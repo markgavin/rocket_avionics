@@ -1568,21 +1568,35 @@ void updateDisplay() {
             }
             tft.print(" ");
 
-            // Show distance
+            // Show distance or GPS status
+            RocketData* r = &rockets[displayRocketIndex];
+            bool rocketHasGps = (r->latitude != 0.0 || r->longitude != 0.0);
+            bool gatewayHasGps = gps.location.isValid();
+
             if (distanceToRocket > 0) {
+                // Have distance - show it
                 tft.setTextColor(COLOR_CYAN);
                 if (distanceToRocket >= 1000) {
                     tft.printf("%.1fkm", distanceToRocket / 1000.0);
                 } else {
                     tft.printf("%.0fm", distanceToRocket);
                 }
-            } else {
+            } else if (rocketHasGps && !gatewayHasGps) {
+                // Rocket has GPS but gateway doesn't
+                tft.setTextColor(COLOR_YELLOW);
+                tft.printf("%dsat", r->satellites);
+            } else if (!rocketHasGps && r->satellites > 0) {
+                // Rocket acquiring GPS
                 tft.setTextColor(COLOR_DARK_GRAY);
-                tft.print("GPS...");
+                tft.printf("%dsat", r->satellites);
+            } else {
+                // No GPS data
+                tft.setTextColor(COLOR_DARK_GRAY);
+                tft.print("noGPS");
             }
 
             // Show state
-            uint8_t st = rockets[displayRocketIndex].state;
+            uint8_t st = r->state;
             if (st <= 7) {
                 tft.setTextColor(COLOR_WHITE);
                 tft.printf(" %s", flightStateNames[st]);
