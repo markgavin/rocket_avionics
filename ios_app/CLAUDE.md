@@ -68,6 +68,7 @@ TCP client for gateway communication:
 ### TelemetrySample
 Telemetry data point with GPS:
 ```xojo
+pRocketId As Integer        // Rocket ID (0-15)
 pAltitudeM As Double
 pVelocityMps As Double
 pState As String
@@ -79,9 +80,11 @@ pGpsSatellites As Integer
 
 ### RocketLocation
 Persistent last known rocket position:
-- Saved to iOS preferences
+- Supports multiple rockets via `pRocketId` (0-15)
+- Saved to iOS preferences with ID-based keys
 - Survives app restart
 - Used for offline recovery navigation
+- Load with `RocketLocation.Load(inRocketId)` for specific rocket
 
 ### Module_Location
 iPhone GPS wrapper:
@@ -144,13 +147,30 @@ Flight data download:
 ```json
 {
   "type": "tel",
+  "id": 0,
   "alt": 152.3,
   "vel": 45.2,
   "state": "BOOST",
   "lat": 38.897,
   "lon": -77.036,
-  "gps": true,
-  "sat": 8
+  "sats": 8,
+  "dist": 245.5
+}
+```
+
+### Rockets List Request/Response
+```json
+// Request
+{"cmd":"rockets"}
+
+// Response
+{
+  "type": "rockets",
+  "count": 2,
+  "rockets": [
+    {"id": 0, "lat": 38.897, "lon": -77.036, "alt": 152.3, "dist": 245.5, "state": "LANDED", "sats": 8, "age": 5},
+    {"id": 1, "lat": 38.898, "lon": -77.035, "alt": 0.0, "dist": 100.2, "state": "IDLE", "sats": 6, "age": 2}
+  ]
 }
 ```
 

@@ -1,0 +1,425 @@
+#tag MobileScreen
+Begin MobileScreen Screen_Recovery
+   BackButtonCaption=   ""
+   BackgroundColor =   
+   Compatibility   =   ""
+   ControlCount    =   0
+   Device = 7
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   2
+   Left            =   0
+   NavigationBarColor=   
+   NavigationBarTextColor=   
+   Orientation = 0
+   ScaleFactor     =   0.0
+   TabBarVisible   =   True
+   TabIcon         =   0
+   TintColor       =   
+   Title           =   "Recovery"
+   Top             =   0
+   _mTabBarVisible =   False
+   Begin MobileLabel LabelStatus
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelStatus, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelStatus, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelStatus, 3, <Parent>, 3, False, +1.00, 1, 1, 124, , True
+      AutoLayout      =   LabelStatus, 8, , 0, False, +1.00, 1, 1, 25, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   25
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Waiting for GPS..."
+      TextColor       =   &c666666
+      TextFont        =   ""
+      TextSize        =   14
+      TintColor       =   
+      Top             =   124
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelDistance
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelDistance, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelDistance, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelDistance, 3, LabelStatus, 4, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   LabelDistance, 8, , 0, False, +1.00, 1, 1, 60, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   60
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "--- m"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   48
+      TintColor       =   
+      Top             =   179
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelDistanceCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelDistanceCaption, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelDistanceCaption, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelDistanceCaption, 3, LabelDistance, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelDistanceCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "DISTANCE TO ROCKET"
+      TextColor       =   &c666666
+      TextFont        =   ""
+      TextSize        =   11
+      TintColor       =   
+      Top             =   241
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelBearing
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelBearing, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelBearing, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelBearing, 3, LabelDistanceCaption, 4, False, +1.00, 1, 1, 25, , True
+      AutoLayout      =   LabelBearing, 8, , 0, False, +1.00, 1, 1, 40, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   40
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "---"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   32
+      TintColor       =   
+      Top             =   282
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelBearingCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelBearingCaption, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelBearingCaption, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelBearingCaption, 3, LabelBearing, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelBearingCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "BEARING"
+      TextColor       =   &c666666
+      TextFont        =   ""
+      TextSize        =   11
+      TintColor       =   
+      Top             =   324
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelRocketHeader
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AutoLayout      =   LabelRocketHeader, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelRocketHeader, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelRocketHeader, 3, LabelBearingCaption, 4, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   LabelRocketHeader, 8, , 0, False, +1.00, 1, 1, 20, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Rocket Position:"
+      TextColor       =   &c333333
+      TextFont        =   ""
+      TextSize        =   14
+      TintColor       =   
+      Top             =   370
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelRocketCoords
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AutoLayout      =   LabelRocketCoords, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelRocketCoords, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelRocketCoords, 3, LabelRocketHeader, 4, False, +1.00, 1, 1, 4, , True
+      AutoLayout      =   LabelRocketCoords, 8, , 0, False, +1.00, 1, 1, 40, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   40
+      Left            =   20
+      LineBreakMode   =   0
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "No GPS data"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =   
+      Top             =   394
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelPhoneCoords
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AutoLayout      =   LabelPhoneCoords, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelPhoneCoords, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelPhoneCoords, 3, LabelPhoneHeader, 4, False, +1.00, 1, 1, 4, , True
+      AutoLayout      =   LabelPhoneCoords, 8, , 0, False, +1.00, 1, 1, 40, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   40
+      Left            =   20
+      LineBreakMode   =   0
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Waiting for GPS..."
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =   
+      Top             =   478
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileButton ButtonOpenMaps
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      AutoLayout      =   ButtonOpenMaps, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   ButtonOpenMaps, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   ButtonOpenMaps, 3, LabelPhoneCoords, 4, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   ButtonOpenMaps, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   
+      BorderColor     =   
+      BorderWidth     =   0
+      Caption         =   "Open in Maps"
+      CaptionColor    =   &c000000
+      ControlCount    =   0
+      CornerSize      =   0
+      Enabled         =   True
+      Height          =   50
+      Icon            =   0
+      Left            =   20
+      LockedInPosition=   False
+      Scope           =   2
+      TextFont        =   ""
+      TextSize        =   0
+      TintColor       =   &c0066CC
+      Top             =   548
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+      Begin MobileLabel LabelPhoneHeader
+         AccessibilityHint=   ""
+         AccessibilityLabel=   ""
+         AdjustTextSizeToFit=   False
+         Alignment       =   0
+         AutoLayout      =   LabelPhoneHeader, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+         AutoLayout      =   LabelPhoneHeader, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+         AutoLayout      =   LabelPhoneHeader, 3, LabelRocketCoords, 4, False, +1.00, 1, 1, 20, , True
+         AutoLayout      =   LabelPhoneHeader, 8, , 0, False, +1.00, 1, 1, 20, , True
+         ControlCount    =   0
+         Enabled         =   True
+         Height          =   20
+         Left            =   20
+         LineBreakMode   =   4
+         LockedInPosition=   False
+         MaximumCharactersAllowed=   0
+         Parent          =   "ButtonOpenMaps"
+         Scope           =   2
+         SelectedText    =   ""
+         SelectionLength =   0
+         SelectionStart  =   0
+         Text            =   "Your Position:"
+         TextColor       =   &c333333
+         TextFont        =   ""
+         TextSize        =   14
+         TintColor       =   
+         Top             =   454
+         Visible         =   True
+         Width           =   335
+         _ClosingFired   =   False
+      End
+   End
+End
+#tag EndMobileScreen
+
+#tag WindowCode
+	#tag Event
+		Sub Opening()
+		  pRocketLocation = App.pRocketLocation
+		  Module_Location.StartUpdating
+		  UpdateDisplay
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Function GetCardinalDirection(inBearing As Double) As String
+		  If inBearing >= 337.5 Or inBearing < 22.5 Then
+		    Return "N"
+		  ElseIf inBearing >= 22.5 And inBearing < 67.5 Then
+		    Return "NE"
+		  ElseIf inBearing >= 67.5 And inBearing < 112.5 Then
+		    Return "E"
+		  ElseIf inBearing >= 112.5 And inBearing < 157.5 Then
+		    Return "SE"
+		  ElseIf inBearing >= 157.5 And inBearing < 202.5 Then
+		    Return "S"
+		  ElseIf inBearing >= 202.5 And inBearing < 247.5 Then
+		    Return "SW"
+		  ElseIf inBearing >= 247.5 And inBearing < 292.5 Then
+		    Return "W"
+		  Else
+		    Return "NW"
+		  End If
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub UpdateDisplay()
+		  // Update rocket position display
+		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid Then
+		    LabelRocketCoords.Text = "No GPS data received"
+		    LabelDistance.Text = "--- m"
+		    LabelBearing.Text = "---"
+		    LabelStatus.Text = "No rocket GPS"
+		    LabelStatus.TextColor = &cCC0000
+		  Else
+		    LabelRocketCoords.Text = Str(pRocketLocation.pLatitude, "0.000000") + ", " + Str(pRocketLocation.pLongitude, "0.000000")
+		    
+		    // Calculate distance and bearing if we have phone location
+		    If Module_Location.pHasLocation Then
+		      Var theDistance As Double = Module_Navigation.CalculateDistanceM( _
+		      Module_Location.pPhoneLatitude, Module_Location.pPhoneLongitude, _
+		      pRocketLocation.pLatitude, pRocketLocation.pLongitude)
+		      
+		      Var theBearing As Double = Module_Navigation.CalculateBearingDeg( _
+		      Module_Location.pPhoneLatitude, Module_Location.pPhoneLongitude, _
+		      pRocketLocation.pLatitude, pRocketLocation.pLongitude)
+		      
+		      If theDistance >= 1000 Then
+		        LabelDistance.Text = Str(Round(theDistance / 10) / 100) + " km"
+		      Else
+		        LabelDistance.Text = Str(Round(theDistance)) + " m"
+		      End If
+		      
+		      LabelBearing.Text = Str(Round(theBearing)) + Chr(&hB0) + " " + GetCardinalDirection(theBearing)
+		      LabelStatus.Text = "Navigate to rocket"
+		      LabelStatus.TextColor = &c009900
+		    Else
+		      LabelDistance.Text = "--- m"
+		      LabelBearing.Text = "---"
+		      LabelStatus.Text = "Waiting for phone GPS..."
+		      LabelStatus.TextColor = &c666666
+		    End If
+		  End If
+		  
+		  // Update phone position display
+		  If Module_Location.pHasLocation Then
+		    LabelPhoneCoords.Text = Str(Module_Location.pPhoneLatitude, "0.000000") + ", " + Str(Module_Location.pPhoneLongitude, "0.000000")
+		  Else
+		    LabelPhoneCoords.Text = "Waiting for GPS..."
+		  End If
+		End Sub
+	#tag EndMethod
+
+
+	#tag Property, Flags = &h21
+		Private pRocketLocation As RocketLocation
+	#tag EndProperty
+
+
+#tag EndWindowCode
+
+#tag Events ButtonOpenMaps
+	#tag Event
+		Sub Pressed()
+		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid Then
+		    LabelStatus.Text = "No valid rocket coordinates"
+		    LabelStatus.TextColor = &cFF0000
+		    Return
+		  End If
+		  
+		  Var theUrl As String = "maps://?daddr=" + Str(pRocketLocation.pLatitude) + "," + Str(pRocketLocation.pLongitude)
+		  System.GotoURL(theUrl)
+		End Sub
+	#tag EndEvent
+#tag EndEvents

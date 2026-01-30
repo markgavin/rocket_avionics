@@ -140,10 +140,10 @@ Protected Class FlightData
 		  theLines.Add("# Rocket: " + pRocketName)
 		  theLines.Add("# Motor: " + pMotorDesignation)
 		  theLines.Add("# Location: " + pLocation)
-		  theLines.Add("# Max Altitude (m): " + Format(pMaxAltitudeM, "0.00"))
-		  theLines.Add("# Max Velocity (m/s): " + Format(pMaxVelocityMps, "0.00"))
-		  theLines.Add("# Apogee Time (s): " + Format(GetApogeeTimeSeconds(), "0.000"))
-		  theLines.Add("# Flight Time (s): " + Format(GetFlightTimeSeconds(), "0.000"))
+		  theLines.Add("# Max Altitude (m): " + Str(pMaxAltitudeM))
+		  theLines.Add("# Max Velocity (m/s): " + Str(pMaxVelocityMps))
+		  theLines.Add("# Apogee Time (s): " + Str(GetApogeeTimeSeconds()))
+		  theLines.Add("# Flight Time (s): " + Str(GetFlightTimeSeconds()))
 		  theLines.Add("# Notes: " + pNotes)
 		  theLines.Add("#")
 		  theLines.Add("Time_ms,Altitude_m,Velocity_mps,Pressure_Pa,Temperature_C,State")
@@ -151,14 +151,20 @@ Protected Class FlightData
 		  // Data rows
 		  For Each theSample As TelemetrySample In pSamples
 		    theLines.Add(Str(theSample.pTimeMs) + "," + _
-		      Format(theSample.pAltitudeM, "0.00") + "," + _
-		      Format(theSample.pVelocityMps, "0.00") + "," + _
-		      Format(theSample.pPressurePa, "0.0") + "," + _
-		      Format(theSample.pTemperatureC, "0.0") + "," + _
+		      Str(theSample.pAltitudeM) + "," + _
+		      Str(theSample.pVelocityMps) + "," + _
+		      Str(theSample.pPressurePa) + "," + _
+		      Str(theSample.pTemperatureC) + "," + _
 		      theSample.pState)
 		  Next
 
-		  Return String.FromArray(theLines, EndOfLine)
+		  // Join lines with EndOfLine
+		  Var theResult As String = ""
+		  For i As Integer = 0 To theLines.LastIndex
+		    If i > 0 Then theResult = theResult + EndOfLine
+		    theResult = theResult + theLines(i)
+		  Next
+		  Return theResult
 		End Function
 	#tag EndMethod
 

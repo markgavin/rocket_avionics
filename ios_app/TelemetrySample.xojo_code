@@ -98,6 +98,10 @@ Protected Class TelemetrySample
 		pGpsFix As Boolean = False
 	#tag EndProperty
 
+	#tag Property, Flags = &h0
+		pRocketId As Integer = 0
+	#tag EndProperty
+
 
 End Class
 #tag EndClass

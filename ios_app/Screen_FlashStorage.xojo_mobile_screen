@@ -1,0 +1,254 @@
+#tag MobileScreen
+Begin MobileScreen Screen_FlashStorage
+   BackButtonCaption=   ""
+   BackgroundColor =   
+   Compatibility   =   ""
+   ControlCount    =   0
+   Device = 7
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   2
+   Left            =   0
+   NavigationBarColor=   
+   NavigationBarTextColor=   
+   Orientation = 0
+   ScaleFactor     =   0.0
+   TabBarVisible   =   True
+   TabIcon         =   0
+   TintColor       =   
+   Title           =   "Flight Data"
+   Top             =   0
+   _mTabBarVisible =   False
+   Begin MobileLabel LabelFlightCount
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelFlightCount, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelFlightCount, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelFlightCount, 3, LabelStatus, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelFlightCount, 8, , 0, False, +1.00, 1, 1, 40, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   40
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "No flights stored"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   18
+      TintColor       =   
+      Top             =   268
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelFlightInfo
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelFlightInfo, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelFlightInfo, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelFlightInfo, 3, <Parent>, 3, False, +1.00, 1, 1, 216, , True
+      AutoLayout      =   LabelFlightInfo, 8, , 0, False, +1.00, 1, 1, 80, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   80
+      Left            =   20
+      LineBreakMode   =   0
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Tap Refresh to load flight list from the rocket"
+      TextColor       =   &c666666
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =   
+      Top             =   216
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+      Begin MobileLabel LabelStatus
+         AccessibilityHint=   ""
+         AccessibilityLabel=   ""
+         AdjustTextSizeToFit=   False
+         Alignment       =   1
+         AutoLayout      =   LabelStatus, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+         AutoLayout      =   LabelStatus, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+         AutoLayout      =   LabelStatus, 3, LabelFlightInfo, 3, False, +1.00, 1, 1, 7, , True
+         AutoLayout      =   LabelStatus, 8, , 0, False, +1.00, 1, 1, 25, , True
+         ControlCount    =   0
+         Enabled         =   True
+         Height          =   25
+         Left            =   20
+         LineBreakMode   =   4
+         LockedInPosition=   False
+         MaximumCharactersAllowed=   0
+         Parent          =   "LabelFlightInfo"
+         Scope           =   2
+         SelectedText    =   ""
+         SelectionLength =   0
+         SelectionStart  =   0
+         Text            =   "Not connected"
+         TextColor       =   &c666666
+         TextFont        =   ""
+         TextSize        =   14
+         TintColor       =   
+         Top             =   223
+         Visible         =   True
+         Width           =   335
+         _ClosingFired   =   False
+      End
+   End
+   Begin MobileButton ButtonRefresh
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      AutoLayout      =   ButtonRefresh, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   ButtonRefresh, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   ButtonRefresh, 3, LabelFlightInfo, 4, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   ButtonRefresh, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   
+      BorderColor     =   
+      BorderWidth     =   0
+      Caption         =   "Refresh Flight List"
+      CaptionColor    =   &c000000
+      ControlCount    =   0
+      CornerSize      =   0
+      Enabled         =   True
+      Height          =   50
+      Icon            =   0
+      Left            =   20
+      LockedInPosition=   False
+      Scope           =   2
+      TextFont        =   ""
+      TextSize        =   0
+      TintColor       =   &c0066CC
+      Top             =   326
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelProgress
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelProgress, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelProgress, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelProgress, 3, ButtonRefresh, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelProgress, 8, , 0, False, +1.00, 1, 1, 25, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   25
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   ""
+      TextColor       =   &c0066CC
+      TextFont        =   ""
+      TextSize        =   14
+      TintColor       =   
+      Top             =   396
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+End
+#tag EndMobileScreen
+
+#tag WindowCode
+	#tag Event
+		Sub Closing()
+		  If App.pConnection <> Nil Then
+		    RemoveHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		  End If
+		End Sub
+	#tag EndEvent
+
+	#tag Event
+		Sub Opening()
+		  UpdateConnectionStatus
+		  
+		  If App.pConnection <> Nil Then
+		    AddHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		  End If
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub HandleFlashListReceived(inSender As FlightConnection, inCount As Integer, inFlights() As Dictionary)
+		  #Pragma Unused inSender
+		  
+		  LabelProgress.Text = ""
+		  
+		  If inCount = 0 Then
+		    LabelFlightCount.Text = "No flights stored"
+		    LabelFlightInfo.Text = "The rocket has no recorded flights in flash memory"
+		  Else
+		    LabelFlightCount.Text = Str(inCount) + " flight(s) stored"
+		    
+		    Var theInfo As String = ""
+		    For i As Integer = 0 To Min(inFlights.Count - 1, 4)
+		      Var theFlight As Dictionary = inFlights(i)
+		      Var theSlot As Integer = theFlight.Value("slot")
+		      Var theAlt As Double = theFlight.Value("altitude")
+		      Var theSamples As Integer = theFlight.Value("samples")
+		      theInfo = theInfo + "Slot " + Str(theSlot) + ": " + Str(Round(theAlt)) + "m (" + Str(theSamples) + " samples)" + EndOfLine
+		    Next
+		    
+		    If inFlights.Count > 5 Then
+		      theInfo = theInfo + "... and " + Str(inFlights.Count - 5) + " more"
+		    End If
+		    
+		    LabelFlightInfo.Text = theInfo
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub UpdateConnectionStatus()
+		  If App.pConnection <> Nil And App.pConnection.IsConnected Then
+		    LabelStatus.Text = "Connected"
+		    LabelStatus.TextColor = &c009900
+		    ButtonRefresh.Enabled = True
+		  Else
+		    LabelStatus.Text = "Not connected - go to Settings to connect"
+		    LabelStatus.TextColor = &c666666
+		    ButtonRefresh.Enabled = False
+		  End If
+		End Sub
+	#tag EndMethod
+
+
+#tag EndWindowCode
+
+#tag Events ButtonRefresh
+	#tag Event
+		Sub Pressed()
+		  If App.pConnection = Nil Or Not App.pConnection.IsConnected Then
+		    LabelStatus.Text = "Not connected"
+		    LabelStatus.TextColor = &cCC0000
+		    Return
+		  End If
+		  
+		  LabelProgress.Text = "Requesting flight list..."
+		  App.pConnection.SendFlashList
+		End Sub
+	#tag EndEvent
+#tag EndEvents

@@ -3,6 +3,7 @@ Protected Class RocketLocation
 	#tag Method, Flags = &h0
 		Sub Constructor()
 		  // Initialize with default values
+		  pRocketId = 0
 		  pLatitude = 0.0
 		  pLongitude = 0.0
 		  pAltitude = 0.0
@@ -14,28 +15,37 @@ Protected Class RocketLocation
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Shared Function Load() As RocketLocation
+		Shared Function Load(inRocketId As Integer = 0) As RocketLocation
 		  // Load persisted rocket location from Preferences
+		  // Supports multiple rockets via ID-based keys
 		  Var theLoc As New RocketLocation
 
-		  theLoc.pLatitude = Preferences.DoubleValue("rocket_lat", 0.0)
-		  theLoc.pLongitude = Preferences.DoubleValue("rocket_lon", 0.0)
-		  theLoc.pAltitude = Preferences.DoubleValue("rocket_alt", 0.0)
-		  theLoc.pGpsFix = Preferences.BooleanValue("rocket_fix", False)
-		  theLoc.pSatellites = Preferences.IntegerValue("rocket_sats", 0)
-		  theLoc.pFlightState = Preferences.StringValue("rocket_state", "")
+		  Try
+		    Var thePrefix As String = "rocket_" + Str(inRocketId) + "_"
 
-		  // Load timestamp
-		  Var theTimestampStr As String = Preferences.StringValue("rocket_timestamp", "")
-		  If theTimestampStr <> "" Then
-		    Try
-		      theLoc.pTimestamp = DateTime.FromString(theTimestampStr, Locale.Current, TimeZone.Current)
-		    Catch
+		    theLoc.pRocketId = inRocketId
+		    theLoc.pLatitude = App.GetPreferenceDouble(thePrefix + "lat", 0.0)
+		    theLoc.pLongitude = App.GetPreferenceDouble(thePrefix + "lon", 0.0)
+		    theLoc.pAltitude = App.GetPreferenceDouble(thePrefix + "alt", 0.0)
+		    theLoc.pGpsFix = App.GetPreferenceBoolean(thePrefix + "fix", False)
+		    theLoc.pSatellites = App.GetPreferenceInteger(thePrefix + "sats", 0)
+		    theLoc.pFlightState = App.GetPreferenceString(thePrefix + "state", "")
+
+		    // Load timestamp
+		    Var theTimestampStr As String = App.GetPreferenceString(thePrefix + "timestamp", "")
+		    If theTimestampStr <> "" Then
+		      Try
+		        theLoc.pTimestamp = DateTime.FromString(theTimestampStr, Locale.Current, TimeZone.Current)
+		      Catch
+		        theLoc.pTimestamp = DateTime.Now
+		      End Try
+		    Else
 		      theLoc.pTimestamp = DateTime.Now
-		    End Try
-		  Else
+		    End If
+		  Catch e As RuntimeException
+		    // Return default values on error
 		    theLoc.pTimestamp = DateTime.Now
-		  End If
+		  End Try
 
 		  Return theLoc
 		End Function
@@ -44,13 +54,16 @@ Protected Class RocketLocation
 	#tag Method, Flags = &h0
 		Sub Save()
 		  // Save rocket location to Preferences
-		  Preferences.DoubleValue("rocket_lat") = pLatitude
-		  Preferences.DoubleValue("rocket_lon") = pLongitude
-		  Preferences.DoubleValue("rocket_alt") = pAltitude
-		  Preferences.BooleanValue("rocket_fix") = pGpsFix
-		  Preferences.IntegerValue("rocket_sats") = pSatellites
-		  Preferences.StringValue("rocket_state") = pFlightState
-		  Preferences.StringValue("rocket_timestamp") = pTimestamp.ToString(Locale.Current, TimeZone.Current)
+		  // Uses ID-based keys for multi-rocket support
+		  Var thePrefix As String = "rocket_" + Str(pRocketId) + "_"
+
+		  App.SetPreferenceDouble(thePrefix + "lat", pLatitude)
+		  App.SetPreferenceDouble(thePrefix + "lon", pLongitude)
+		  App.SetPreferenceDouble(thePrefix + "alt", pAltitude)
+		  App.SetPreferenceBoolean(thePrefix + "fix", pGpsFix)
+		  App.SetPreferenceInteger(thePrefix + "sats", pSatellites)
+		  App.SetPreferenceString(thePrefix + "state", pFlightState)
+		  App.SetPreferenceString(thePrefix + "timestamp", pTimestamp.ToString)
 		End Sub
 	#tag EndMethod
 
@@ -102,6 +115,10 @@ Protected Class RocketLocation
 		End Sub
 	#tag EndMethod
 
+
+	#tag Property, Flags = &h0
+		pRocketId As Integer = 0
+	#tag EndProperty
 
 	#tag Property, Flags = &h0
 		pLatitude As Double = 0.0

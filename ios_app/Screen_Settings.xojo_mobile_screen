@@ -1,0 +1,312 @@
+#tag MobileScreen
+Begin MobileScreen Screen_Settings
+   BackButtonCaption=   ""
+   BackgroundColor =   
+   Compatibility   =   ""
+   ControlCount    =   0
+   Device = 7
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   2
+   Left            =   0
+   NavigationBarColor=   
+   NavigationBarTextColor=   
+   Orientation = 0
+   ScaleFactor     =   0.0
+   TabBarVisible   =   True
+   TabIcon         =   0
+   TintColor       =   
+   Title           =   "Settings"
+   Top             =   0
+   _mTabBarVisible =   False
+   Begin MobileLabel LabelServer
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AutoLayout      =   LabelServer, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelServer, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelServer, 3, <Parent>, 3, False, +1.00, 1, 1, 108, , True
+      AutoLayout      =   LabelServer, 8, , 0, False, +1.00, 1, 1, 25, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   25
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Gateway Server"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   16
+      TintColor       =   
+      Top             =   108
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileTextField FieldHost
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AllowAutoCorrection=   False
+      AllowSpellChecking=   False
+      AutoCapitalizationType=   0
+      AutoLayout      =   FieldHost, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   FieldHost, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   FieldHost, 3, LabelServer, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   FieldHost, 8, , 0, False, +1.00, 1, 1, 44, , True
+      BorderStyle     =   3
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   44
+      Hint            =   "192.168.4.1"
+      HintColor       =   
+      InputType       =   0
+      Left            =   20
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Password        =   False
+      ReadOnly        =   False
+      ReturnCaption   =   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   ""
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   17
+      TintColor       =   
+      Top             =   141
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelPort
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AutoLayout      =   LabelPort, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelPort, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelPort, 3, FieldHost, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelPort, 8, , 0, False, +1.00, 1, 1, 25, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   25
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Port"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   16
+      TintColor       =   
+      Top             =   205
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileTextField FieldPort
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   0
+      AllowAutoCorrection=   False
+      AllowSpellChecking=   False
+      AutoCapitalizationType=   0
+      AutoLayout      =   FieldPort, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   FieldPort, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   FieldPort, 3, LabelPort, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   FieldPort, 8, , 0, False, +1.00, 1, 1, 44, , True
+      BorderStyle     =   3
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   44
+      Hint            =   "8080"
+      HintColor       =   
+      InputType       =   0
+      Left            =   20
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Password        =   False
+      ReadOnly        =   False
+      ReturnCaption   =   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "8080"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   17
+      TintColor       =   
+      Top             =   238
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelInfo
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelInfo, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelInfo, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelInfo, 3, ButtonConnect, 4, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   LabelInfo, 8, , 0, False, +1.00, 1, 1, 60, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   60
+      Left            =   20
+      LineBreakMode   =   0
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Connect to 'RocketGateway' WiFi, then use 192.168.4.1:8080"
+      TextColor       =   &c666666
+      TextFont        =   ""
+      TextSize        =   12
+      TintColor       =   
+      Top             =   392
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+      Begin MobileButton ButtonConnect
+         AccessibilityHint=   ""
+         AccessibilityLabel=   ""
+         AdjustTextSizeToFit=   False
+         AutoLayout      =   ButtonConnect, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+         AutoLayout      =   ButtonConnect, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+         AutoLayout      =   ButtonConnect, 3, FieldPort, 4, False, +1.00, 1, 1, 30, , True
+         AutoLayout      =   ButtonConnect, 8, , 0, False, +1.00, 1, 1, 50, , True
+         BackgroundColor =   
+         BorderColor     =   
+         BorderWidth     =   0
+         Caption         =   "Connect"
+         CaptionColor    =   &c000000
+         ControlCount    =   0
+         CornerSize      =   0
+         Enabled         =   True
+         Height          =   50
+         Icon            =   0
+         Left            =   20
+         LockedInPosition=   False
+         Parent          =   "LabelInfo"
+         Scope           =   2
+         TextFont        =   ""
+         TextSize        =   0
+         TintColor       =   &c0066CC
+         Top             =   312
+         Visible         =   True
+         Width           =   335
+         _ClosingFired   =   False
+      End
+   End
+   Begin MobileLabel LabelError
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelError, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelError, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelError, 3, LabelInfo, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelError, 8, , 0, False, +1.00, 1, 1, 25, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   25
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   ""
+      TextColor       =   &cFF0000
+      TextFont        =   ""
+      TextSize        =   12
+      TintColor       =   
+      Top             =   472
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+End
+#tag EndMobileScreen
+
+#tag WindowCode
+	#tag Event
+		Sub Opening()
+		  FieldHost.Text = App.GetPreferenceString("gateway_host", "192.168.4.1")
+		  FieldPort.Text = App.GetPreferenceString("gateway_port", "8080")
+		  UpdateConnectButton
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub UpdateConnectButton()
+		  If App.pConnection <> Nil And App.pConnection.IsConnected Then
+		    ButtonConnect.Caption = "Disconnect"
+		    ButtonConnect.TintColor = &cFF3300
+		  Else
+		    ButtonConnect.Caption = "Connect"
+		    ButtonConnect.TintColor = &c0066CC
+		  End If
+		End Sub
+	#tag EndMethod
+
+
+#tag EndWindowCode
+
+#tag Events ButtonConnect
+	#tag Event
+		Sub Pressed()
+		  LabelError.Text = ""
+		  
+		  If App.pConnection = Nil Then
+		    LabelError.Text = "Connection not initialized"
+		    Return
+		  End If
+		  
+		  If App.pConnection.IsConnected Then
+		    App.pConnection.Disconnect
+		    UpdateConnectButton
+		  Else
+		    App.SetPreferenceString("gateway_host", FieldHost.Text)
+		    App.SetPreferenceString("gateway_port", FieldPort.Text)
+		    
+		    Var theHost As String = FieldHost.Text.Trim
+		    Var thePort As Integer = Val(FieldPort.Text)
+		    
+		    If theHost = "" Then
+		      LabelError.Text = "Please enter a server address"
+		      Return
+		    End If
+		    
+		    If thePort <= 0 Or thePort > 65535 Then
+		      LabelError.Text = "Please enter a valid port (1-65535)"
+		      Return
+		    End If
+		    
+		    App.pConnection.Connect(theHost, thePort)
+		    UpdateConnectButton
+		  End If
+		End Sub
+	#tag EndEvent
+#tag EndEvents

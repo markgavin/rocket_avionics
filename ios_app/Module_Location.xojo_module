@@ -5,13 +5,14 @@ Protected Module Module_Location
 		  // Initialize the location manager
 		  // Call this once at app startup
 
-		  If pLocation = Nil Then
-		    pLocation = New MobileLocation
-		    AddHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
-		    AddHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
-		    AddHandler pLocation.Error, AddressOf HandleLocationError
-		    AddHandler pLocation.HeadingChanged, AddressOf HandleHeadingChanged
-		  End If
+		  Try
+		    If pLocation = Nil Then
+		      pLocation = New MobileLocation
+		      AddHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
+		    End If
+		  Catch e As RuntimeException
+		    pLastError = "Location init failed: " + e.Message
+		  End Try
 
 		  pPhoneLatitude = 0.0
 		  pPhoneLongitude = 0.0
@@ -34,9 +35,6 @@ Protected Module Module_Location
 		      pLocation.Stop
 		    End If
 		    RemoveHandler pLocation.LocationChanged, AddressOf HandleLocationChanged
-		    RemoveHandler pLocation.AuthorizationChanged, AddressOf HandleAuthorizationChanged
-		    RemoveHandler pLocation.Error, AddressOf HandleLocationError
-		    RemoveHandler pLocation.HeadingChanged, AddressOf HandleHeadingChanged
 		    pLocation = Nil
 		  End If
 
@@ -47,28 +45,29 @@ Protected Module Module_Location
 
 	#tag Method, Flags = &h0
 		Sub StartUpdating()
-		  // Start receiving location and heading updates
+		  // Start receiving location updates
 
-		  If pLocation = Nil Then
-		    Initialize()
-		  End If
+		  Try
+		    If pLocation = Nil Then
+		      Initialize()
+		    End If
 
-		  If Not pIsUpdating Then
-		    pLocation.DesiredAccuracy = MobileLocation.Accuracies.Best
-		    pLocation.Start
-		    pLocation.StartHeading  // Also start compass/heading updates
-		    pIsUpdating = True
-		  End If
+		    If pLocation <> Nil And Not pIsUpdating Then
+		      pLocation.Start
+		      pIsUpdating = True
+		    End If
+		  Catch e As RuntimeException
+		    pLastError = "Location start failed: " + e.Message
+		  End Try
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
 		Sub StopUpdating()
-		  // Stop receiving location and heading updates
+		  // Stop receiving location updates
 
 		  If pLocation <> Nil And pIsUpdating Then
 		    pLocation.Stop
-		    pLocation.StopHeading
 		    pIsUpdating = False
 		  End If
 		End Sub
@@ -77,10 +76,8 @@ Protected Module Module_Location
 	#tag Method, Flags = &h0
 		Function IsAuthorized() As Boolean
 		  // Check if we have location authorization
-
-		  If pLocation = Nil Then Return False
-
-		  Return pLocation.IsAuthorized
+		  // Just return true if we have had a location update
+		  Return pHasLocation
 		End Function
 	#tag EndMethod
 
@@ -92,54 +89,29 @@ Protected Module Module_Location
 		    Initialize()
 		  End If
 
-		  pLocation.RequestInUseAuthorization
+		  // Starting location updates triggers authorization request
+		  pLocation.Start
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h21
-		Private Sub HandleLocationChanged(inSender As MobileLocation, inLatitude As Double, inLongitude As Double)
+		Private Sub HandleLocationChanged(inSender As MobileLocation, inLatitude As Double, inLongitude As Double, inAltitude As Double, inHorizontalAccuracy As Double, inVerticalAccuracy As Double, inCourse As Double, inSpeed As Double, inTimestamp As DateTime)
 		  #Pragma Unused inSender
+		  #Pragma Unused inVerticalAccuracy
+		  #Pragma Unused inTimestamp
 
 		  pPhoneLatitude = inLatitude
 		  pPhoneLongitude = inLongitude
-		  pPhoneAltitude = inSender.Altitude
-		  pPhoneAccuracy = inSender.HorizontalAccuracy
+		  pPhoneAltitude = inAltitude
+		  pPhoneAccuracy = inHorizontalAccuracy
 		  pHasLocation = True
 		  pLastUpdateTime = DateTime.Now
 
-		  // Notify any listeners
-		  RaiseEvent LocationUpdated(inLatitude, inLongitude)
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h21
-		Private Sub HandleHeadingChanged(inSender As MobileLocation, inHeading As Double)
-		  #Pragma Unused inSender
-
-		  // inHeading is magnetic heading in degrees (0-360, 0=North)
-		  pPhoneHeading = inHeading
-		  pHasHeading = True
-
-		  // Notify listeners
-		  RaiseEvent HeadingUpdated(inHeading)
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h21
-		Private Sub HandleAuthorizationChanged(inSender As MobileLocation, inStatus As MobileLocation.AuthorizationStates)
-		  #Pragma Unused inSender
-
-		  // Notify listeners of authorization change
-		  RaiseEvent AuthorizationChanged(inStatus)
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h21
-		Private Sub HandleLocationError(inSender As MobileLocation, theError As RuntimeException)
-		  #Pragma Unused inSender
-
-		  // Notify listeners of error
-		  RaiseEvent LocationError(theError.Message)
+		  // Course is the heading (direction of travel)
+		  If inCourse >= 0 Then
+		    pPhoneHeading = inCourse
+		    pHasHeading = True
+		  End If
 		End Sub
 	#tag EndMethod
 
@@ -216,22 +188,9 @@ Protected Module Module_Location
 		Private pLastUpdateTime As DateTime
 	#tag EndProperty
 
-
-	#tag Hook, Flags = &h0
-		Event LocationUpdated(inLatitude As Double, inLongitude As Double)
-	#tag EndHook
-
-	#tag Hook, Flags = &h0
-		Event AuthorizationChanged(inStatus As MobileLocation.AuthorizationStates)
-	#tag EndHook
-
-	#tag Hook, Flags = &h0
-		Event LocationError(inMessage As String)
-	#tag EndHook
-
-	#tag Hook, Flags = &h0
-		Event HeadingUpdated(inHeading As Double)
-	#tag EndHook
+	#tag Property, Flags = &h0
+		pLastError As String = ""
+	#tag EndProperty
 
 
 End Module

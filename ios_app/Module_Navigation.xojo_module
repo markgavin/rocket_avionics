@@ -68,8 +68,26 @@ Protected Module Module_Navigation
 		  Var theIndex As Integer = Round(theBearing / 45.0)
 		  If theIndex >= 8 Then theIndex = 0
 
-		  Var theDirections() As String = Array("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-		  Return theDirections(theIndex)
+		  Select Case theIndex
+		  Case 0
+		    Return "N"
+		  Case 1
+		    Return "NE"
+		  Case 2
+		    Return "E"
+		  Case 3
+		    Return "SE"
+		  Case 4
+		    Return "S"
+		  Case 5
+		    Return "SW"
+		  Case 6
+		    Return "W"
+		  Case 7
+		    Return "NW"
+		  Else
+		    Return "N"
+		  End Select
 		End Function
 	#tag EndMethod
 
@@ -79,9 +97,11 @@ Protected Module Module_Navigation
 		  // Returns string like "1,234 m" or "1.2 km"
 
 		  If inMeters < 1000 Then
-		    Return Format(inMeters, "#,##0") + " m"
+		    Var theInt As Integer = Round(inMeters)
+		    Return Str(theInt) + " m"
 		  Else
-		    Return Format(inMeters / 1000.0, "#,##0.0") + " km"
+		    Var theKm As Double = inMeters / 1000.0
+		    Return Str(Round(theKm * 10) / 10) + " km"
 		  End If
 		End Function
 	#tag EndMethod
@@ -92,7 +112,8 @@ Protected Module Module_Navigation
 		  // Returns string like "NE 47 deg"
 
 		  Var theCompass As String = BearingToCompass(inBearing)
-		  Return theCompass + " " + Format(inBearing, "0") + Chr(&hB0)  // degree symbol
+		  Var theDeg As Integer = Round(inBearing)
+		  Return theCompass + " " + Str(theDeg) + Chr(&hB0)  // degree symbol
 		End Function
 	#tag EndMethod
 
@@ -105,12 +126,20 @@ Protected Module Module_Navigation
 		  Var theValue As Double = Abs(inDegrees)
 
 		  If inIsLatitude Then
-		    theDirection = If(inDegrees >= 0, "N", "S")
+		    If inDegrees >= 0 Then
+		      theDirection = "N"
+		    Else
+		      theDirection = "S"
+		    End If
 		  Else
-		    theDirection = If(inDegrees >= 0, "E", "W")
+		    If inDegrees >= 0 Then
+		      theDirection = "E"
+		    Else
+		      theDirection = "W"
+		    End If
 		  End If
 
-		  Return Format(theValue, "0.000000") + Chr(&hB0) + " " + theDirection
+		  Return Str(Round(theValue * 1000000) / 1000000) + Chr(&hB0) + " " + theDirection
 		End Function
 	#tag EndMethod
 
