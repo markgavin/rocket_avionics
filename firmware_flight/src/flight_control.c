@@ -441,12 +441,14 @@ const FlightResults * FlightControl_GetResults(const FlightController * inContro
 uint8_t FlightControl_BuildTelemetryPacket(
   const FlightController * inController,
   const ImuData * inImuData,
+  uint8_t inRocketId,
   LoRaTelemetryPacket * outPacket)
 {
   memset(outPacket, 0, sizeof(LoRaTelemetryPacket)) ;
 
   outPacket->pMagic = kLoRaMagic ;
   outPacket->pPacketType = kLoRaPacketTelemetry ;
+  outPacket->pRocketId = inRocketId ;
   outPacket->pSequence = inController->pTelemetrySequence ;
 
   // Time since launch (or 0 if not launched)

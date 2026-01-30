@@ -18,6 +18,7 @@
 #include "version.h"
 #include "flight_control.h"
 #include "flight_storage.h"
+#include "storage.h"
 #include "bmp390.h"
 #include "lora_radio.h"
 #include "ssd1306.h"
@@ -101,6 +102,10 @@ static uint32_t sButtonCDownMs = 0 ;
 // Flight state tracking (for flash storage transitions)
 static FlightState sPreviousFlightState = kFlightIdle ;
 static uint32_t sCurrentFlightId = 0 ;
+
+// Rocket ID (loaded from flash, can be edited via display)
+static uint8_t sRocketId = 0 ;
+static bool sRocketIdEditing = false ;  // True when editing rocket ID
 
 //----------------------------------------------
 // Forward Declarations
@@ -550,6 +555,11 @@ static void InitializeHardware(void)
     printf("WARNING: Flash storage initialization failed\n") ;
   }
 
+  // Load rocket ID from settings storage
+  Storage_Init() ;
+  sRocketId = Storage_LoadRocketId() ;
+  printf("Rocket ID: %u\n", sRocketId) ;
+
   printf("Hardware initialization complete\n\n") ;
 }
 
@@ -655,7 +665,7 @@ static void ProcessButtons(uint32_t inCurrentMs)
   }
 
   //------------------------------------------
-  // Button B: (Reserved for future use)
+  // Button B: Rocket ID editing (when in Rocket ID display mode)
   //------------------------------------------
   if (theButtonB && !sButtonBPressed)
   {
@@ -665,6 +675,31 @@ static void ProcessButtons(uint32_t inCurrentMs)
   else if (!theButtonB && sButtonBPressed)
   {
     sButtonBPressed = false ;
+    uint32_t theHoldTime = inCurrentMs - sButtonBDownMs ;
+
+    if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
+    {
+      // Only respond to Button B when in Rocket ID display mode
+      if (StatusDisplay_GetMode() == kDisplayModeRocketId)
+      {
+        // Cycle through rocket IDs 0-15
+        sRocketId = (sRocketId + 1) % 16 ;
+        DEBUG_PRINT("Button B: Rocket ID changed to %u\n", sRocketId) ;
+
+        // Save to flash
+        if (Storage_SaveRocketId(sRocketId))
+        {
+          DEBUG_PRINT("Rocket ID saved to flash\n") ;
+        }
+        else
+        {
+          DEBUG_PRINT("Failed to save rocket ID\n") ;
+        }
+
+        // Mark as editing (for display feedback)
+        sRocketIdEditing = true ;
+      }
+    }
   }
 
   //------------------------------------------
@@ -740,6 +775,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
         StatusDisplay_UpdateCompact(
           theState,
           sFlightController.pOrientationMode,
+          sRocketId,
           sFlightController.pCurrentAltitudeM,
           sFlightController.pCurrentVelocityMps,
           sGpsOk,
@@ -864,6 +900,12 @@ static void UpdateDisplay(uint32_t inCurrentMs)
         1000 / kDisplayUpdateIntervalMs) ;   // Display: 5 Hz
       break ;
 
+    case kDisplayModeRocketId:
+      StatusDisplay_ShowRocketId(sRocketId, sRocketIdEditing) ;
+      // Reset editing flag after display update
+      sRocketIdEditing = false ;
+      break ;
+
     case kDisplayModeAbout:
       StatusDisplay_ShowAbout(
         FIRMWARE_VERSION_STRING,
@@ -884,7 +926,7 @@ static void SendTelemetry(uint32_t inCurrentMs)
   // Build telemetry packet with IMU data
   LoRaTelemetryPacket thePacket ;
   const ImuData * theImuData = sImuOk ? IMU_GetData(&sImu) : NULL ;
-  uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, theImuData, &thePacket) ;
+  uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, theImuData, sRocketId, &thePacket) ;
 
   // Send via LoRa (blocking to ensure packet completes)
   // Timeout increased to 200ms for 42-byte GPS-enabled packet
@@ -1170,7 +1212,25 @@ static void ProcessLoRaCommands(void)
   }
   else if (thePacketType == kLoRaPacketCommand)
   {
-    uint8_t theCommand = theBuffer[2] ;
+    // Command format: magic, type, targetRocketId, commandId, ...params
+    if (theLen < 4)
+    {
+      DEBUG_PRINT("LoRa: Command packet too short\n") ;
+      return ;
+    }
+
+    uint8_t theTargetId = theBuffer[2] ;
+    uint8_t theCommand = theBuffer[3] ;
+
+    // Check if this command is for us (or broadcast 0xFF)
+    if (theTargetId != sRocketId && theTargetId != 0xFF)
+    {
+      DEBUG_PRINT("LoRa: Command for rocket %u (we are %u), ignoring\n", theTargetId, sRocketId) ;
+      LoRa_StartReceive(&sLoRaRadio) ;
+      return ;
+    }
+
+    DEBUG_PRINT("LoRa: Command 0x%02X for rocket %u\n", theCommand, theTargetId) ;
 
     switch (theCommand)
     {
@@ -1201,7 +1261,7 @@ static void ProcessLoRaCommands(void)
 
       case kCmdOrientationMode:
         {
-          bool theEnabled = (theLen > 3) ? (theBuffer[3] != 0) : false ;
+          bool theEnabled = (theLen > 4) ? (theBuffer[4] != 0) : false ;
           DEBUG_PRINT("LoRa: Orientation mode %s\n", theEnabled ? "enabled" : "disabled") ;
           FlightControl_SetOrientationMode(&sFlightController, theEnabled) ;
         }
@@ -1214,15 +1274,15 @@ static void ProcessLoRaCommands(void)
 
       case kCmdFlashRead:
         {
-          // Format: cmd, slot, startSample (4 bytes)
+          // Format: magic, type, targetId, cmd, slot, startSample (4 bytes)
           // If startSample == 0xFFFFFFFF, send header instead
-          if (theLen >= 7)
+          if (theLen >= 8)
           {
-            uint8_t theSlot = theBuffer[3] ;
-            uint32_t theStartSample = theBuffer[4] |
-              (theBuffer[5] << 8) |
-              (theBuffer[6] << 16) |
-              ((theLen >= 8) ? (theBuffer[7] << 24) : 0) ;
+            uint8_t theSlot = theBuffer[4] ;
+            uint32_t theStartSample = theBuffer[5] |
+              (theBuffer[6] << 8) |
+              (theBuffer[7] << 16) |
+              ((theLen >= 9) ? (theBuffer[8] << 24) : 0) ;
 
             DEBUG_PRINT("LoRa: Flash read slot=%u start=%lu\n",
               theSlot, (unsigned long)theStartSample) ;
@@ -1247,9 +1307,9 @@ static void ProcessLoRaCommands(void)
 
       case kCmdFlashDelete:
         {
-          if (theLen >= 4)
+          if (theLen >= 5)
           {
-            uint8_t theSlot = theBuffer[3] ;
+            uint8_t theSlot = theBuffer[4] ;
             DEBUG_PRINT("LoRa: Flash delete slot=%u\n", theSlot) ;
 
             if (theSlot == 0xFF)

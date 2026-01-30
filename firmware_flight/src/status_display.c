@@ -411,6 +411,7 @@ void StatusDisplay_ShowGpsStatus(
 void StatusDisplay_UpdateCompact(
   FlightState inState,
   bool inOrientationMode,
+  uint8_t inRocketId,
   float inAltitudeM,
   float inVelocityMps,
   bool inGpsOk,
@@ -434,7 +435,14 @@ void StatusDisplay_UpdateCompact(
   {
     theStateName = FlightControl_GetStateName(inState) ;
   }
-  SSD1306_DrawStringCentered(0, theStateName, 1) ;
+  SSD1306_DrawString(0, 0, theStateName, 1) ;
+
+  // Rocket ID in top right corner
+  char theIdBuffer[8] ;
+  snprintf(theIdBuffer, sizeof(theIdBuffer), "#%u", inRocketId) ;
+  // Position based on string length (right-aligned)
+  int16_t theIdX = 128 - (strlen(theIdBuffer) * 6) ;  // 6 pixels per char
+  SSD1306_DrawString(theIdX, 0, theIdBuffer, 1) ;
 
   // Draw separator line
   SSD1306_DrawLine(0, 10, 127, 10, true) ;
@@ -896,6 +904,43 @@ void StatusDisplay_ShowAbout(
 
   // Copyright
   SSD1306_DrawStringCentered(48, "(c) 2026 Mark Gavin", 1) ;
+
+  SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowRocketId
+// Purpose: Show rocket ID setting screen
+//----------------------------------------------
+void StatusDisplay_ShowRocketId(
+  uint8_t inRocketId,
+  bool inEditing)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+
+  // Title
+  SSD1306_DrawStringCentered(0, "ROCKET ID", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  // Large ID number display
+  char theBuffer[16] ;
+  snprintf(theBuffer, sizeof(theBuffer), "%u", inRocketId) ;
+  SSD1306_DrawStringCentered(20, theBuffer, 3) ;
+
+  // ID range hint
+  SSD1306_DrawStringCentered(44, "(0 - 15)", 1) ;
+
+  // Instructions at bottom
+  if (inEditing)
+  {
+    SSD1306_DrawStringCentered(54, "[B] to change", 1) ;
+  }
+  else
+  {
+    SSD1306_DrawStringCentered(54, "Press B to edit", 1) ;
+  }
 
   SSD1306_Update() ;
 }

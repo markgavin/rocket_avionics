@@ -77,14 +77,15 @@ typedef struct
 } FlightResults ;
 
 //----------------------------------------------
-// LoRa Telemetry Packet (binary, 42 bytes)
+// LoRa Telemetry Packet (binary, 55 bytes)
 // Sent at 10 Hz during flight
 //----------------------------------------------
 typedef struct __attribute__((packed))
 {
-  // Header (4 bytes)
+  // Header (5 bytes)
   uint8_t pMagic ;                // 0xAF (Avionics Flight)
   uint8_t pPacketType ;           // 0x01 = telemetry
+  uint8_t pRocketId ;             // Rocket ID (0-15 for multi-rocket support)
   uint16_t pSequence ;            // Packet sequence number
 
   // Time (4 bytes)
@@ -299,12 +300,14 @@ const FlightResults * FlightControl_GetResults(
 // Parameters:
 //   inController - Controller
 //   inImuData - IMU data (can be NULL)
+//   inRocketId - Rocket ID (0-15)
 //   outPacket - Packet to fill
 // Returns: Packet size in bytes
 //----------------------------------------------
 uint8_t FlightControl_BuildTelemetryPacket(
   const FlightController * inController,
   const ImuData * inImuData,
+  uint8_t inRocketId,
   LoRaTelemetryPacket * outPacket) ;
 
 //----------------------------------------------

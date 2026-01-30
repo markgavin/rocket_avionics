@@ -112,11 +112,13 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RS
 //----------------------------------------------
 #define LORA_MAGIC              0xAF
 #define LORA_PACKET_TELEMETRY   0x01
-#define LORA_PACKET_SIZE        54
+#define LORA_PACKET_SIZE        55
+#define MAX_ROCKETS             15
 
 typedef struct __attribute__((packed)) {
     uint8_t magic;
     uint8_t packetType;
+    uint8_t rocketId;           // Rocket ID (0-15)
     uint16_t sequence;
     uint32_t timeMs;
     int32_t altitudeCm;
@@ -141,6 +143,21 @@ typedef struct __attribute__((packed)) {
     uint8_t flags;
     uint8_t crc;
 } LoRaTelemetryPacket;
+
+//----------------------------------------------
+// Multi-Rocket Tracking
+//----------------------------------------------
+typedef struct {
+    bool active;                // Has received data recently
+    uint32_t lastUpdateMs;      // Last packet time
+    float latitude;             // Last known latitude
+    float longitude;            // Last known longitude
+    float altitudeM;            // Last known altitude
+    float distanceM;            // Distance from gateway
+    uint8_t state;              // Flight state
+    uint8_t satellites;         // GPS satellites
+    int16_t rssi;               // Signal strength
+} RocketData;
 
 // Flight state names
 const char* flightStateNames[] = {
@@ -187,11 +204,18 @@ int8_t currentWifiTxPower = 8;                 // WiFi power level (index into p
 // uint32_t lastBatteryRead = 0;
 // float prevBatteryVoltage = -1.0;
 
-// Distance to rocket
-float rocketLat = 0.0;
-float rocketLon = 0.0;
+// Multi-rocket tracking
+RocketData rockets[MAX_ROCKETS];
+uint8_t activeRocketCount = 0;
+uint8_t displayRocketIndex = 0;          // Which rocket to show on display
+uint32_t lastDisplayCycleMs = 0;
+#define DISPLAY_CYCLE_INTERVAL_MS 3000   // Cycle every 3 seconds
+#define ROCKET_TIMEOUT_MS         10000  // Mark inactive after 10s no data
+
+// Distance to current display rocket (for display)
 float distanceToRocket = 0.0;    // meters
 float prevDistanceToRocket = -1.0;
+uint8_t prevDisplayRocketId = 255;
 
 //----------------------------------------------
 // LoRa Receive Callback (ISR)
@@ -218,6 +242,12 @@ void setup() {
     displaySplash();
 
     // Battery monitoring disabled - Wireless Tracker ADC pin undocumented
+
+    // Initialize rocket tracking
+    for (int i = 0; i < MAX_ROCKETS; i++) {
+        rockets[i].active = false;
+        rockets[i].lastUpdateMs = 0;
+    }
 
     // Initialize GPS (also powers VEXT for GPS)
     initGPS();
@@ -267,6 +297,9 @@ void loop() {
 
     // Read GPS
     readGPS();
+
+    // Update rocket tracking (mark inactive rockets, cycle display)
+    updateRocketTracking();
 
     // Update display periodically (partial updates only redraw changed values)
     if (millis() - lastDisplayUpdate > 1000) {
@@ -526,6 +559,49 @@ void handleLoRa() {
 }
 
 //----------------------------------------------
+// Update Rocket Tracking (timeouts and display cycling)
+//----------------------------------------------
+void updateRocketTracking() {
+    uint32_t now = millis();
+
+    // Count active rockets and mark timed-out ones as inactive
+    activeRocketCount = 0;
+    for (int i = 0; i < MAX_ROCKETS; i++) {
+        if (rockets[i].active) {
+            if (now - rockets[i].lastUpdateMs > ROCKET_TIMEOUT_MS) {
+                rockets[i].active = false;
+            } else {
+                activeRocketCount++;
+            }
+        }
+    }
+
+    // Cycle to next active rocket for display
+    if (activeRocketCount > 1 && now - lastDisplayCycleMs > DISPLAY_CYCLE_INTERVAL_MS) {
+        lastDisplayCycleMs = now;
+
+        // Find next active rocket
+        uint8_t startIdx = displayRocketIndex;
+        do {
+            displayRocketIndex = (displayRocketIndex + 1) % MAX_ROCKETS;
+        } while (!rockets[displayRocketIndex].active && displayRocketIndex != startIdx);
+    }
+
+    // Update distance for display rocket
+    if (displayRocketIndex < MAX_ROCKETS && rockets[displayRocketIndex].active) {
+        if (gps.location.isValid()) {
+            distanceToRocket = calculateDistance(
+                gps.location.lat(), gps.location.lng(),
+                rockets[displayRocketIndex].latitude,
+                rockets[displayRocketIndex].longitude
+            );
+        } else {
+            distanceToRocket = rockets[displayRocketIndex].distanceM;
+        }
+    }
+}
+
+//----------------------------------------------
 // Calculate distance between two GPS coordinates (Haversine formula)
 // Returns distance in meters
 //----------------------------------------------
@@ -550,18 +626,54 @@ float calculateDistance(float lat1, float lon1, float lat2, float lon2) {
 void forwardTelemetryAsJson() {
     LoRaTelemetryPacket* pkt = (LoRaTelemetryPacket*)lastLoraPacketBinary;
 
+    // Get rocket ID (clamp to valid range)
+    uint8_t rocketId = pkt->rocketId;
+    if (rocketId >= MAX_ROCKETS) rocketId = 0;
+
+    // Extract GPS coordinates
+    float rocketLat = pkt->gpsLatitude / 1000000.0;
+    float rocketLon = pkt->gpsLongitude / 1000000.0;
+    float rocketAlt = pkt->altitudeCm / 100.0;
+
+    // Update rocket tracking data
+    rockets[rocketId].active = true;
+    rockets[rocketId].lastUpdateMs = millis();
+    rockets[rocketId].latitude = rocketLat;
+    rockets[rocketId].longitude = rocketLon;
+    rockets[rocketId].altitudeM = rocketAlt;
+    rockets[rocketId].state = pkt->state;
+    rockets[rocketId].satellites = pkt->gpsSatellites;
+    rockets[rocketId].rssi = (int16_t)lastRssi;
+
+    // Calculate distance if gateway has GPS fix
+    float rocketDist = 0.0;
+    if (gps.location.isValid() && rocketLat != 0.0 && rocketLon != 0.0) {
+        rocketDist = calculateDistance(
+            gps.location.lat(), gps.location.lng(),
+            rocketLat, rocketLon
+        );
+        rockets[rocketId].distanceM = rocketDist;
+    }
+
+    // If this is the first active rocket, make it the display rocket
+    if (displayRocketIndex >= MAX_ROCKETS || !rockets[displayRocketIndex].active) {
+        displayRocketIndex = rocketId;
+        lastDisplayCycleMs = millis();
+    }
+
     // Build JSON telemetry
     String json = "{\"type\":\"tel\"";
+    json += ",\"id\":" + String(rocketId);
     json += ",\"seq\":" + String(pkt->sequence);
     json += ",\"time\":" + String(pkt->timeMs);
-    json += ",\"alt\":" + String(pkt->altitudeCm / 100.0, 2);
+    json += ",\"alt\":" + String(rocketAlt, 2);
     json += ",\"vel\":" + String(pkt->velocityCmps / 100.0, 2);
     json += ",\"pres\":" + String(pkt->pressurePa);
     json += ",\"temp\":" + String(pkt->temperatureC10 / 10.0, 1);
 
     // GPS
-    json += ",\"lat\":" + String(pkt->gpsLatitude / 1000000.0, 6);
-    json += ",\"lon\":" + String(pkt->gpsLongitude / 1000000.0, 6);
+    json += ",\"lat\":" + String(rocketLat, 6);
+    json += ",\"lon\":" + String(rocketLon, 6);
     json += ",\"gspd\":" + String(pkt->gpsSpeedCmps / 100.0, 1);
     json += ",\"ghdg\":" + String(pkt->gpsHeadingDeg10 / 10.0, 1);
     json += ",\"sats\":" + String(pkt->gpsSatellites);
@@ -591,15 +703,9 @@ void forwardTelemetryAsJson() {
     json += ",\"rssi\":" + String(lastRssi, 1);
     json += ",\"snr\":" + String(lastSnr, 1);
 
-    // Calculate distance to rocket if both GPS positions are valid
-    rocketLat = pkt->gpsLatitude / 1000000.0;
-    rocketLon = pkt->gpsLongitude / 1000000.0;
-    if (gps.location.isValid() && rocketLat != 0.0 && rocketLon != 0.0) {
-        distanceToRocket = calculateDistance(
-            gps.location.lat(), gps.location.lng(),
-            rocketLat, rocketLon
-        );
-        json += ",\"dist\":" + String(distanceToRocket, 1);
+    // Add distance if valid
+    if (rocketDist > 0) {
+        json += ",\"dist\":" + String(rocketDist, 1);
     }
 
     json += "}";
@@ -980,82 +1086,92 @@ void handleClientCommand(int clientIdx, const String& command) {
         return;
     }
 
+    if (cmd == "rockets") {
+        sendRocketList(clientIdx);
+        return;
+    }
+
     //------------------------------------------
     // Flight computer commands - convert to binary
+    // All commands can include "rocket":N to target a specific rocket
+    // Packet format: magic, type, targetRocketId, commandId, ...params
     //------------------------------------------
+    int targetRocket = extractJsonInt(command, "rocket", 0);
+    if (targetRocket < 0 || targetRocket >= MAX_ROCKETS) targetRocket = 0;
     uint8_t loraPacket[32];
     uint8_t packetLen = 0;
 
     loraPacket[0] = LORA_MAGIC;
     loraPacket[1] = 0x03;  // kLoRaPacketCommand
+    loraPacket[2] = (uint8_t)targetRocket;  // Target rocket ID
 
     if (cmd == "arm") {
-        loraPacket[2] = 0x01;  // kCmdArm
-        packetLen = 3;
-    }
-    else if (cmd == "disarm") {
-        loraPacket[2] = 0x02;  // kCmdDisarm
-        packetLen = 3;
-    }
-    else if (cmd == "reset") {
-        loraPacket[2] = 0x04;  // kCmdReset
-        packetLen = 3;
-    }
-    else if (cmd == "fc_info" || cmd == "info") {
-        loraPacket[2] = 0x07;  // kCmdInfo
-        packetLen = 3;
-    }
-    else if (cmd == "orientation_mode") {
-        loraPacket[2] = 0x08;  // kCmdOrientationMode
-        // Extract enabled parameter
-        bool enabled = command.indexOf("\"enabled\":true") >= 0;
-        loraPacket[3] = enabled ? 1 : 0;
+        loraPacket[3] = 0x01;  // kCmdArm
         packetLen = 4;
     }
+    else if (cmd == "disarm") {
+        loraPacket[3] = 0x02;  // kCmdDisarm
+        packetLen = 4;
+    }
+    else if (cmd == "reset") {
+        loraPacket[3] = 0x04;  // kCmdReset
+        packetLen = 4;
+    }
+    else if (cmd == "fc_info" || cmd == "info") {
+        loraPacket[3] = 0x07;  // kCmdInfo
+        packetLen = 4;
+    }
+    else if (cmd == "orientation_mode") {
+        loraPacket[3] = 0x08;  // kCmdOrientationMode
+        // Extract enabled parameter
+        bool enabled = command.indexOf("\"enabled\":true") >= 0;
+        loraPacket[4] = enabled ? 1 : 0;
+        packetLen = 5;
+    }
     else if (cmd == "flash_list") {
-        loraPacket[2] = 0x20;  // kCmdFlashList
-        packetLen = 3;
+        loraPacket[3] = 0x20;  // kCmdFlashList
+        packetLen = 4;
     }
     else if (cmd == "flash_read") {
-        loraPacket[2] = 0x21;  // kCmdFlashRead
+        loraPacket[3] = 0x21;  // kCmdFlashRead
         // Extract slot and sample/header parameters
         int slot = extractJsonInt(command, "slot", 0);
         bool isHeader = command.indexOf("\"header\":true") >= 0;
         int sample = isHeader ? 0xFFFFFFFF : extractJsonInt(command, "sample", 0);
-        loraPacket[3] = (uint8_t)slot;
-        loraPacket[4] = sample & 0xFF;
-        loraPacket[5] = (sample >> 8) & 0xFF;
-        loraPacket[6] = (sample >> 16) & 0xFF;
-        loraPacket[7] = (sample >> 24) & 0xFF;
-        packetLen = 8;
+        loraPacket[4] = (uint8_t)slot;
+        loraPacket[5] = sample & 0xFF;
+        loraPacket[6] = (sample >> 8) & 0xFF;
+        loraPacket[7] = (sample >> 16) & 0xFF;
+        loraPacket[8] = (sample >> 24) & 0xFF;
+        packetLen = 9;
     }
     else if (cmd == "flash_delete") {
-        loraPacket[2] = 0x22;  // kCmdFlashDelete
+        loraPacket[3] = 0x22;  // kCmdFlashDelete
         int slot = extractJsonInt(command, "slot", 255);
-        loraPacket[3] = (uint8_t)slot;
-        packetLen = 4;
+        loraPacket[4] = (uint8_t)slot;
+        packetLen = 5;
     }
     else if (cmd == "download") {
-        loraPacket[2] = 0x05;  // kCmdDownload
-        packetLen = 3;
+        loraPacket[3] = 0x05;  // kCmdDownload
+        packetLen = 4;
     }
     else if (cmd == "sd_list") {
-        loraPacket[2] = 0x10;  // kCmdSdList
-        packetLen = 3;
+        loraPacket[3] = 0x10;  // kCmdSdList
+        packetLen = 4;
     }
     else if (cmd == "sd_read") {
-        loraPacket[2] = 0x11;  // kCmdSdRead
+        loraPacket[3] = 0x11;  // kCmdSdRead
         // Extract filename and offset
         String filename = extractJsonString(command, "file");
         int offset = extractJsonInt(command, "offset", 0);
         // Filename length + filename + offset (4 bytes)
         uint8_t fnLen = filename.length();
         if (fnLen > 32) fnLen = 32;  // Limit filename length
-        loraPacket[3] = fnLen;
+        loraPacket[4] = fnLen;
         for (int i = 0; i < fnLen; i++) {
-            loraPacket[4 + i] = filename.charAt(i);
+            loraPacket[5 + i] = filename.charAt(i);
         }
-        int offIdx = 4 + fnLen;
+        int offIdx = 5 + fnLen;
         loraPacket[offIdx] = offset & 0xFF;
         loraPacket[offIdx + 1] = (offset >> 8) & 0xFF;
         loraPacket[offIdx + 2] = (offset >> 16) & 0xFF;
@@ -1063,16 +1179,16 @@ void handleClientCommand(int clientIdx, const String& command) {
         packetLen = offIdx + 4;
     }
     else if (cmd == "sd_delete") {
-        loraPacket[2] = 0x12;  // kCmdSdDelete
+        loraPacket[3] = 0x12;  // kCmdSdDelete
         // Extract filename
         String filename = extractJsonString(command, "file");
         uint8_t fnLen = filename.length();
         if (fnLen > 32) fnLen = 32;
-        loraPacket[3] = fnLen;
+        loraPacket[4] = fnLen;
         for (int i = 0; i < fnLen; i++) {
-            loraPacket[4 + i] = filename.charAt(i);
+            loraPacket[5 + i] = filename.charAt(i);
         }
-        packetLen = 4 + fnLen;
+        packetLen = 5 + fnLen;
     }
     else {
         Serial.printf("Unknown command: %s\n", cmd.c_str());
@@ -1264,6 +1380,41 @@ void applyGatewaySettings(int clientIdx, const String& command) {
 }
 
 //----------------------------------------------
+// Send Rocket List Response
+//----------------------------------------------
+void sendRocketList(int clientIdx) {
+    String response = "{\"type\":\"rockets\"";
+    response += ",\"count\":" + String(activeRocketCount);
+    response += ",\"rockets\":[";
+
+    bool first = true;
+    for (int i = 0; i < MAX_ROCKETS; i++) {
+        if (rockets[i].active) {
+            if (!first) response += ",";
+            first = false;
+
+            response += "{\"id\":" + String(i);
+            response += ",\"lat\":" + String(rockets[i].latitude, 6);
+            response += ",\"lon\":" + String(rockets[i].longitude, 6);
+            response += ",\"alt\":" + String(rockets[i].altitudeM, 1);
+            response += ",\"dist\":" + String(rockets[i].distanceM, 1);
+
+            uint8_t st = rockets[i].state;
+            if (st > 7) st = 0;
+            response += ",\"state\":\"" + String(flightStateNames[st]) + "\"";
+            response += ",\"sats\":" + String(rockets[i].satellites);
+            response += ",\"rssi\":" + String(rockets[i].rssi);
+            response += ",\"age\":" + String((millis() - rockets[i].lastUpdateMs) / 1000);
+            response += "}";
+        }
+    }
+
+    response += "]}";
+    clients[clientIdx].println(response);
+    Serial.println("Sent rocket list");
+}
+
+//----------------------------------------------
 // Send Gateway Info Response
 // Field names must match what desktop app expects
 //----------------------------------------------
@@ -1402,25 +1553,49 @@ void updateDisplay() {
         prevGpsLon = gpsLon;
     }
 
-    // Row 4: Distance to rocket (only if changed)
-    if (distanceToRocket != prevDistanceToRocket) {
+    // Row 4: Rocket info (ID, distance, state)
+    if (distanceToRocket != prevDistanceToRocket || displayRocketIndex != prevDisplayRocketId) {
         tft.fillRect(2, 52, 156, 10, COLOR_BLACK);
         tft.setCursor(2, 52);
-        if (distanceToRocket > 0) {
-            tft.setTextColor(COLOR_CYAN);
-            if (distanceToRocket >= 1000) {
-                tft.printf("Dist: %.2f km", distanceToRocket / 1000.0);
+
+        if (activeRocketCount > 0 && displayRocketIndex < MAX_ROCKETS && rockets[displayRocketIndex].active) {
+            // Show rocket ID (and count if multiple rockets)
+            tft.setTextColor(activeRocketCount > 1 ? COLOR_ORANGE : COLOR_CYAN);
+            tft.printf("R%d", displayRocketIndex);
+            if (activeRocketCount > 1) {
+                tft.setTextColor(COLOR_DARK_GRAY);
+                tft.printf("/%d", activeRocketCount);
+            }
+            tft.print(" ");
+
+            // Show distance
+            if (distanceToRocket > 0) {
+                tft.setTextColor(COLOR_CYAN);
+                if (distanceToRocket >= 1000) {
+                    tft.printf("%.1fkm", distanceToRocket / 1000.0);
+                } else {
+                    tft.printf("%.0fm", distanceToRocket);
+                }
             } else {
-                tft.printf("Dist: %.0f m", distanceToRocket);
+                tft.setTextColor(COLOR_DARK_GRAY);
+                tft.print("GPS...");
+            }
+
+            // Show state
+            uint8_t st = rockets[displayRocketIndex].state;
+            if (st <= 7) {
+                tft.setTextColor(COLOR_WHITE);
+                tft.printf(" %s", flightStateNames[st]);
             }
         } else if (loraPacketCount > 0) {
             tft.setTextColor(COLOR_DARK_GRAY);
-            tft.print("Dist: waiting GPS...");
+            tft.print("Rocket: waiting GPS...");
         } else {
             tft.setTextColor(COLOR_DARK_GRAY);
-            tft.print("Dist: no data");
+            tft.print("Rocket: no data");
         }
         prevDistanceToRocket = distanceToRocket;
+        prevDisplayRocketId = displayRocketIndex;
     }
 
     // Row 5: Time (only if changed - update once per second)

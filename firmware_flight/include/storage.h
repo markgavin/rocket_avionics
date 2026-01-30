@@ -75,3 +75,44 @@ bool Storage_HasCalibration(void) ;
 // Returns: true if successful
 //----------------------------------------------
 bool Storage_ClearCalibration(void) ;
+
+//----------------------------------------------
+// Device Settings Data Structure
+//----------------------------------------------
+typedef struct
+{
+  uint32_t pMagic ;         // Magic number for validation
+  uint32_t pVersion ;       // Data format version
+  uint8_t pRocketId ;       // Unique rocket ID (0-15)
+  uint8_t pReserved[3] ;    // Reserved for future use
+  uint32_t pChecksum ;      // Data integrity check
+} DeviceSettings ;
+
+//----------------------------------------------
+// Settings magic and version constants
+//----------------------------------------------
+#define kSettingsMagic   0x53455454  // "SETT"
+#define kSettingsVersion 1
+
+//----------------------------------------------
+// Function: Storage_SaveRocketId
+// Purpose: Save rocket ID to flash
+// Parameters:
+//   inRocketId - rocket ID (0-15)
+// Returns: true if successful
+//----------------------------------------------
+bool Storage_SaveRocketId(uint8_t inRocketId) ;
+
+//----------------------------------------------
+// Function: Storage_LoadRocketId
+// Purpose: Load rocket ID from flash
+// Returns: Rocket ID (0-15), or 0 if not found
+//----------------------------------------------
+uint8_t Storage_LoadRocketId(void) ;
+
+//----------------------------------------------
+// Function: Storage_HasSettings
+// Purpose: Check if valid settings exist
+// Returns: true if settings data present
+//----------------------------------------------
+bool Storage_HasSettings(void) ;

@@ -22,11 +22,14 @@
 //----------------------------------------------
 // Adafruit Feather RP2350 has 8MB (0x800000) flash
 // Use last sector for calibration storage
+// Use second-to-last sector for device settings
 #define kFeatherFlashSize     0x800000    // 8MB
 #define kFlashTargetOffset    (kFeatherFlashSize - FLASH_SECTOR_SIZE)
+#define kFlashSettingsOffset  (kFeatherFlashSize - (2 * FLASH_SECTOR_SIZE))
 
 // Pointer to flash storage location (read as memory-mapped)
 #define kFlashStoragePtr ((const CalibrationData *)(XIP_BASE + kFlashTargetOffset))
+#define kFlashSettingsPtr ((const DeviceSettings *)(XIP_BASE + kFlashSettingsOffset))
 
 //----------------------------------------------
 // Function: Storage_Init
@@ -167,3 +170,106 @@ bool Storage_ClearCalibration(void)
   // Verify erase
   return !Storage_HasCalibration() ;
 } // end Storage_ClearCalibration
+
+//----------------------------------------------
+// Function: Storage_SaveRocketId
+//----------------------------------------------
+bool Storage_SaveRocketId(uint8_t inRocketId)
+{
+  // Validate rocket ID
+  if (inRocketId > 15)
+  {
+    printf("Storage: Invalid rocket ID %u (max 15)\n", inRocketId) ;
+    return false ;
+  }
+
+  printf("Storage: Saving rocket ID %u...\n", inRocketId) ;
+
+  // Prepare settings data
+  DeviceSettings theData ;
+  theData.pMagic = kSettingsMagic ;
+  theData.pVersion = kSettingsVersion ;
+  theData.pRocketId = inRocketId ;
+  theData.pReserved[0] = 0 ;
+  theData.pReserved[1] = 0 ;
+  theData.pReserved[2] = 0 ;
+
+  // Calculate checksum (simple sum of all bytes before checksum)
+  uint32_t theChecksum = 0 ;
+  const uint8_t * theBytes = (const uint8_t *)&theData ;
+  for (size_t theIndex = 0 ; theIndex < offsetof(DeviceSettings, pChecksum) ; theIndex++)
+  {
+    theChecksum += theBytes[theIndex] ;
+  }
+  theData.pChecksum = theChecksum ;
+
+  // Prepare buffer aligned to flash page size
+  uint8_t theBuffer[FLASH_PAGE_SIZE] ;
+  memset(theBuffer, 0xFF, sizeof(theBuffer)) ;
+  memcpy(theBuffer, &theData, sizeof(DeviceSettings)) ;
+
+  // Flush stdio before flash operations
+  stdio_flush() ;
+
+  // Disable interrupts during flash operations
+  uint32_t theInterrupts = save_and_disable_interrupts() ;
+
+  // Erase the sector
+  flash_range_erase(kFlashSettingsOffset, FLASH_SECTOR_SIZE) ;
+
+  // Program the data
+  flash_range_program(kFlashSettingsOffset, theBuffer, FLASH_PAGE_SIZE) ;
+
+  restore_interrupts(theInterrupts) ;
+
+  printf("Storage: Rocket ID saved\n") ;
+
+  // Verify write
+  return Storage_HasSettings() && (Storage_LoadRocketId() == inRocketId) ;
+} // end Storage_SaveRocketId
+
+//----------------------------------------------
+// Function: Storage_LoadRocketId
+//----------------------------------------------
+uint8_t Storage_LoadRocketId(void)
+{
+  if (!Storage_HasSettings())
+  {
+    return 0 ;  // Default to ID 0 if not set
+  }
+
+  return kFlashSettingsPtr->pRocketId ;
+} // end Storage_LoadRocketId
+
+//----------------------------------------------
+// Function: Storage_HasSettings
+//----------------------------------------------
+bool Storage_HasSettings(void)
+{
+  // Check magic number
+  if (kFlashSettingsPtr->pMagic != kSettingsMagic)
+  {
+    return false ;
+  }
+
+  // Check version
+  if (kFlashSettingsPtr->pVersion != kSettingsVersion)
+  {
+    return false ;
+  }
+
+  // Verify checksum
+  uint32_t theChecksum = 0 ;
+  const uint8_t * theBytes = (const uint8_t *)kFlashSettingsPtr ;
+  for (size_t theIndex = 0 ; theIndex < offsetof(DeviceSettings, pChecksum) ; theIndex++)
+  {
+    theChecksum += theBytes[theIndex] ;
+  }
+
+  if (theChecksum != kFlashSettingsPtr->pChecksum)
+  {
+    return false ;
+  }
+
+  return true ;
+} // end Storage_HasSettings

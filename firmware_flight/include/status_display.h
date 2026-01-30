@@ -31,6 +31,7 @@ typedef enum
   kDisplayModeSpin ,          // Spin rate display
   kDisplayModeCompass ,       // Compass heading display
   kDisplayModeRates ,         // Sensor sampling rates
+  kDisplayModeRocketId ,      // Rocket ID setting
   kDisplayModeDeviceInfo ,    // Board, version, sensors
   kDisplayModeAbout ,         // About screen with version/copyright
   kDisplayModeCount           // Number of modes
@@ -205,6 +206,7 @@ void StatusDisplay_ShowGpsStatus(
 // Parameters:
 //   inState - Current flight state
 //   inOrientationMode - Orientation testing mode active
+//   inRocketId - Rocket ID (0-15)
 //   inAltitudeM - Current altitude in meters
 //   inVelocityMps - Current velocity in m/s
 //   inGpsOk - GPS initialized and working
@@ -217,6 +219,7 @@ void StatusDisplay_ShowGpsStatus(
 void StatusDisplay_UpdateCompact(
   FlightState inState,
   bool inOrientationMode,
+  uint8_t inRocketId,
   float inAltitudeM,
   float inVelocityMps,
   bool inGpsOk,
@@ -307,4 +310,15 @@ void StatusDisplay_ShowAbout(
   const char * inVersion,
   const char * inBuildDate,
   const char * inBuildTime) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowRocketId
+// Purpose: Show rocket ID setting screen
+// Parameters:
+//   inRocketId - Current rocket ID (0-15)
+//   inEditing - True if currently editing (show cursor)
+//----------------------------------------------
+void StatusDisplay_ShowRocketId(
+  uint8_t inRocketId,
+  bool inEditing) ;
 
