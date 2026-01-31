@@ -57,6 +57,24 @@ make -j4
 # Output: build/rocket_avionics_flight.uf2
 ```
 
+## Flashing
+
+### Single Device
+```bash
+picotool load build/rocket_avionics_flight.uf2 -f
+```
+
+### Multiple Devices Connected
+When multiple RP2040 devices are connected, specify the bus and address:
+```bash
+# List connected devices
+picotool info
+
+# Flash specific device (check bus/address from picotool info)
+picotool load build/rocket_avionics_flight.uf2 -f --bus 0 --address 5
+picotool load build/rocket_avionics_flight.uf2 -f --bus 0 --address 6
+```
+
 ## Flight State Machine
 
 ```
@@ -84,10 +102,11 @@ PAD → BOOST → COAST → APOGEE → DROGUE → MAIN → LANDED
 
 ## Telemetry Format
 
-JSON transmitted at 10 Hz over LoRa:
+Binary packets transmitted at 10 Hz over LoRa, decoded to JSON by gateway:
 ```json
 {
   "type": "tel",
+  "id": 0,
   "state": "BOOST",
   "alt": 152.3,
   "vel": 45.2,
@@ -95,10 +114,16 @@ JSON transmitted at 10 Hz over LoRa:
   "max_alt": 152.3,
   "lat": 38.897,
   "lon": -77.036,
+  "sats": 8,
   "pyro1": true,
   "pyro2": true
 }
 ```
+
+Key fields:
+- `id`: Rocket ID (0-15) for multi-rocket tracking
+- `sats`: Number of GPS satellites in view
+- `lat`/`lon`: GPS coordinates (valid when `sats` > 0)
 
 ## Flash Storage
 
@@ -140,11 +165,34 @@ JSON transmitted at 10 Hz over LoRa:
 
 | Mode | Content |
 |------|---------|
-| Status | Flight state, altitude, velocity |
+| Live | Flight state, altitude, velocity (home screen) |
 | Sensors | Barometer, IMU readings |
 | Pyro | Continuity status, arm state |
 | Storage | Flight count, storage used |
+| Rocket ID | Rocket name/ID (editable) |
 | About | Version and build info |
+
+## Button Navigation
+
+The display has two buttons (A and B) for navigation:
+
+### Button A - Cycle Screens
+Cycles through display modes: Live → Sensors → Pyro → Storage → Rocket ID → About → Live...
+
+### Button B - Context-Dependent
+- **On Rocket ID screen:** Cycles rocket ID from 0-15
+- **On all other screens:** Returns to Live (home) screen
+
+## Rocket ID Configuration
+
+Each flight computer has a unique rocket ID (0-15) for multi-rocket support:
+
+- **Default:** ID 0
+- **Editing:** Navigate to Rocket ID screen, press Button B to cycle through IDs
+- **Storage:** Saved to flash memory, persists across power cycles
+- **Display:** Shows on Rocket ID screen and in telemetry packets
+
+The rocket ID is included in all telemetry packets, allowing the gateway and apps to track multiple rockets simultaneously.
 
 ## Coding Conventions
 

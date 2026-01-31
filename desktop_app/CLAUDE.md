@@ -26,11 +26,14 @@ desktop_app/
 │   ├── Window_FlightCompare.xojo_window# Compare multiple flights
 │   ├── Window_Orientation.xojo_window  # 3D orientation view
 │   ├── Window_WifiConfig.xojo_window   # Gateway WiFi settings
+│   ├── Window_GatewayInfo.xojo_window  # Gateway status/info
 │   └── Window_Splash.xojo_window       # Startup splash screen
 │
 ├── Dialogs/
 │   ├── Dialog_About.xojo_window        # About dialog
-│   └── Dialog_Preferences.xojo_window  # App preferences
+│   ├── Dialog_Preferences.xojo_window  # App preferences
+│   ├── Dialog_GatewaySettings.xojo_window  # Gateway configuration
+│   └── Dialog_RenameRocket.xojo_window # Rename rocket dialog
 │
 ├── Classes/
 │   ├── FlightConnection.xojo_code      # Serial/TCP connection manager
@@ -102,6 +105,23 @@ Debug console:
 - Send manual commands
 - Connection diagnostics
 
+### Window_GatewayInfo
+Gateway status display:
+- Gateway version and build info
+- WiFi mode and IP address
+- LoRa packet statistics
+- GPS status (gateway location)
+
+## Multi-Rocket Support
+
+The desktop app supports tracking multiple rockets simultaneously:
+
+- **Rocket List:** View all active rockets with ID, state, altitude
+- **Rocket Selection:** Click to select which rocket to display
+- **Rename Rockets:** Right-click → Rename to give rockets meaningful names
+- **Individual Telemetry:** Each rocket's telemetry is tracked independently
+- **Recovery Mode:** Select a landed rocket to see GPS coordinates
+
 ## Connection Protocol
 
 ### Serial Connection
@@ -109,6 +129,7 @@ Debug console:
 - Format: JSON lines (newline-delimited)
 
 ### TCP Connection
+- Default host: `RocketGateway.local` (mDNS) or IP address
 - Default port: 5000 (Heltec) or 8080 (AirLift)
 - Format: JSON lines
 

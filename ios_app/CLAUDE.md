@@ -122,12 +122,13 @@ Connection configuration:
 
 ### Screen_Recovery
 Rocket recovery navigation:
-- Compass showing direction to rocket
-- Distance to rocket
+- Compass showing direction to rocket (adjusts with phone orientation)
+- Distance to rocket in meters or feet
 - Rocket GPS coordinates
 - Phone GPS coordinates
 - Data age indicator (for offline mode)
-- "Open in Maps" button
+- Multi-rocket selector (switch between rockets)
+- "Open in Maps" button for turn-by-turn navigation
 
 ### Screen_FlashStorage
 Flight data download:
@@ -139,9 +140,11 @@ Flight data download:
 ## Connection Protocol
 
 ### TCP Connection
-- Default host: `192.168.4.1` (Heltec AP mode)
+- Default host: `192.168.4.1` (Heltec AP mode) or `RocketGateway.local` (mDNS)
 - Default port: `5000`
 - Format: JSON lines (newline-delimited)
+
+**Note:** When the Heltec gateway is in AP mode (creating its own hotspot), use `192.168.4.1`. When connected to an existing WiFi network (station mode), use `RocketGateway.local` or the assigned IP address.
 
 ### Telemetry Message
 ```json
@@ -210,6 +213,15 @@ Required in Info.plist:
 2. Configure iOS signing (Apple Developer account required)
 3. Build → Build Application
 4. Deploy to device via Xcode or direct install
+
+## Multi-Rocket Support
+
+The app supports tracking multiple rockets (IDs 0-15) simultaneously:
+
+- **Rocket List:** Main screen shows all active rockets
+- **Individual Recovery:** Each rocket's position is cached separately
+- **Rocket Selector:** Switch between rockets in Recovery screen
+- **Persistent Storage:** Each rocket's last known position saved by ID
 
 ## Offline Recovery Mode
 
