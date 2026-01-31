@@ -667,7 +667,7 @@ static void ProcessButtons(uint32_t inCurrentMs)
   }
 
   //------------------------------------------
-  // Button B: Rocket ID editing (when in Rocket ID display mode)
+  // Button B: Home button (except on Rocket ID screen where it edits ID)
   //------------------------------------------
   if (theButtonB && !sButtonBPressed)
   {
@@ -681,10 +681,9 @@ static void ProcessButtons(uint32_t inCurrentMs)
 
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      // Only respond to Button B when in Rocket ID display mode
       if (StatusDisplay_GetMode() == kDisplayModeRocketId)
       {
-        // Cycle through rocket IDs 0-15
+        // On Rocket ID screen: cycle through rocket IDs 0-15
         sRocketId = (sRocketId + 1) % 16 ;
         DEBUG_PRINT("Button B: Rocket ID changed to %u\n", sRocketId) ;
 
@@ -700,6 +699,12 @@ static void ProcessButtons(uint32_t inCurrentMs)
 
         // Mark as editing (for display feedback)
         sRocketIdEditing = true ;
+      }
+      else
+      {
+        // On all other screens: go Home (Live/Idle screen)
+        DEBUG_PRINT("Button B: Home - returning to Live screen\n") ;
+        StatusDisplay_SetMode(kDisplayModeLive) ;
       }
     }
   }
