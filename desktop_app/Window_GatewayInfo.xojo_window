@@ -1,5 +1,5 @@
 #tag Window
-Begin Window Window_DeviceInfo
+Begin Window Window_GatewayInfo
    BackColor       =   &cFFFFFF00
    Backdrop        =   0
    CloseButton     =   True
@@ -8,29 +8,29 @@ Begin Window Window_DeviceInfo
    FullScreen      =   False
    HasBackColor    =   False
    HasFullScreenButton=   False
-   Height          =   580
+   Height          =   394
    ImplicitInstance=   True
    LiveResize      =   "False"
    MacProcID       =   0
    MaxHeight       =   32000
    MaximizeButton  =   False
    MaxWidth        =   32000
-   MenuBar         =   4294967314
+   MenuBar         =   0
    MenuBarVisible  =   True
-   MinHeight       =   580
+   MinHeight       =   300
    MinimizeButton  =   True
-   MinWidth        =   450
+   MinWidth        =   350
    Placement       =   0
    Resizeable      =   True
-   Title           =   "Flight Computer Information"
+   Title           =   "Gateway Information"
    Visible         =   False
-   Width           =   450
-   Begin GroupBox GroupRockets
+   Width           =   398
+   Begin GroupBox GroupFirmware
       AutoDeactivate  =   True
       Bold            =   False
-      Caption         =   "Connected Flight Computers"
+      Caption         =   "Firmware"
       Enabled         =   True
-      Height          =   130
+      Height          =   100
       HelpTag         =   ""
       Index           =   -2147483648
       InitialParent   =   ""
@@ -52,185 +52,7 @@ Begin Window Window_DeviceInfo
       Transparent     =   False
       Underline       =   False
       Visible         =   True
-      Width           =   410
-      Begin Listbox ListRockets
-         AllowAutoDeactivate=   True
-         AllowAutoHideScrollbars=   True
-         AllowExpandableRows=   False
-         AllowFocusRing  =   True
-         AllowResizableColumns=   False
-         AllowRowDragging=   False
-         AllowRowReordering=   False
-         Bold            =   False
-         ColumnCount     =   3
-         ColumnWidths    =   "*,80,60"
-         DefaultRowHeight=   -1
-         DropIndicatorVisible=   False
-         Enabled         =   True
-         FontName        =   "System"
-         FontSize        =   0.0
-         FontUnit        =   0
-         GridLinesHorizontalStyle=   0
-         GridLinesVerticalStyle=   0
-         HasBorder       =   True
-         HasHeader       =   True
-         HasHorizontalScrollbar=   False
-         HasVerticalScrollbar=   True
-         HeadingIndex    =   -1
-         Height          =   80
-         Index           =   -2147483648
-         InitialParent   =   "GroupRockets"
-         InitialValue    =   "Name	Status	Signal"
-         Italic          =   False
-         Left            =   40
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   True
-         LockRight       =   True
-         LockTop         =   True
-         RequiresSelection=   False
-         RowSelectionType=   0
-         Scope           =   0
-         TabIndex        =   0
-         TabPanelIndex   =   0
-         TabStop         =   True
-         Tooltip         =   ""
-         Top             =   38
-         Transparent     =   False
-         Underline       =   False
-         Visible         =   True
-         Width           =   290
-         _ScrollOffset   =   0
-         _ScrollWidth    =   -1
-      End
-      Begin PushButton ButtonRename
-         AutoDeactivate  =   True
-         Bold            =   False
-         ButtonStyle     =   0
-         Cancel          =   False
-         Caption         =   "Rename..."
-         Default         =   False
-         Enabled         =   False
-         Height          =   22
-         HelpTag         =   ""
-         Index           =   -2147483648
-         InitialParent   =   "GroupRockets"
-         Italic          =   False
-         Left            =   340
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   False
-         LockRight       =   True
-         LockTop         =   True
-         Scope           =   0
-         TabIndex        =   1
-         TabPanelIndex   =   0
-         TabStop         =   True
-         TextFont        =   "System"
-         TextSize        =   0.0
-         TextUnit        =   0
-         Top             =   38
-         Transparent     =   False
-         Underline       =   False
-         Visible         =   True
-         Width           =   80
-      End
-      Begin PushButton ButtonRefreshList
-         AutoDeactivate  =   True
-         Bold            =   False
-         ButtonStyle     =   0
-         Cancel          =   False
-         Caption         =   "Refresh"
-         Default         =   False
-         Enabled         =   True
-         Height          =   22
-         HelpTag         =   ""
-         Index           =   -2147483648
-         InitialParent   =   "GroupRockets"
-         Italic          =   False
-         Left            =   340
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   False
-         LockRight       =   True
-         LockTop         =   True
-         Scope           =   0
-         TabIndex        =   2
-         TabPanelIndex   =   0
-         TabStop         =   True
-         TextFont        =   "System"
-         TextSize        =   0.0
-         TextUnit        =   0
-         Top             =   68
-         Transparent     =   False
-         Underline       =   False
-         Visible         =   True
-         Width           =   80
-      End
-      Begin Label LabelNoRockets
-         AutoDeactivate  =   True
-         Bold            =   False
-         DataField       =   ""
-         DataSource      =   ""
-         Enabled         =   True
-         Height          =   20
-         HelpTag         =   ""
-         Index           =   -2147483648
-         InitialParent   =   "GroupRockets"
-         Italic          =   True
-         Left            =   40
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   True
-         LockRight       =   True
-         LockTop         =   True
-         Multiline       =   False
-         Scope           =   0
-         Selectable      =   False
-         TabIndex        =   3
-         TabPanelIndex   =   0
-         TabStop         =   False
-         Text            =   "No flight computers connected"
-         TextAlign       =   1
-         TextColor       =   &c99999900
-         TextFont        =   "System"
-         TextSize        =   0.0
-         TextUnit        =   0
-         Top             =   118
-         Transparent     =   True
-         Underline       =   False
-         Visible         =   True
-         Width           =   290
-      End
-   End
-   Begin GroupBox GroupFirmware
-      AutoDeactivate  =   True
-      Bold            =   False
-      Caption         =   "Firmware"
-      Enabled         =   True
-      Height          =   100
-      HelpTag         =   ""
-      Index           =   -2147483648
-      InitialParent   =   ""
-      Italic          =   False
-      Left            =   20
-      LockBottom      =   False
-      LockedInPosition=   False
-      LockLeft        =   True
-      LockRight       =   True
-      LockTop         =   True
-      Scope           =   0
-      TabIndex        =   1
-      TabPanelIndex   =   0
-      TabStop         =   True
-      TextFont        =   "System"
-      TextSize        =   0.0
-      TextUnit        =   0
-      Top             =   154
-      Transparent     =   False
-      Underline       =   False
-      Visible         =   True
-      Width           =   410
+      Width           =   358
       Begin Label LabelDeviceType
          AutoDeactivate  =   True
          Bold            =   False
@@ -260,11 +82,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   178
+         Top             =   38
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelDeviceValue
          AutoDeactivate  =   True
@@ -277,7 +99,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupFirmware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -295,11 +117,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   178
+         Top             =   38
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelVersionType
          AutoDeactivate  =   True
@@ -330,11 +152,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   200
+         Top             =   60
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelVersionValue
          AutoDeactivate  =   True
@@ -347,7 +169,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupFirmware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -365,11 +187,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   200
+         Top             =   60
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelBuildType
          AutoDeactivate  =   True
@@ -400,11 +222,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   222
+         Top             =   82
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelBuildValue
          AutoDeactivate  =   True
@@ -417,7 +239,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupFirmware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -435,11 +257,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   222
+         Top             =   82
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
    End
    Begin GroupBox GroupHardware
@@ -447,7 +269,7 @@ Begin Window Window_DeviceInfo
       Bold            =   False
       Caption         =   "Hardware Status"
       Enabled         =   True
-      Height          =   144
+      Height          =   134
       HelpTag         =   ""
       Index           =   -2147483648
       InitialParent   =   ""
@@ -459,17 +281,17 @@ Begin Window Window_DeviceInfo
       LockRight       =   True
       LockTop         =   True
       Scope           =   0
-      TabIndex        =   2
+      TabIndex        =   1
       TabPanelIndex   =   0
       TabStop         =   True
       TextFont        =   "System"
       TextSize        =   0.0
       TextUnit        =   0
-      Top             =   264
+      Top             =   124
       Transparent     =   False
       Underline       =   False
       Visible         =   True
-      Width           =   410
+      Width           =   358
       Begin Label LabelHw1Type
          AutoDeactivate  =   True
          Bold            =   False
@@ -499,11 +321,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   288
+         Top             =   148
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelHw1Value
          AutoDeactivate  =   True
@@ -516,7 +338,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupHardware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -534,11 +356,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   288
+         Top             =   148
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelHw2Type
          AutoDeactivate  =   True
@@ -563,17 +385,17 @@ Begin Window Window_DeviceInfo
          TabIndex        =   2
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "Barometer:"
+         Text            =   "Display:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   310
+         Top             =   170
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelHw2Value
          AutoDeactivate  =   True
@@ -586,7 +408,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupHardware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -604,11 +426,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   310
+         Top             =   170
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelHw3Type
          AutoDeactivate  =   True
@@ -633,17 +455,17 @@ Begin Window Window_DeviceInfo
          TabIndex        =   4
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "Display:"
+         Text            =   "GPS:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   332
+         Top             =   192
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelHw3Value
          AutoDeactivate  =   True
@@ -656,7 +478,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupHardware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -674,11 +496,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   332
+         Top             =   192
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelHw4Type
          AutoDeactivate  =   True
@@ -703,17 +525,17 @@ Begin Window Window_DeviceInfo
          TabIndex        =   6
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "IMU:"
+         Text            =   "WiFi:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   354
+         Top             =   214
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelHw4Value
          AutoDeactivate  =   True
@@ -726,7 +548,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupHardware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -744,11 +566,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   354
+         Top             =   214
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
       Begin Label LabelHw5Type
          AutoDeactivate  =   True
@@ -773,17 +595,17 @@ Begin Window Window_DeviceInfo
          TabIndex        =   8
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "GPS:"
+         Text            =   "LoRa Link:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   376
+         Top             =   236
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   100
+         Width           =   80
       End
       Begin Label LabelHw5Value
          AutoDeactivate  =   True
@@ -796,7 +618,7 @@ Begin Window Window_DeviceInfo
          Index           =   -2147483648
          InitialParent   =   "GroupHardware"
          Italic          =   False
-         Left            =   150
+         Left            =   130
          LockBottom      =   False
          LockedInPosition=   False
          LockLeft        =   True
@@ -814,19 +636,19 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   376
+         Top             =   236
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   228
       End
    End
-   Begin GroupBox GroupStatus
+   Begin GroupBox GroupStats
       AutoDeactivate  =   True
       Bold            =   False
-      Caption         =   "Flight Status"
+      Caption         =   "Statistics"
       Enabled         =   True
-      Height          =   100
+      Height          =   78
       HelpTag         =   ""
       Index           =   -2147483648
       InitialParent   =   ""
@@ -838,17 +660,17 @@ Begin Window Window_DeviceInfo
       LockRight       =   True
       LockTop         =   True
       Scope           =   0
-      TabIndex        =   3
+      TabIndex        =   2
       TabPanelIndex   =   0
       TabStop         =   True
       TextFont        =   "System"
       TextSize        =   0.0
       TextUnit        =   0
-      Top             =   418
+      Top             =   268
       Transparent     =   False
       Underline       =   False
       Visible         =   True
-      Width           =   410
+      Width           =   358
       Begin Label LabelStat1Type
          AutoDeactivate  =   True
          Bold            =   False
@@ -858,7 +680,7 @@ Begin Window Window_DeviceInfo
          Height          =   20
          HelpTag         =   ""
          Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
+         InitialParent   =   "GroupStats"
          Italic          =   False
          Left            =   40
          LockBottom      =   False
@@ -872,13 +694,13 @@ Begin Window Window_DeviceInfo
          TabIndex        =   0
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "State:"
+         Text            =   "Packets RX/TX:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   442
+         Top             =   292
          Transparent     =   True
          Underline       =   False
          Visible         =   True
@@ -893,7 +715,7 @@ Begin Window Window_DeviceInfo
          Height          =   20
          HelpTag         =   ""
          Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
+         InitialParent   =   "GroupStats"
          Italic          =   False
          Left            =   150
          LockBottom      =   False
@@ -913,11 +735,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   442
+         Top             =   292
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
+         Width           =   208
       End
       Begin Label LabelStat2Type
          AutoDeactivate  =   True
@@ -928,7 +750,7 @@ Begin Window Window_DeviceInfo
          Height          =   20
          HelpTag         =   ""
          Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
+         InitialParent   =   "GroupStats"
          Italic          =   False
          Left            =   40
          LockBottom      =   False
@@ -942,13 +764,13 @@ Begin Window Window_DeviceInfo
          TabIndex        =   2
          TabPanelIndex   =   0
          TabStop         =   False
-         Text            =   "Altitude:"
+         Text            =   "RSSI / SNR:"
          TextAlign       =   2
          TextColor       =   &c00000000
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   464
+         Top             =   314
          Transparent     =   True
          Underline       =   False
          Visible         =   True
@@ -963,7 +785,7 @@ Begin Window Window_DeviceInfo
          Height          =   20
          HelpTag         =   ""
          Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
+         InitialParent   =   "GroupStats"
          Italic          =   False
          Left            =   150
          LockBottom      =   False
@@ -983,81 +805,11 @@ Begin Window Window_DeviceInfo
          TextFont        =   "System"
          TextSize        =   0.0
          TextUnit        =   0
-         Top             =   464
+         Top             =   314
          Transparent     =   True
          Underline       =   False
          Visible         =   True
-         Width           =   260
-      End
-      Begin Label LabelStat3Type
-         AutoDeactivate  =   True
-         Bold            =   False
-         DataField       =   ""
-         DataSource      =   ""
-         Enabled         =   True
-         Height          =   20
-         HelpTag         =   ""
-         Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
-         Italic          =   False
-         Left            =   40
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   True
-         LockRight       =   False
-         LockTop         =   True
-         Multiline       =   False
-         Scope           =   0
-         Selectable      =   False
-         TabIndex        =   4
-         TabPanelIndex   =   0
-         TabStop         =   False
-         Text            =   "GPS Sats:"
-         TextAlign       =   2
-         TextColor       =   &c00000000
-         TextFont        =   "System"
-         TextSize        =   0.0
-         TextUnit        =   0
-         Top             =   486
-         Transparent     =   True
-         Underline       =   False
-         Visible         =   True
-         Width           =   100
-      End
-      Begin Label LabelStat3Value
-         AutoDeactivate  =   True
-         Bold            =   True
-         DataField       =   ""
-         DataSource      =   ""
-         Enabled         =   True
-         Height          =   20
-         HelpTag         =   ""
-         Index           =   -2147483648
-         InitialParent   =   "GroupStatus"
-         Italic          =   False
-         Left            =   150
-         LockBottom      =   False
-         LockedInPosition=   False
-         LockLeft        =   True
-         LockRight       =   True
-         LockTop         =   True
-         Multiline       =   False
-         Scope           =   0
-         Selectable      =   True
-         TabIndex        =   5
-         TabPanelIndex   =   0
-         TabStop         =   False
-         Text            =   "--"
-         TextAlign       =   0
-         TextColor       =   &c00000000
-         TextFont        =   "System"
-         TextSize        =   0.0
-         TextUnit        =   0
-         Top             =   486
-         Transparent     =   True
-         Underline       =   False
-         Visible         =   True
-         Width           =   260
+         Width           =   208
       End
    End
    Begin PushButton ButtonClose
@@ -1073,68 +825,24 @@ Begin Window Window_DeviceInfo
       Index           =   -2147483648
       InitialParent   =   ""
       Italic          =   False
-      Left            =   340
+      Left            =   288
       LockBottom      =   True
       LockedInPosition=   False
       LockLeft        =   False
       LockRight       =   True
       LockTop         =   False
       Scope           =   0
-      TabIndex        =   4
+      TabIndex        =   3
       TabPanelIndex   =   0
       TabStop         =   True
       TextFont        =   "System"
       TextSize        =   0.0
       TextUnit        =   0
-      Top             =   538
+      Top             =   358
       Transparent     =   False
       Underline       =   False
       Visible         =   True
       Width           =   90
-   End
-   Begin Label LabelStatusMsg
-      AutoDeactivate  =   True
-      Bold            =   False
-      DataField       =   ""
-      DataSource      =   ""
-      Enabled         =   True
-      Height          =   20
-      HelpTag         =   ""
-      Index           =   -2147483648
-      InitialParent   =   ""
-      Italic          =   True
-      Left            =   20
-      LockBottom      =   True
-      LockedInPosition=   False
-      LockLeft        =   True
-      LockRight       =   True
-      LockTop         =   False
-      Multiline       =   False
-      Scope           =   0
-      Selectable      =   False
-      TabIndex        =   5
-      TabPanelIndex   =   0
-      TabStop         =   False
-      Text            =   ""
-      TextAlign       =   0
-      TextColor       =   &c66666600
-      TextFont        =   "System"
-      TextSize        =   0.0
-      TextUnit        =   0
-      Top             =   540
-      Transparent     =   True
-      Underline       =   False
-      Visible         =   True
-      Width           =   300
-   End
-   Begin Timer TimerRefresh
-      Enabled         =   False
-      Index           =   -2147483648
-      LockedInPosition=   False
-      Period          =   3000
-      RunMode         =   2
-      Scope           =   0
-      TabPanelIndex   =   0
    End
 End
 #tag EndWindow
@@ -1142,331 +850,61 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Close()
-		  // Stop refresh timer
-		  TimerRefresh.Enabled = False
-		  
-		  // Save window position
-		  Module_WindowSettings.SaveWindowPosition(Self, "Window_DeviceInfo")
+		  Module_WindowSettings.SaveWindowPosition(Self, "Window_GatewayInfo")
 		End Sub
 	#tag EndEvent
 
 	#tag Event
 		Sub Open()
-		  // Restore window position
-		  Module_WindowSettings.LoadWindowPosition(Self, "Window_DeviceInfo")
-		  
-		  // Clear detail panes
-		  ClearDetails
-		  
-		  // Request rocket list
-		  RefreshRocketList
-		  
-		  // Start auto-refresh timer
-		  TimerRefresh.Enabled = True
+		  Module_WindowSettings.LoadWindowPosition(Self, "Window_GatewayInfo")
 		End Sub
 	#tag EndEvent
 
 
-	#tag Method, Flags = &h21
-		Private Sub ClearDetails()
-		  // Clear all detail fields
-		  LabelDeviceValue.Text = "--"
-		  LabelVersionValue.Text = "--"
-		  LabelBuildValue.Text = "--"
-		  
-		  LabelHw1Value.Text = "--"
-		  LabelHw1Value.TextColor = &c000000
-		  LabelHw2Value.Text = "--"
-		  LabelHw2Value.TextColor = &c000000
-		  LabelHw3Value.Text = "--"
-		  LabelHw3Value.TextColor = &c000000
-		  LabelHw4Value.Text = "--"
-		  LabelHw4Value.TextColor = &c000000
-		  LabelHw5Value.Text = "--"
-		  LabelHw5Value.TextColor = &c000000
-		  
-		  LabelStat1Value.Text = "--"
-		  LabelStat2Value.Text = "--"
-		  LabelStat3Value.Text = "--"
-		  
-		  LabelStatusMsg.Text = "Select a flight computer above"
-		End Sub
-	#tag EndMethod
-
 	#tag Method, Flags = &h0
-		Function GetRocketName(inRocketId As Integer) As String
-		  // Get custom name for rocket from preferences
-		  Var theKey As String = "RocketName_" + Str(inRocketId)
-		  Return Module_Preferences.GetStringPref(theKey, "")
-		End Function
-	#tag EndMethod
-
-	#tag Method, Flags = &h0
-		Sub HandleRocketList(inRockets() As Dictionary)
-		  // Update the rocket list display
-		  pRocketData = inRockets
+		Sub ShowGatewayInfo(inInfo As Dictionary)
+		  // Display gateway device information
 		  
-		  // Save selected rocket ID before clearing (RemoveAllRows triggers Change event)
-		  Var theSavedSelection As Integer = pSelectedRocketId
+		  LabelDeviceValue.Text = "Heltec Wireless Tracker"
+		  LabelVersionValue.Text = "v" + inInfo.Lookup("version", "--").StringValue
+		  LabelBuildValue.Text = inInfo.Lookup("build", "--").StringValue
 		  
-		  // Prevent Change event from clearing selection during refresh
-		  pIsRefreshing = True
-		  ListRockets.RemoveAllRows
-		  pIsRefreshing = False
+		  // Hardware status
+		  LabelHw1Value.Text = If(inInfo.Lookup("lora", False).BooleanValue, "SX1262 OK", "FAIL")
+		  LabelHw1Value.TextColor = If(inInfo.Lookup("lora", False).BooleanValue, &c006600, &cCC0000)
 		  
-		  If inRockets.Count = 0 Then
-		    LabelNoRockets.Visible = True
-		    ButtonRename.Enabled = False
-		    ClearDetails
-		    pSelectedRocketId = -1
-		    Return
-		  End If
+		  LabelHw2Value.Text = If(inInfo.Lookup("display", False).BooleanValue, "TFT OK", "FAIL")
+		  LabelHw2Value.TextColor = If(inInfo.Lookup("display", False).BooleanValue, &c006600, &cCC0000)
 		  
-		  LabelNoRockets.Visible = False
+		  LabelHw3Value.Text = If(inInfo.Lookup("gps", False).BooleanValue, "UC6580 OK", "Not Present")
+		  LabelHw3Value.TextColor = If(inInfo.Lookup("gps", False).BooleanValue, &c006600, &c666666)
 		  
-		  For Each theRocket As Dictionary In inRockets
-		    Var theId As Integer = theRocket.Lookup("id", 0).IntegerValue
-		    Var theState As String = theRocket.Lookup("state", "unknown").StringValue
-		    Var theRssi As Integer = theRocket.Lookup("rssi", 0).IntegerValue
-		    
-		    // Get custom name or default
-		    Var theName As String = GetRocketName(theId)
-		    If theName = "" Then
-		      theName = "Rocket #" + Str(theId)
-		    End If
-		    
-		    // Format state nicely
-		    theState = theState.Titlecase
-		    
-		    // Format signal
-		    Var theSignal As String = Str(theRssi) + " dBm"
-		    
-		    ListRockets.AddRow(theName, theState, theSignal)
-		    ListRockets.RowTagAt(ListRockets.LastAddedRowIndex) = theId
-		  Next
+		  LabelHw4Value.Text = "ESP32-S3 OK"
+		  LabelHw4Value.TextColor = &c006600
 		  
-		  // Re-select previously selected rocket if still in list
-		  pSelectedRocketId = theSavedSelection
-		  If pSelectedRocketId >= 0 Then
-		    pIsRefreshing = True
-		    For i As Integer = 0 To ListRockets.RowCount - 1
-		      If ListRockets.RowTagAt(i).IntegerValue = pSelectedRocketId Then
-		        ListRockets.SelectedRowIndex = i
-		        // Update the details with fresh data
-		        ShowRocketFromListData(inRockets(i))
-		        Exit
-		      End If
-		    Next
-		    pIsRefreshing = False
-		  End If
+		  LabelHw5Value.Text = If(inInfo.Lookup("connected", False).BooleanValue, "Connected", "No Link")
+		  LabelHw5Value.TextColor = If(inInfo.Lookup("connected", False).BooleanValue, &c006600, &c666666)
 		  
-		  ButtonRename.Enabled = ListRockets.SelectedRowIndex >= 0
+		  // Statistics
+		  Var theRx As Integer = inInfo.Lookup("rx", 0).IntegerValue
+		  Var theTx As Integer = inInfo.Lookup("tx", 0).IntegerValue
+		  LabelStat1Value.Text = Str(theRx) + " / " + Str(theTx)
+		  
+		  Var theRssi As Integer = inInfo.Lookup("rssi", 0).IntegerValue
+		  Var theSnr As Integer = inInfo.Lookup("snr", 0).IntegerValue
+		  LabelStat2Value.Text = Str(theRssi) + " dBm / " + Str(theSnr) + " dB"
+		  
+		  Self.Show
 		End Sub
 	#tag EndMethod
-
-	#tag Method, Flags = &h0
-		Sub RefreshRocketList()
-		  // Request list of connected rockets from gateway
-		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Main.pConnection.SendCommand("rockets")
-		  End If
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h21
-		Private Sub RequestRocketInfo(inRocketId As Integer)
-		  // Show info for the selected rocket from cached data
-		  pSelectedRocketId = inRocketId
-		  
-		  // Find rocket data from cached list
-		  For Each theRocket As Dictionary In pRocketData
-		    If theRocket.Lookup("id", -1).IntegerValue = inRocketId Then
-		      ShowRocketFromListData(theRocket)
-		      
-		      // Also request detailed fc_info (firmware version, etc.)
-		      If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		        Window_Main.pConnection.SendCommand("fc_info")
-		      End If
-		      Return
-		    End If
-		  Next
-		  
-		  ClearDetails
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h0
-		Sub SetRocketName(inRocketId As Integer, inName As String)
-		  // Save custom name for rocket to preferences
-		  Var theKey As String = "RocketName_" + Str(inRocketId)
-		  Module_Preferences.SetStringPref(theKey, inName)
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h0
-		Sub ShowFlightComputerInfo(inInfo As Dictionary)
-		  // Update firmware details from fc_info response
-		  // This gets called when detailed flight computer info is received via LoRa
-		  
-		  Var theVersion As String = inInfo.Lookup("version", "").StringValue
-		  Var theBuild As String = inInfo.Lookup("build", "").StringValue
-		  
-		  If theVersion <> "" Then
-		    LabelVersionValue.Text = "v" + theVersion
-		  End If
-		  If theBuild <> "" Then
-		    LabelBuildValue.Text = theBuild
-		  End If
-		  
-		  LabelStatusMsg.Text = "Firmware info received"
-		End Sub
-	#tag EndMethod
-
-	#tag Method, Flags = &h21
-		Private Sub ShowRocketFromListData(inRocket As Dictionary)
-		  // Display rocket details from the rockets list data
-		  Var theId As Integer = inRocket.Lookup("id", -1).IntegerValue
-		  Var theName As String = GetRocketName(theId)
-		  If theName = "" Then
-		    theName = "Rocket #" + Str(theId)
-		  End If
-		  
-		  // Firmware section - show rocket name and ID
-		  LabelDeviceValue.Text = theName + " (ID: " + Str(theId) + ")"
-		  LabelVersionValue.Text = "(Awaiting LoRa response)"
-		  LabelBuildValue.Text = "--"
-		  
-		  // Hardware section - repurpose for rocket telemetry
-		  LabelHw1Type.Text = "State:"
-		  Var theState As String = inRocket.Lookup("state", "unknown").StringValue
-		  LabelHw1Value.Text = theState.Titlecase
-		  LabelHw1Value.TextColor = If(theState = "ARMED" Or theState = "Armed", &cCC6600, &c000000)
-		  
-		  LabelHw2Type.Text = "Signal:"
-		  Var theRssi As Integer = inRocket.Lookup("rssi", 0).IntegerValue
-		  LabelHw2Value.Text = Str(theRssi) + " dBm"
-		  If theRssi > -70 Then
-		    LabelHw2Value.TextColor = &c006600
-		  ElseIf theRssi > -90 Then
-		    LabelHw2Value.TextColor = &c666600
-		  Else
-		    LabelHw2Value.TextColor = &cCC0000
-		  End If
-		  
-		  LabelHw3Type.Text = "Last Update:"
-		  Var theAge As Integer = inRocket.Lookup("age", 0).IntegerValue
-		  LabelHw3Value.Text = Str(theAge) + " seconds ago"
-		  LabelHw3Value.TextColor = If(theAge < 10, &c006600, &c666600)
-		  
-		  LabelHw4Type.Text = "GPS Satellites:"
-		  Var theSats As Integer = inRocket.Lookup("sats", 0).IntegerValue
-		  LabelHw4Value.Text = Str(theSats)
-		  LabelHw4Value.TextColor = If(theSats >= 4, &c006600, &c666600)
-		  
-		  LabelHw5Type.Text = "Distance:"
-		  Var theDist As Double = inRocket.Lookup("dist", 0.0).DoubleValue
-		  If theDist > 0 Then
-		    LabelHw5Value.Text = Format(theDist, "0.0") + " m"
-		  Else
-		    LabelHw5Value.Text = "Unknown"
-		  End If
-		  LabelHw5Value.TextColor = &c000000
-		  
-		  // Status section - GPS coordinates and altitude
-		  LabelStat1Type.Text = "Altitude:"
-		  Var theAlt As Double = inRocket.Lookup("alt", 0.0).DoubleValue
-		  LabelStat1Value.Text = Format(theAlt, "0.0") + " m"
-		  
-		  LabelStat2Type.Text = "Latitude:"
-		  Var theLat As Double = inRocket.Lookup("lat", 0.0).DoubleValue
-		  LabelStat2Value.Text = Format(theLat, "0.000000")
-		  
-		  LabelStat3Type.Text = "Longitude:"
-		  Var theLon As Double = inRocket.Lookup("lon", 0.0).DoubleValue
-		  LabelStat3Value.Text = Format(theLon, "0.000000")
-		  
-		  LabelStatusMsg.Text = ""
-		End Sub
-	#tag EndMethod
-
-
-	#tag Property, Flags = &h21
-		Private pIsRefreshing As Boolean = False
-	#tag EndProperty
-
-	#tag Property, Flags = &h21
-		Private pRocketData() As Dictionary
-	#tag EndProperty
-
-	#tag Property, Flags = &h21
-		Private pSelectedRocketId As Integer = -1
-	#tag EndProperty
 
 
 #tag EndWindowCode
 
-#tag Events ListRockets
-	#tag Event
-		Sub Change()
-		  // Ignore change events during refresh to preserve selection
-		  If pIsRefreshing Then Return
-		  
-		  // Selection changed - request info for selected rocket
-		  ButtonRename.Enabled = Me.SelectedRowIndex >= 0
-		  
-		  If Me.SelectedRowIndex >= 0 Then
-		    Var theRocketId As Integer = Me.RowTagAt(Me.SelectedRowIndex).IntegerValue
-		    RequestRocketInfo(theRocketId)
-		  Else
-		    pSelectedRocketId = -1
-		    ClearDetails
-		  End If
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events ButtonRename
-	#tag Event
-		Sub Action()
-		  // Rename selected rocket using dialog
-		  If ListRockets.SelectedRowIndex < 0 Then Return
-		  
-		  Var theRocketId As Integer = ListRockets.RowTagAt(ListRockets.SelectedRowIndex).IntegerValue
-		  Var theCurrentName As String = GetRocketName(theRocketId)
-		  If theCurrentName = "" Then
-		    theCurrentName = "Rocket #" + Str(theRocketId)
-		  End If
-		  
-		  // Show rename dialog
-		  Var theDialog As New Dialog_RenameRocket
-		  theDialog.ShowForRocket(theRocketId, theCurrentName)
-		  
-		  If Not theDialog.pWasCancelled And theDialog.pNewName <> "" Then
-		    SetRocketName(theRocketId, theDialog.pNewName)
-		    // Refresh list to show new name
-		    HandleRocketList(pRocketData)
-		  End If
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events ButtonRefreshList
-	#tag Event
-		Sub Action()
-		  RefreshRocketList
-		End Sub
-	#tag EndEvent
-#tag EndEvents
 #tag Events ButtonClose
 	#tag Event
 		Sub Action()
 		  Self.Hide
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events TimerRefresh
-	#tag Event
-		Sub Action()
-		  // Auto-refresh rocket list
-		  RefreshRocketList
 		End Sub
 	#tag EndEvent
 #tag EndEvents

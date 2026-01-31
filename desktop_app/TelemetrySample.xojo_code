@@ -27,6 +27,10 @@ Protected Class TelemetrySample
 
 
 	#tag Property, Flags = &h0
+		pRocketId As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
 		pTimeMs As Integer = 0
 	#tag EndProperty
 

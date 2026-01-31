@@ -8,7 +8,7 @@ Begin Window Window_Console
    FullScreen      =   False
    HasBackColor    =   False
    HasFullScreenButton=   False
-   Height          =   550
+   Height          =   570
    ImplicitInstance=   True
    LiveResize      =   "True"
    MacProcID       =   0
@@ -431,7 +431,7 @@ Begin Window Window_Console
       Format          =   ""
       HasHorizontalScrollbar=   True
       HasVerticalScrollbar=   True
-      Height          =   340
+      Height          =   338
       HideSelection   =   True
       Index           =   -2147483648
       Italic          =   False
@@ -484,7 +484,7 @@ Begin Window Window_Console
       LockBottom      =   True
       LockedInPosition=   False
       LockLeft        =   True
-      LockRight       =   True
+      LockRight       =   False
       LockTop         =   False
       Password        =   False
       ReadOnly        =   False
@@ -583,7 +583,7 @@ Begin Window Window_Console
       LockBottom      =   True
       LockedInPosition=   False
       LockLeft        =   True
-      LockRight       =   True
+      LockRight       =   False
       LockTop         =   False
       Multiline       =   False
       Scope           =   2
@@ -633,6 +633,37 @@ Begin Window Window_Console
       Visible         =   True
       Width           =   90
    End
+   Begin CheckBox CheckHideTelemetry
+      AutoDeactivate  =   True
+      Bold            =   False
+      Caption         =   "Hide unchanged telemetry"
+      Enabled         =   True
+      FontName        =   "System"
+      FontSize        =   0.0
+      FontUnit        =   0
+      Height          =   20
+      HelpTag         =   "Only show telemetry when state, altitude, or velocity changes significantly"
+      Index           =   -2147483648
+      InitialParent   =   ""
+      Italic          =   False
+      Left            =   510
+      LockBottom      =   True
+      LockedInPosition=   False
+      LockLeft        =   False
+      LockRight       =   True
+      LockTop         =   False
+      Scope           =   2
+      State           =   0
+      TabIndex        =   8
+      TabPanelIndex   =   0
+      TabStop         =   True
+      Top             =   530
+      Transparent     =   False
+      Underline       =   False
+      Value           =   False
+      Visible         =   True
+      Width           =   135
+   End
    Begin Timer TimerRefresh
       Enabled         =   True
       Index           =   -2147483648
@@ -650,7 +681,7 @@ End
 		Sub Close()
 		  // Save window position
 		  Module_WindowSettings.SaveWindowPosition(Self, "Window_Console")
-
+		  
 		  // Remove handlers from the same connection object they were added to
 		  If pHandlerConnection <> Nil And pHandlersAdded Then
 		    RemoveHandler pHandlerConnection.RawMessageReceived, AddressOf HandleRawMessage
@@ -666,7 +697,7 @@ End
 		Sub Open()
 		  // Restore window position
 		  Module_WindowSettings.LoadWindowPosition(Self, "Window_Console")
-
+		  
 		  // Set up handlers for raw message logging and debug output
 		  // Only add handlers if not already added
 		  If Window_Main.pConnection <> Nil And Not pHandlersAdded Then
@@ -676,7 +707,7 @@ End
 		    AddHandler pHandlerConnection.GatewayStatusReceived, AddressOf HandleGatewayStatus
 		    pHandlersAdded = True
 		  End If
-
+		  
 		  // Initial connection state update
 		  UpdateConnectionInfo()
 		End Sub
@@ -710,10 +741,7 @@ End
 		Private Sub HandleRawMessage(inSender As FlightConnection, inMessage As String)
 		  #Pragma Unused inSender
 		  
-		  // Log received message
-		  LogMessage("<< " + inMessage)
-		  
-		  // Update stats if telemetry
+		  // Update stats and check filtering
 		  Try
 		    Var theJson As New JSONItem(inMessage)
 		    If theJson.HasKey("type") And theJson.Value("type") = "tel" Then
@@ -721,6 +749,14 @@ End
 		      pLastRssi = theJson.Lookup("rssi", 0)
 		      pLastSnr = theJson.Lookup("snr", 0)
 		      UpdateStats()
+		      
+		      // Filter unchanged telemetry if checkbox is checked
+		      If CheckHideTelemetry.Value And Not ShouldShowTelemetry(theJson) Then
+		        Return  // Skip logging this message
+		      End If
+		      
+		      // Log the telemetry message
+		      LogMessage("<< " + inMessage)
 		      
 		      // Show BMP390 details if enabled
 		      If pShowBMP390Details Then
@@ -744,12 +780,18 @@ End
 		    ElseIf theJson.HasKey("type") And theJson.Value("type") = "ack" Then
 		      pRxCount = pRxCount + 1
 		      UpdateStats()
+		      LogMessage("<< " + inMessage)
 		    ElseIf theJson.HasKey("type") And theJson.Value("type") = "status" Then
 		      pRxCount = pRxCount + 1
 		      UpdateStats()
+		      LogMessage("<< " + inMessage)
+		    Else
+		      // Other message types - always log
+		      LogMessage("<< " + inMessage)
 		    End If
 		  Catch
-		    // Ignore parse errors
+		    // Non-JSON message - always log
+		    LogMessage("<< " + inMessage)
 		  End Try
 		End Sub
 	#tag EndMethod
@@ -800,6 +842,39 @@ End
 	#tag EndMethod
 
 	#tag Method, Flags = &h21
+		Private Function ShouldShowTelemetry(inJson As JSONItem) As Boolean
+		  // Check if telemetry has changed significantly
+		  // Returns True if message should be shown, False to filter it out
+		  
+		  Var theState As String = inJson.Lookup("state", "")
+		  Var theAlt As Double = inJson.Lookup("alt", 0.0)
+		  Var theVel As Double = inJson.Lookup("vel", 0.0)
+		  
+		  Var theChanged As Boolean = False
+		  
+		  // State change is always significant
+		  If theState <> pLastTelState Then
+		    theChanged = True
+		    pLastTelState = theState
+		  End If
+		  
+		  // Altitude change > 1m is significant
+		  If Abs(theAlt - pLastTelAlt) > 1.0 Then
+		    theChanged = True
+		    pLastTelAlt = theAlt
+		  End If
+		  
+		  // Velocity change > 1 m/s is significant
+		  If Abs(theVel - pLastTelVel) > 1.0 Then
+		    theChanged = True
+		    pLastTelVel = theVel
+		  End If
+		  
+		  Return theChanged
+		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
 		Private Sub UpdateConnectionInfo()
 		  // Update connection info labels
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
@@ -840,11 +915,11 @@ End
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
-		Private pHandlersAdded As Boolean = False
+		Private pHandlerConnection As FlightConnection
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
-		Private pHandlerConnection As FlightConnection
+		Private pHandlersAdded As Boolean = False
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
@@ -853,6 +928,18 @@ End
 
 	#tag Property, Flags = &h21
 		Private pLastSnr As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pLastTelAlt As Double = -9999
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pLastTelState As String = ""
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pLastTelVel As Double = -9999
 	#tag EndProperty
 
 	#tag Property, Flags = &h21

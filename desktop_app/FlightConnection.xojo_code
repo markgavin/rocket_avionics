@@ -60,13 +60,8 @@ Protected Class FlightConnection
 		  // Connect to gateway via TCP/WiFi
 		  pConnectionMode = ConnectionMode.WiFi
 
-		  If pTcpSocket = Nil Then
-		    LogMessage("TCPSocket is nil, cannot connect", "ERROR")
-		    Return False
-		  End If
-
 		  // Disconnect any existing connection
-		  If pTcpIsConnected Then
+		  If pTcpIsConnected And pTcpSocket <> Nil Then
 		    pTcpSocket.Close
 		    pTcpIsConnected = False
 		  End If
@@ -75,25 +70,60 @@ Protected Class FlightConnection
 		    pSerialIsOpen = False
 		  End If
 
+		  // Create a fresh socket (required after close in Xojo)
+		  If pTcpSocket <> Nil Then
+		    RemoveHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		    RemoveHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		    RemoveHandler pTcpSocket.Error, AddressOf HandleTcpError
+		  End If
+		  pTcpSocket = New TCPSocket
+		  AddHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		  AddHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		  AddHandler pTcpSocket.Error, AddressOf HandleTcpError
+
 		  LogMessage("Connecting to gateway via WiFi: " + inHost + ":" + Str(inPort), "INFO")
+
+		  // Save connection parameters for retry
+		  pRetryHost = inHost
+		  pRetryPort = inPort
+		  pRetryCount = 0
 
 		  // Clear buffers
 		  pJsonAccumulator = ""
 		  pJsonBraceDepth = 0
 		  pReceiveBuffer = ""
 
-		  // Connect
-		  Try
-		    pTcpSocket.Address = inHost
-		    pTcpSocket.Port = inPort
-		    pTcpSocket.Connect
-		    Return True  // Actual connection confirmed in Connected event
-		  Catch theError As RuntimeException
-		    LogMessage("Failed to connect: " + theError.Message, "ERROR")
-		    RaiseEvent ErrorReceived("TCP_ERROR", "Failed to connect: " + theError.Message)
-		    Return False
-		  End Try
+		  // Use a timer to give the socket time to initialize before first connect
+		  // Just create a new timer each time (old one will be garbage collected)
+		  pRetryTimer = New Timer
+		  pRetryTimer.Period = 100  // 100ms delay for socket initialization
+		  pRetryTimer.RunMode = Timer.RunModes.Single
+		  AddHandler pRetryTimer.Action, AddressOf HandleInitialConnect
+		  pRetryTimer.Enabled = True
+
+		  Return True  // Actual connection confirmed in Connected event
 		End Function
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleInitialConnect(inSender As Timer)
+		  // Perform the actual connection after initialization delay
+		  RemoveHandler inSender.Action, AddressOf HandleInitialConnect
+
+		  Try
+		    LogMessage("Setting socket address and port...", "DEBUG")
+		    pTcpSocket.Address = pRetryHost
+		    pTcpSocket.Port = pRetryPort
+
+		    LogMessage("Calling Connect...", "DEBUG")
+		    pTcpSocket.Connect
+
+		    LogMessage("Connect called, waiting for event...", "DEBUG")
+		  Catch theError As RuntimeException
+		    LogMessage("Exception during connect: " + theError.Message, "ERROR")
+		    RaiseEvent ErrorReceived("TCP_ERROR", "Failed to connect: " + theError.Message)
+		  End Try
+		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
@@ -284,14 +314,37 @@ Protected Class FlightConnection
 
 	#tag Method, Flags = &h21
 		Private Sub HandleTcpError(inSender As TCPSocket, theError As RuntimeException)
-		  #Pragma Unused inSender
-
 		  Var theErrorMsg As String = "TCP connection error"
-		  If theError <> Nil Then
+
+		  // Get error code from socket
+		  Var theErrorCode As Integer = 0
+		  If inSender <> Nil Then
+		    theErrorCode = inSender.LastErrorCode
+		  End If
+
+		  If theError <> Nil And theError.Message <> "" Then
 		    theErrorMsg = theErrorMsg + ": " + theError.Message
+		  ElseIf theErrorCode <> 0 Then
+		    theErrorMsg = theErrorMsg + " (code " + Str(theErrorCode) + ")"
+		  Else
+		    theErrorMsg = theErrorMsg + " (no details available)"
 		  End If
 
 		  LogMessage(theErrorMsg, "ERROR")
+
+		  // Auto-retry for error 65 (EHOSTUNREACH) - common on first connection attempt
+		  If theErrorCode = 65 And pRetryCount < 2 And pRetryHost <> "" Then
+		    pRetryCount = pRetryCount + 1
+		    LogMessage("Auto-retrying connection (attempt " + Str(pRetryCount + 1) + ")...", "INFO")
+
+		    // Use a timer to retry after a short delay
+		    pRetryTimer = New Timer
+		    pRetryTimer.Period = 500  // 500ms delay before retry
+		    pRetryTimer.RunMode = Timer.RunModes.Single
+		    AddHandler pRetryTimer.Action, AddressOf HandleRetryTimer
+		    pRetryTimer.Enabled = True
+		    Return  // Don't raise error event yet
+		  End If
 
 		  If pTcpIsConnected Then
 		    pTcpIsConnected = False
@@ -306,6 +359,41 @@ Protected Class FlightConnection
 		  End If
 
 		  RaiseEvent ErrorReceived("TCP_ERROR", theErrorMsg)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleRetryTimer(inSender As Timer)
+		  // Retry the TCP connection
+		  RemoveHandler inSender.Action, AddressOf HandleRetryTimer
+
+		  If pRetryHost <> "" And pRetryPort > 0 Then
+		    // Create fresh socket for retry
+		    If pTcpSocket <> Nil Then
+		      RemoveHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		      RemoveHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		      RemoveHandler pTcpSocket.Error, AddressOf HandleTcpError
+		      Try
+		        pTcpSocket.Close
+		      Catch e As RuntimeException
+		        // Ignore
+		      End Try
+		    End If
+
+		    pTcpSocket = New TCPSocket
+		    AddHandler pTcpSocket.Connected, AddressOf HandleTcpConnected
+		    AddHandler pTcpSocket.DataAvailable, AddressOf HandleTcpDataAvailable
+		    AddHandler pTcpSocket.Error, AddressOf HandleTcpError
+
+		    Try
+		      pTcpSocket.Address = pRetryHost
+		      pTcpSocket.Port = pRetryPort
+		      pTcpSocket.Connect
+		    Catch e As RuntimeException
+		      LogMessage("Retry failed: " + e.Message, "ERROR")
+		      RaiseEvent ErrorReceived("TCP_ERROR", "Connection failed after retries")
+		    End Try
+		  End If
 		End Sub
 	#tag EndMethod
 
@@ -356,6 +444,7 @@ Protected Class FlightConnection
 		    Case "tel"
 		      // Telemetry packet from flight computer
 		      Var theSample As New TelemetrySample
+		      theSample.pRocketId = theJson.Lookup("id", 0)
 		      theSample.pTimeMs = theJson.Lookup("t", 0)
 		      theSample.pAltitudeM = theJson.Lookup("alt", 0.0)
 		      theSample.pDifferentialAltitudeM = theJson.Lookup("dalt", 0.0)
@@ -505,7 +594,14 @@ Protected Class FlightConnection
 		      theInfo.Value("samples") = theJson.Lookup("samples", 0)
 		      theInfo.Value("sd_free_kb") = theJson.Lookup("sd_free_kb", 0)
 		      theInfo.Value("flight_count") = theJson.Lookup("flight_count", 0)
+		      theInfo.Value("rocket_id") = theJson.Lookup("rocket_id", 0)
+		      theInfo.Value("rocket_name") = theJson.Lookup("rocket_name", "")
 		      RaiseEvent DeviceInfoReceived(False, theInfo)
+
+		      // Also update Device Info window if visible
+		      If Window_DeviceInfo.Visible Then
+		        Window_DeviceInfo.ShowFlightComputerInfo(theInfo)
+		      End If
 
 		    Case "gw_info"
 		      // Gateway device info
@@ -543,6 +639,18 @@ Protected Class FlightConnection
 		        Window_WifiConfig.HandleWifiList(theJson)
 		      End If
 
+		    Case "wifi_scan_start"
+		      // Scan started - just informational
+		      LogMessage("WiFi scan started...", "DEBUG")
+
+		    Case "wifi_scan"
+		      // WiFi scan results - forward to WiFi config window
+		      If Window_WifiConfig.Visible Then
+		        Window_WifiConfig.HandleWifiScan(theJson)
+		        Window_WifiConfig.ButtonScan.Caption = "Scan..."
+		        Window_WifiConfig.ButtonScan.Enabled = True
+		      End If
+
 		    Case "gw_settings"
 		      // Gateway settings response
 		      Var theBacklight As Integer = theJson.Lookup("backlight", 0)
@@ -554,6 +662,32 @@ Protected Class FlightConnection
 		      Var theWifiTxMin As Integer = theJson.Lookup("wifi_tx_power_min", 0)
 		      Var theWifiTxMax As Integer = theJson.Lookup("wifi_tx_power_max", 20)
 		      RaiseEvent GatewaySettingsReceived(theBacklight, theBacklightMax, theLoraTxPower, theLoraTxMin, theLoraTxMax, theWifiTxPower, theWifiTxMin, theWifiTxMax)
+
+		    Case "rockets"
+		      // List of connected rockets - forward to Device Info window
+		      Var theRockets() As Dictionary
+
+		      If theJson.HasKey("rockets") Then
+		        Var theRocketsArray As JSONItem = theJson.Value("rockets")
+		        For i As Integer = 0 To theRocketsArray.Count - 1
+		          Var theRocketJson As JSONItem = theRocketsArray.ValueAt(i)
+		          Var theRocket As New Dictionary
+		          theRocket.Value("id") = theRocketJson.Lookup("id", 0)
+		          theRocket.Value("state") = theRocketJson.Lookup("state", "unknown")
+		          theRocket.Value("rssi") = theRocketJson.Lookup("rssi", 0)
+		          theRocket.Value("lat") = theRocketJson.Lookup("lat", 0.0)
+		          theRocket.Value("lon") = theRocketJson.Lookup("lon", 0.0)
+		          theRocket.Value("alt") = theRocketJson.Lookup("alt", 0.0)
+		          theRocket.Value("dist") = theRocketJson.Lookup("dist", 0.0)
+		          theRocket.Value("sats") = theRocketJson.Lookup("sats", 0)
+		          theRocket.Value("age") = theRocketJson.Lookup("age", 0)
+		          theRockets.Add(theRocket)
+		        Next
+		      End If
+
+		      If Window_DeviceInfo.Visible Then
+		        Window_DeviceInfo.HandleRocketList(theRockets)
+		      End If
 
 		    End Select
 
@@ -740,6 +874,27 @@ Protected Class FlightConnection
 		  theJson.Value("cmd") = "orientation_mode"
 		  theJson.Value("id") = theId
 		  theJson.Value("enabled") = inEnabled
+
+		  SendData(theJson.ToString + EndOfLine)
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SendSetRocketName(inRocketId As Integer, inName As String)
+		  // Set the rocket name on the flight computer
+		  If Not IsConnected Then
+		    LogMessage("Cannot send command - not connected", "WARN")
+		    Return
+		  End If
+
+		  Var theId As Integer = pNextCommandId
+		  pNextCommandId = pNextCommandId + 1
+
+		  Var theJson As New JSONItem
+		  theJson.Value("cmd") = "set_rocket_name"
+		  theJson.Value("id") = theId
+		  theJson.Value("rocket") = inRocketId
+		  theJson.Value("name") = inName
 
 		  SendData(theJson.ToString + EndOfLine)
 		End Sub
@@ -1025,6 +1180,22 @@ Protected Class FlightConnection
 
 	#tag Property, Flags = &h21
 		Private pConnectionMode As ConnectionMode = ConnectionMode.Serial
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pRetryCount As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pRetryHost As String = ""
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pRetryPort As Integer = 0
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pRetryTimer As Timer
 	#tag EndProperty
 
 

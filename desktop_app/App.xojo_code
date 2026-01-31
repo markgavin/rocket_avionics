@@ -360,13 +360,8 @@ Inherits Application
 
 	#tag MenuHandler
 		Function ViewFlightComputerInfo() As Boolean Handles ViewFlightComputerInfo.Action
-		  // Request and display flight computer device information
-		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Console.LogMessage(">> Requesting flight computer info...")
-		    Window_Main.pConnection.SendCommand("info")
-		  Else
-		    MsgBox("Not connected to gateway")
-		  End If
+		  // Show flight computer info window (shows list of connected rockets)
+		  Window_DeviceInfo.Show
 		  Return True
 		End Function
 	#tag EndMenuHandler
@@ -402,12 +397,8 @@ Inherits Application
 
 	#tag MenuHandler
 		Function ViewGatewaySettings() As Boolean Handles ViewGatewaySettings.Action
-		  // Show gateway settings dialog
-		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Dialog_GatewaySettings.Show
-		  Else
-		    MsgBox("Not connected to gateway")
-		  End If
+		  // Gateway settings dialog - TODO: re-add via Xojo IDE
+		  MsgBox("Gateway settings not yet implemented")
 		  Return True
 		End Function
 	#tag EndMenuHandler

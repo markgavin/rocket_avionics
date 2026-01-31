@@ -22,7 +22,7 @@ Begin Window Dialog_GatewaySettings
    MinimumWidth    =   400
    Resizeable      =   False
    Title           =   "Gateway Settings"
-   Type            =   0
+   Type            =   1
    Visible         =   True
    Width           =   400
    Begin Label LabelTitle
