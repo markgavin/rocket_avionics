@@ -430,12 +430,37 @@ void initGPS() {
     Serial.println("GPS UART initialized");
     Serial.printf("  RX pin: %d, TX pin: %d, Baud: %d\n", GPS_RX, GPS_TX, GPS_BAUD);
 
-    // Wait for GPS module to be ready
-    delay(500);
+    // Wait for GPS module to be ready after power-up
+    delay(1000);
 
-    // Note: UC6580 GPS should output NMEA by default at 115200 baud
-    // Don't send configuration commands as they may not be correct format
-    Serial.println("GPS initialized - using default NMEA output");
+    // Flush any pending data
+    while (gpsSerial.available()) {
+        gpsSerial.read();
+    }
+
+    // Configure UC6580/UM600 GPS module
+    // $CFGSYS - Configure GNSS systems
+    // h11 = GPS+BDS+GALILEO+SBAS+QZSS (reported to work by Meshtastic users)
+    Serial.println("Sending GPS configuration commands...");
+    gpsSerial.println("$CFGSYS,h11*61");
+    delay(100);
+
+    // $CFGMSG - Enable NMEA messages
+    // Format: $CFGMSG,<msgType>,<rate>*checksum
+    // Enable GGA at 1Hz
+    gpsSerial.println("$CFGMSG,0,1,1*23");
+    delay(50);
+    // Enable RMC at 1Hz
+    gpsSerial.println("$CFGMSG,4,1,1*27");
+    delay(50);
+    // Enable GSV at 1Hz (satellites in view)
+    gpsSerial.println("$CFGMSG,3,1,1*26");
+    delay(50);
+    // Enable GSA at 1Hz (DOP and active satellites)
+    gpsSerial.println("$CFGMSG,2,1,1*25");
+    delay(50);
+
+    Serial.println("GPS initialized with UC6580 configuration");
 }
 
 //----------------------------------------------
@@ -1312,6 +1337,12 @@ void handleClientCommand(int clientIdx, const String& command) {
         return;
     }
 
+    if (cmd == "gps_debug") {
+        // Capture and send raw NMEA sentences for debugging
+        sendGpsDebug(clientIdx);
+        return;
+    }
+
     if (cmd == "wifi_list") {
         sendWifiList(clientIdx);
         return;
@@ -1997,6 +2028,92 @@ void sendRocketList(int clientIdx) {
     response += "]}";
     clients[clientIdx].println(response);
     Serial.println("Sent rocket list");
+}
+
+//----------------------------------------------
+// Send GPS Debug Info
+// Captures raw NMEA sentences for debugging
+//----------------------------------------------
+void sendGpsDebug(int clientIdx) {
+    String response = "{\"type\":\"gps_debug\"";
+
+    // TinyGPS++ statistics
+    response += ",\"chars\":" + String(gps.charsProcessed());
+    response += ",\"sentences\":" + String(gps.sentencesWithFix());
+    response += ",\"passed\":" + String(gps.passedChecksum());
+    response += ",\"failed\":" + String(gps.failedChecksum());
+
+    // Satellite info
+    response += ",\"sats\":" + String(gps.satellites.value());
+    response += ",\"sats_valid\":" + String(gps.satellites.isValid() ? "true" : "false");
+    response += ",\"sats_age\":" + String(gps.satellites.age());
+
+    // Location info
+    response += ",\"loc_valid\":" + String(gps.location.isValid() ? "true" : "false");
+    response += ",\"loc_age\":" + String(gps.location.age());
+
+    // HDOP
+    response += ",\"hdop\":" + String(gps.hdop.value());
+    response += ",\"hdop_valid\":" + String(gps.hdop.isValid() ? "true" : "false");
+
+    // Time info
+    response += ",\"time_valid\":" + String(gps.time.isValid() ? "true" : "false");
+    response += ",\"date_valid\":" + String(gps.date.isValid() ? "true" : "false");
+
+    if (gps.time.isValid()) {
+        char timeStr[16];
+        snprintf(timeStr, sizeof(timeStr), "%02d:%02d:%02d",
+                 gps.time.hour(), gps.time.minute(), gps.time.second());
+        response += ",\"time\":\"" + String(timeStr) + "\"";
+    }
+
+    if (gps.date.isValid()) {
+        char dateStr[16];
+        snprintf(dateStr, sizeof(dateStr), "%04d-%02d-%02d",
+                 gps.date.year(), gps.date.month(), gps.date.day());
+        response += ",\"date\":\"" + String(dateStr) + "\"";
+    }
+
+    response += "}";
+    clients[clientIdx].println(response);
+
+    // Now capture raw NMEA for 2 seconds
+    clients[clientIdx].println("{\"type\":\"nmea_capture\",\"duration_ms\":2000}");
+
+    char nmeaBuffer[128];
+    uint8_t nmeaIdx = 0;
+    uint32_t startTime = millis();
+    int sentenceCount = 0;
+
+    while (millis() - startTime < 2000 && sentenceCount < 20) {
+        while (gpsSerial.available()) {
+            char c = gpsSerial.read();
+            gps.encode(c);  // Keep TinyGPS++ updated
+
+            if (c == '$') {
+                nmeaIdx = 0;
+            }
+            if (nmeaIdx < sizeof(nmeaBuffer) - 1) {
+                nmeaBuffer[nmeaIdx++] = c;
+            }
+            if (c == '\n') {
+                nmeaBuffer[nmeaIdx] = '\0';
+                // Remove CR/LF
+                if (nmeaIdx > 0 && nmeaBuffer[nmeaIdx-1] == '\n') nmeaBuffer[nmeaIdx-1] = '\0';
+                if (nmeaIdx > 1 && nmeaBuffer[nmeaIdx-2] == '\r') nmeaBuffer[nmeaIdx-2] = '\0';
+
+                // Send the sentence
+                String nmea = "{\"type\":\"nmea\",\"data\":\"" + String(nmeaBuffer) + "\"}";
+                clients[clientIdx].println(nmea);
+                sentenceCount++;
+                nmeaIdx = 0;
+            }
+        }
+        delay(1);
+    }
+
+    clients[clientIdx].println("{\"type\":\"nmea_capture_end\",\"count\":" + String(sentenceCount) + "}");
+    Serial.printf("GPS debug sent: %d NMEA sentences\n", sentenceCount);
 }
 
 //----------------------------------------------
