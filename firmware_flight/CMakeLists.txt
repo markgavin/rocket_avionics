@@ -48,12 +48,14 @@ add_executable(rocket_avionics_flight
     src/gps.c
 )
 
-# Force version.c to rebuild every time (updates build date/time)
-add_custom_command(
-    TARGET rocket_avionics_flight PRE_BUILD
+# Auto-increment build number and update timestamps on every build
+add_custom_target(increment_build ALL
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/increment_build.cmake
     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
-    COMMENT "Touching version.c to update build timestamp"
+    COMMENT "Incrementing build number and updating timestamp"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+add_dependencies(rocket_avionics_flight increment_build)
 
 # Generate PIO header for WS2812 NeoPixel
 pico_generate_pio_header(rocket_avionics_flight

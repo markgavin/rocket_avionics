@@ -316,9 +316,11 @@ void StatusDisplay_ShowAbout(
 // Purpose: Show rocket ID setting screen
 // Parameters:
 //   inRocketId - Current rocket ID (0-15)
+//   inRocketName - Custom rocket name (or NULL/empty for default)
 //   inEditing - True if currently editing (show cursor)
 //----------------------------------------------
 void StatusDisplay_ShowRocketId(
   uint8_t inRocketId,
+  const char * inRocketName,
   bool inEditing) ;
 

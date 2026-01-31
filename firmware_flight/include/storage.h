@@ -79,20 +79,23 @@ bool Storage_ClearCalibration(void) ;
 //----------------------------------------------
 // Device Settings Data Structure
 //----------------------------------------------
+#define kRocketNameMaxLen  16  // Max rocket name length (including null)
+
 typedef struct
 {
-  uint32_t pMagic ;         // Magic number for validation
-  uint32_t pVersion ;       // Data format version
-  uint8_t pRocketId ;       // Unique rocket ID (0-15)
-  uint8_t pReserved[3] ;    // Reserved for future use
-  uint32_t pChecksum ;      // Data integrity check
+  uint32_t pMagic ;                      // Magic number for validation
+  uint32_t pVersion ;                    // Data format version
+  uint8_t pRocketId ;                    // Unique rocket ID (0-15)
+  uint8_t pReserved[3] ;                 // Reserved for future use
+  char pRocketName[kRocketNameMaxLen] ;  // Custom rocket name (null-terminated)
+  uint32_t pChecksum ;                   // Data integrity check
 } DeviceSettings ;
 
 //----------------------------------------------
 // Settings magic and version constants
 //----------------------------------------------
 #define kSettingsMagic   0x53455454  // "SETT"
-#define kSettingsVersion 1
+#define kSettingsVersion 2           // Bumped for rocket name support
 
 //----------------------------------------------
 // Function: Storage_SaveRocketId
@@ -116,3 +119,21 @@ uint8_t Storage_LoadRocketId(void) ;
 // Returns: true if settings data present
 //----------------------------------------------
 bool Storage_HasSettings(void) ;
+
+//----------------------------------------------
+// Function: Storage_SaveRocketName
+// Purpose: Save rocket name to flash
+// Parameters:
+//   inName - null-terminated name string (max 15 chars)
+// Returns: true if successful
+//----------------------------------------------
+bool Storage_SaveRocketName(const char * inName) ;
+
+//----------------------------------------------
+// Function: Storage_LoadRocketName
+// Purpose: Load rocket name from flash
+// Parameters:
+//   outName - buffer to receive name (min 16 bytes)
+// Returns: true if valid name found
+//----------------------------------------------
+bool Storage_LoadRocketName(char * outName) ;

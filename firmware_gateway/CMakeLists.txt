@@ -43,12 +43,14 @@ add_executable(rocket_gateway
   src/neopixel.c
 )
 
-# Force version.c to rebuild every time (updates build date/time)
-add_custom_command(
-  TARGET rocket_gateway PRE_BUILD
-  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
-  COMMENT "Touching version.c to update build timestamp"
+# Auto-increment build number and update timestamps on every build
+add_custom_target(increment_build ALL
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/increment_build.cmake
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
+    COMMENT "Incrementing build number and updating timestamp"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
+add_dependencies(rocket_gateway increment_build)
 
 # Include directories
 target_include_directories(rocket_gateway PRIVATE

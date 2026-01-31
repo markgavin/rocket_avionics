@@ -149,6 +149,7 @@ typedef struct __attribute__((packed))
 
 // Mode commands
 #define kCmdOrientationMode 0x08  // Enable/disable high-rate orientation testing
+#define kCmdSetRocketName   0x09  // Set rocket name (followed by null-terminated string)
 
 // Storage commands
 #define kCmdSdList          0x10

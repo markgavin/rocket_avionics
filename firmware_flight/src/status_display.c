@@ -914,6 +914,7 @@ void StatusDisplay_ShowAbout(
 //----------------------------------------------
 void StatusDisplay_ShowRocketId(
   uint8_t inRocketId,
+  const char * inRocketName,
   bool inEditing)
 {
   if (!sInitialized) return ;
@@ -924,22 +925,35 @@ void StatusDisplay_ShowRocketId(
   SSD1306_DrawStringCentered(0, "ROCKET ID", 1) ;
   SSD1306_DrawLine(0, 10, 127, 10, true) ;
 
-  // Large ID number display
-  char theBuffer[16] ;
-  snprintf(theBuffer, sizeof(theBuffer), "%u", inRocketId) ;
-  SSD1306_DrawStringCentered(20, theBuffer, 3) ;
+  // Show rocket name if set (max 16 chars fits on display)
+  if (inRocketName != NULL && inRocketName[0] != '\0')
+  {
+    SSD1306_DrawStringCentered(14, inRocketName, 1) ;
+
+    // ID number below name (smaller)
+    char theBuffer[16] ;
+    snprintf(theBuffer, sizeof(theBuffer), "ID: %u", inRocketId) ;
+    SSD1306_DrawStringCentered(28, theBuffer, 2) ;
+  }
+  else
+  {
+    // No name - show large ID number
+    char theBuffer[16] ;
+    snprintf(theBuffer, sizeof(theBuffer), "%u", inRocketId) ;
+    SSD1306_DrawStringCentered(20, theBuffer, 3) ;
+  }
 
   // ID range hint
-  SSD1306_DrawStringCentered(44, "(0 - 15)", 1) ;
+  SSD1306_DrawStringCentered(46, "(0 - 15)", 1) ;
 
   // Instructions at bottom
   if (inEditing)
   {
-    SSD1306_DrawStringCentered(54, "[B] to change", 1) ;
+    SSD1306_DrawStringCentered(56, "[B] to change", 1) ;
   }
   else
   {
-    SSD1306_DrawStringCentered(54, "Press B to edit", 1) ;
+    SSD1306_DrawStringCentered(56, "Press B to edit", 1) ;
   }
 
   SSD1306_Update() ;

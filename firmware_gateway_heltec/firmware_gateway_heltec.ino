@@ -13,6 +13,9 @@
 
 #include <RadioLib.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
+#include <ArduinoOTA.h>
+#include <Preferences.h>
 #include <TinyGPSPlus.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
@@ -31,7 +34,7 @@
 // GPS UART
 #define GPS_RX      33
 #define GPS_TX      34
-#define GPS_BAUD    9600
+#define GPS_BAUD    115200  // UC6580 default baud rate
 
 // TFT Display (ST7735 160x80)
 #define TFT_MOSI    42
@@ -82,18 +85,34 @@
 //----------------------------------------------
 // WiFi Configuration
 //----------------------------------------------
-// Station mode (connect to existing network)
-#define WIFI_STA_SSID       "AppligentGuestAirport"
-#define WIFI_STA_PASSWORD   "qualitypdf"
-#define WIFI_STA_TIMEOUT_MS 10000       // 10 seconds to connect before fallback
+// Default credentials (used if no stored networks)
+#define WIFI_DEFAULT_SSID       "AppligentGuestAirport"
+#define WIFI_DEFAULT_PASSWORD   "qualitypdf"
+#define WIFI_STA_TIMEOUT_MS     10000   // 10 seconds per network attempt
 
-// AP mode (create hotspot)
+// AP mode (create hotspot) - fallback
 #define WIFI_AP_SSID        "RocketGateway"
 #define WIFI_AP_PASSWORD    ""          // Empty = open AP
 #define WIFI_AP_CHANNEL     6
 
 #define TCP_PORT        5000
 #define MAX_CLIENTS     4
+
+// Stored WiFi networks
+#define MAX_WIFI_NETWORKS   4
+#define WIFI_SSID_MAX_LEN   32
+#define WIFI_PASS_MAX_LEN   64
+
+typedef struct {
+    char ssid[WIFI_SSID_MAX_LEN + 1];
+    char password[WIFI_PASS_MAX_LEN + 1];
+    uint8_t priority;       // Lower = higher priority (tried first)
+    bool enabled;
+} WiFiNetwork;
+
+WiFiNetwork storedNetworks[MAX_WIFI_NETWORKS];
+uint8_t storedNetworkCount = 0;
+Preferences wifiPrefs;
 
 //----------------------------------------------
 // Global Objects
@@ -190,6 +209,7 @@ bool prevGpsValid = false;
 int prevGpsSats = -1;
 double prevGpsLat = 0;
 double prevGpsLon = 0;
+uint32_t prevGpsChars = 0;
 uint8_t prevGpsHour = 255;
 uint8_t prevGpsMin = 255;
 uint8_t prevGpsSec = 255;
@@ -233,8 +253,8 @@ void setup() {
 
     Serial.println("\n========================================");
     Serial.println("  ROCKET AVIONICS GATEWAY - HELTEC");
-    Serial.printf("  Version %s\n", FIRMWARE_VERSION_STRING);
-    Serial.printf("  Build: %s %s\n", FIRMWARE_BUILD_DATE, FIRMWARE_BUILD_TIME);
+    Serial.printf("  %s\n", FIRMWARE_VERSION_STRING);
+    Serial.printf("  %s %s\n", FIRMWARE_BUILD_DATE, FIRMWARE_BUILD_TIME);
     Serial.println("========================================\n");
 
     // Initialize display
@@ -262,7 +282,11 @@ void setup() {
     displayStatus("LoRa OK", COLOR_GREEN);
     delay(500);
 
-    // Initialize WiFi AP
+    // Load WiFi networks from flash
+    displayStatus("Loading WiFi...", COLOR_YELLOW);
+    loadWifiNetworks();
+
+    // Initialize WiFi (tries stored networks, falls back to AP)
     displayStatus("WiFi Init...", COLOR_YELLOW);
     initWiFi();
     displayStatus("WiFi OK", COLOR_GREEN);
@@ -271,11 +295,17 @@ void setup() {
     // Start TCP server
     server.begin();
 
+    // Initialize mDNS for network discovery
+    initMDNS();
+
+    // Initialize OTA updates
+    initOTA();
+
     // Ready
     Serial.println("\n========================================");
     Serial.println("Gateway Ready!");
     Serial.printf("  WiFi Mode: %s\n", wifiIsStationMode ? "Station" : "AP");
-    Serial.printf("  WiFi SSID: %s\n", wifiIsStationMode ? WIFI_STA_SSID : WIFI_AP_SSID);
+    Serial.printf("  WiFi SSID: %s\n", wifiIsStationMode ? WiFi.SSID().c_str() : WIFI_AP_SSID);
     Serial.printf("  IP: %s\n", wifiCurrentIP.c_str());
     Serial.printf("  TCP Port: %d\n", TCP_PORT);
     Serial.printf("  LoRa Freq: %.1f MHz\n", LORA_FREQUENCY);
@@ -289,6 +319,9 @@ void setup() {
 // Main Loop
 //----------------------------------------------
 void loop() {
+    // Handle OTA updates
+    ArduinoOTA.handle();
+
     // Handle incoming LoRa packets
     handleLoRa();
 
@@ -297,6 +330,7 @@ void loop() {
 
     // Read GPS
     readGPS();
+    checkGpsHealth();
 
     // Update rocket tracking (mark inactive rockets, cycle display)
     updateRocketTracking();
@@ -322,9 +356,10 @@ void loop() {
 //----------------------------------------------
 void initDisplay() {
     // Enable VEXT power for display and GPS
+    // VEXT controls power to both TFT and GPS module
     pinMode(TFT_POWER, OUTPUT);
     digitalWrite(TFT_POWER, HIGH);
-    delay(50);
+    delay(200);  // Give GPS module time to power up properly
 
     // Enable backlight with PWM for brightness control
     // ESP32 Arduino 3.x uses simplified LEDC API
@@ -352,15 +387,15 @@ void displaySplash() {
     tft.setCursor(20, 10);
     tft.print("ROCKET GATEWAY");
 
-    // Version
+    // Build number
     tft.setTextColor(COLOR_WHITE);
-    tft.setCursor(55, 30);
-    tft.printf("v%s", FIRMWARE_VERSION_STRING);
+    tft.setCursor(40, 30);
+    tft.print(FIRMWARE_VERSION_STRING);
 
-    // Build info
+    // Build date/time
     tft.setTextColor(COLOR_DARK_GRAY);
-    tft.setCursor(25, 50);
-    tft.print(FIRMWARE_BUILD_DATE);
+    tft.setCursor(15, 50);
+    tft.printf("%s %s", FIRMWARE_BUILD_DATE, FIRMWARE_BUILD_TIME);
 
     tft.setCursor(40, 65);
     tft.print("Heltec Tracker");
@@ -388,8 +423,39 @@ void displayStatus(const char* message, uint16_t color) {
 //----------------------------------------------
 void initGPS() {
     // VEXT must be HIGH for GPS (already set in initDisplay)
+    // Give GPS module extra time to power up after VEXT enabled
+    delay(100);
+
     gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
     Serial.println("GPS UART initialized");
+    Serial.printf("  RX pin: %d, TX pin: %d, Baud: %d\n", GPS_RX, GPS_TX, GPS_BAUD);
+
+    // Wait for GPS module to be ready
+    delay(500);
+
+    // Note: UC6580 GPS should output NMEA by default at 115200 baud
+    // Don't send configuration commands as they may not be correct format
+    Serial.println("GPS initialized - using default NMEA output");
+}
+
+//----------------------------------------------
+// Check GPS module presence (called periodically)
+//----------------------------------------------
+void checkGpsHealth() {
+    // GPS health check - serial output only for local debugging
+    static uint32_t lastCheck = 0;
+    static uint32_t charsReceived = 0;
+
+    if (millis() - lastCheck > 30000) {  // Every 30 seconds
+        uint32_t newChars = gps.charsProcessed();
+
+        if (newChars == charsReceived) {
+            Serial.println("GPS WARNING: No data received - check VEXT power");
+        }
+
+        charsReceived = newChars;
+        lastCheck = millis();
+    }
 }
 
 //----------------------------------------------
@@ -436,52 +502,153 @@ bool initLoRa() {
 // Initialize WiFi (Station mode with AP fallback)
 //----------------------------------------------
 void initWiFi() {
-    // Try station mode first if SSID is configured
-    if (strlen(WIFI_STA_SSID) > 0) {
-        Serial.println("Attempting WiFi Station mode...");
-        Serial.printf("  Connecting to: %s\n", WIFI_STA_SSID);
+    // Sort networks by priority before trying
+    sortNetworksByPriority();
 
+    // Try each stored network in priority order
+    bool connected = false;
+
+    if (storedNetworkCount > 0) {
+        Serial.printf("Attempting WiFi Station mode (%d networks stored)\n", storedNetworkCount);
         WiFi.mode(WIFI_STA);
         WiFi.setTxPower(WIFI_POWER_8_5dBm);  // Reduce WiFi TX power to lower heat
-        WiFi.begin(WIFI_STA_SSID, WIFI_STA_PASSWORD);
 
-        uint32_t startTime = millis();
-        while (WiFi.status() != WL_CONNECTED) {
-            if (millis() - startTime > WIFI_STA_TIMEOUT_MS) {
-                Serial.println("  Station mode failed - timeout");
-                break;
+        for (int i = 0; i < storedNetworkCount && !connected; i++) {
+            if (!storedNetworks[i].enabled) {
+                Serial.printf("  [%d] %s - skipped (disabled)\n", i, storedNetworks[i].ssid);
+                continue;
             }
-            delay(500);
-            Serial.print(".");
-        }
-        Serial.println();
 
-        if (WiFi.status() == WL_CONNECTED) {
-            wifiIsStationMode = true;
-            wifiCurrentIP = WiFi.localIP().toString();
-            Serial.println("  Station mode connected!");
-            Serial.printf("  IP: %s\n", wifiCurrentIP.c_str());
-            return;
+            Serial.printf("  [%d] Trying: %s\n", i, storedNetworks[i].ssid);
+            displayStatus(storedNetworks[i].ssid, COLOR_YELLOW);
+
+            WiFi.begin(storedNetworks[i].ssid, storedNetworks[i].password);
+
+            uint32_t startTime = millis();
+            while (WiFi.status() != WL_CONNECTED) {
+                if (millis() - startTime > WIFI_STA_TIMEOUT_MS) {
+                    Serial.println("      timeout");
+                    WiFi.disconnect();
+                    delay(100);
+                    break;
+                }
+                delay(250);
+                Serial.print(".");
+            }
+
+            if (WiFi.status() == WL_CONNECTED) {
+                wifiIsStationMode = true;
+                wifiCurrentIP = WiFi.localIP().toString();
+                Serial.printf("\n  Connected to: %s\n", storedNetworks[i].ssid);
+                Serial.printf("  IP: %s\n", wifiCurrentIP.c_str());
+                connected = true;
+            }
         }
     }
 
-    // Fall back to AP mode
-    Serial.println("Starting WiFi AP mode...");
+    // Fall back to AP mode if no station connection
+    if (!connected) {
+        Serial.println("Starting WiFi AP mode (fallback)...");
 
-    WiFi.mode(WIFI_AP);
+        WiFi.mode(WIFI_AP);
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);  // Reduce WiFi TX power to lower heat
 
-    WiFi.setTxPower(WIFI_POWER_8_5dBm);  // Reduce WiFi TX power to lower heat
-    if (strlen(WIFI_AP_PASSWORD) >= 8) {
-        WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD, WIFI_AP_CHANNEL);
+        if (strlen(WIFI_AP_PASSWORD) >= 8) {
+            WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD, WIFI_AP_CHANNEL);
+        } else {
+            WiFi.softAP(WIFI_AP_SSID, NULL, WIFI_AP_CHANNEL);
+        }
+
+        wifiIsStationMode = false;
+        wifiCurrentIP = WiFi.softAPIP().toString();
+        Serial.printf("  AP SSID: %s\n", WIFI_AP_SSID);
+        Serial.printf("  AP IP: %s\n", wifiCurrentIP.c_str());
+        Serial.printf("  Channel: %d\n", WIFI_AP_CHANNEL);
+    }
+}
+
+//----------------------------------------------
+// Initialize mDNS for Network Discovery
+// Allows clients to find gateway at RocketGateway.local
+//----------------------------------------------
+void initMDNS() {
+    const char* hostname = "RocketGateway";
+
+    if (MDNS.begin(hostname)) {
+        Serial.printf("mDNS started: %s.local\n", hostname);
+
+        // Advertise TCP service for rocket telemetry
+        MDNS.addService("_rocket", "_tcp", TCP_PORT);
+
+        // Add TXT records with device info
+        MDNS.addServiceTxt("_rocket", "_tcp", "version", FIRMWARE_VERSION_STRING);
+        MDNS.addServiceTxt("_rocket", "_tcp", "type", "gateway");
+        MDNS.addServiceTxt("_rocket", "_tcp", "board", "heltec");
+
+        Serial.printf("  Service: _rocket._tcp.local port %d\n", TCP_PORT);
     } else {
-        WiFi.softAP(WIFI_AP_SSID, NULL, WIFI_AP_CHANNEL);
+        Serial.println("mDNS failed to start");
     }
+}
 
-    wifiIsStationMode = false;
-    wifiCurrentIP = WiFi.softAPIP().toString();
-    Serial.printf("  AP SSID: %s\n", WIFI_AP_SSID);
-    Serial.printf("  AP IP: %s\n", wifiCurrentIP.c_str());
-    Serial.printf("  Channel: %d\n", WIFI_AP_CHANNEL);
+//----------------------------------------------
+// Initialize OTA (Over-The-Air) Updates
+//----------------------------------------------
+void initOTA() {
+    // Set hostname for OTA
+    ArduinoOTA.setHostname("RocketGateway");
+
+    // Optional: Set password for OTA updates (uncomment to enable)
+    // ArduinoOTA.setPassword("rocket");
+
+    ArduinoOTA.onStart([]() {
+        String type = (ArduinoOTA.getCommand() == U_FLASH) ? "firmware" : "filesystem";
+        Serial.println("OTA Start: " + type);
+        // Show OTA in progress on display
+        tft.fillScreen(COLOR_BLACK);
+        tft.setTextColor(COLOR_CYAN);
+        tft.setTextSize(1);
+        tft.setCursor(30, 30);
+        tft.print("OTA UPDATE");
+        tft.setCursor(35, 50);
+        tft.print("in progress...");
+    });
+
+    ArduinoOTA.onEnd([]() {
+        Serial.println("\nOTA Complete!");
+        tft.fillScreen(COLOR_BLACK);
+        tft.setTextColor(COLOR_GREEN);
+        tft.setCursor(30, 40);
+        tft.print("OTA Complete!");
+    });
+
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        int percent = (progress / (total / 100));
+        Serial.printf("OTA Progress: %u%%\r", percent);
+        // Update progress bar on display
+        tft.fillRect(20, 60, 120, 10, COLOR_DARK_GRAY);
+        tft.fillRect(20, 60, (percent * 120) / 100, 10, COLOR_GREEN);
+    });
+
+    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.printf("OTA Error[%u]: ", error);
+        String errMsg = "Unknown";
+        if (error == OTA_AUTH_ERROR) errMsg = "Auth Failed";
+        else if (error == OTA_BEGIN_ERROR) errMsg = "Begin Failed";
+        else if (error == OTA_CONNECT_ERROR) errMsg = "Connect Failed";
+        else if (error == OTA_RECEIVE_ERROR) errMsg = "Receive Failed";
+        else if (error == OTA_END_ERROR) errMsg = "End Failed";
+        Serial.println(errMsg);
+        tft.fillScreen(COLOR_BLACK);
+        tft.setTextColor(COLOR_RED);
+        tft.setCursor(20, 40);
+        tft.print("OTA Error:");
+        tft.setCursor(20, 55);
+        tft.print(errMsg);
+    });
+
+    ArduinoOTA.begin();
+    Serial.println("OTA initialized");
 }
 
 //----------------------------------------------
@@ -514,6 +681,8 @@ void handleLoRa() {
                 case LORA_PACKET_TELEMETRY:  // 0x01
                     if (lastLoraPacketLen >= sizeof(LoRaTelemetryPacket)) {
                         forwardTelemetryAsJson();
+                        // Send ACK back to flight computer with signal quality info
+                        sendAckToFlightComputer();
                     } else {
                         forwardAsHex();
                     }
@@ -618,6 +787,35 @@ float calculateDistance(float lat1, float lon1, float lat2, float lon2) {
               sin(dLon/2) * sin(dLon/2);
     float c = 2 * atan2(sqrt(a), sqrt(1-a));
     return R * c;
+}
+
+//----------------------------------------------
+// Send ACK to Flight Computer
+// Sends signal quality info back so FC knows we received it
+//----------------------------------------------
+void sendAckToFlightComputer() {
+    // ACK packet format: magic, type(0x04), rssi(2), snr(1)
+    uint8_t ackPacket[5];
+    ackPacket[0] = LORA_MAGIC;          // 0xAF
+    ackPacket[1] = 0x04;                // kLoRaPacketAck
+
+    // RSSI as int16 (little endian)
+    int16_t rssi = (int16_t)lastRssi;
+    ackPacket[2] = rssi & 0xFF;
+    ackPacket[3] = (rssi >> 8) & 0xFF;
+
+    // SNR as int8
+    ackPacket[4] = (int8_t)lastSnr;
+
+    // Send ACK via LoRa
+    int state = radio.transmit(ackPacket, 5);
+    if (state == RADIOLIB_ERR_NONE) {
+        loraTxCount++;
+        // Serial.printf("ACK TX: RSSI=%d SNR=%d\n", rssi, (int8_t)lastSnr);
+    }
+
+    // Restart receiving
+    radio.startReceive();
 }
 
 //----------------------------------------------
@@ -815,6 +1013,22 @@ void forwardDeviceInfoAsJson() {
                   (lastLoraPacketBinary[offset+1] << 8) |
                   (lastLoraPacketBinary[offset+2] << 16) |
                   (lastLoraPacketBinary[offset+3] << 24);
+        offset += 4;
+    }
+
+    // Rocket ID (added in v2)
+    uint8_t rocketId = 0;
+    if (offset < lastLoraPacketLen) {
+        rocketId = lastLoraPacketBinary[offset++];
+    }
+
+    // Rocket name (added in v2)
+    String rocketName = "";
+    if (offset < lastLoraPacketLen) {
+        uint8_t nameLen = lastLoraPacketBinary[offset++];
+        for (int i = 0; i < nameLen && offset < lastLoraPacketLen; i++) {
+            rocketName += (char)lastLoraPacketBinary[offset++];
+        }
     }
 
     String json = "{\"type\":\"fc_info\"";
@@ -827,6 +1041,8 @@ void forwardDeviceInfoAsJson() {
     json += ",\"gps\":" + String((flags & 0x20) ? "true" : "false");
     json += ",\"state\":\"" + String(flightStateNames[state > 7 ? 0 : state]) + "\"";
     json += ",\"samples\":" + String(samples);
+    json += ",\"rocket_id\":" + String(rocketId);
+    json += ",\"rocket_name\":\"" + rocketName + "\"";
     json += "}";
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -1091,6 +1307,41 @@ void handleClientCommand(int clientIdx, const String& command) {
         return;
     }
 
+    if (cmd == "wifi_status") {
+        sendWifiStatus(clientIdx);
+        return;
+    }
+
+    if (cmd == "wifi_list") {
+        sendWifiList(clientIdx);
+        return;
+    }
+
+    if (cmd == "wifi_add") {
+        handleWifiAdd(clientIdx, command);
+        return;
+    }
+
+    if (cmd == "wifi_remove") {
+        handleWifiRemove(clientIdx, command);
+        return;
+    }
+
+    if (cmd == "wifi_save") {
+        handleWifiSave(clientIdx);
+        return;
+    }
+
+    if (cmd == "wifi_connect") {
+        handleWifiConnect(clientIdx);
+        return;
+    }
+
+    if (cmd == "wifi_scan") {
+        handleWifiScan(clientIdx);
+        return;
+    }
+
     //------------------------------------------
     // Flight computer commands - convert to binary
     // All commands can include "rocket":N to target a specific rocket
@@ -1127,6 +1378,15 @@ void handleClientCommand(int clientIdx, const String& command) {
         bool enabled = command.indexOf("\"enabled\":true") >= 0;
         loraPacket[4] = enabled ? 1 : 0;
         packetLen = 5;
+    }
+    else if (cmd == "set_rocket_name") {
+        loraPacket[3] = 0x09;  // kCmdSetRocketName
+        // Extract name parameter from JSON: {"cmd":"set_rocket_name","rocket":0,"name":"My Rocket"}
+        String name = extractJsonString(command, "name");
+        uint8_t nameLen = min((int)name.length(), 15);  // Max 15 chars + null
+        memcpy(&loraPacket[4], name.c_str(), nameLen);
+        loraPacket[4 + nameLen] = '\0';  // Null terminate
+        packetLen = 5 + nameLen;  // magic + type + target + cmd + name + null
     }
     else if (cmd == "flash_list") {
         loraPacket[3] = 0x20;  // kCmdFlashList
@@ -1267,6 +1527,331 @@ String extractJsonString(const String& json, const char* key) {
     if (keyEnd < 0) return "";
 
     return json.substring(keyStart, keyEnd);
+}
+
+//----------------------------------------------
+// Load WiFi Networks from Flash
+//----------------------------------------------
+void loadWifiNetworks() {
+    wifiPrefs.begin("wifi", true);  // Read-only
+
+    storedNetworkCount = wifiPrefs.getUChar("count", 0);
+    if (storedNetworkCount > MAX_WIFI_NETWORKS) {
+        storedNetworkCount = MAX_WIFI_NETWORKS;
+    }
+
+    Serial.printf("Loading %d stored WiFi networks\n", storedNetworkCount);
+
+    for (int i = 0; i < storedNetworkCount; i++) {
+        String keyPrefix = "n" + String(i);
+        String ssid = wifiPrefs.getString((keyPrefix + "s").c_str(), "");
+        String pass = wifiPrefs.getString((keyPrefix + "p").c_str(), "");
+        uint8_t priority = wifiPrefs.getUChar((keyPrefix + "r").c_str(), 100);
+        bool enabled = wifiPrefs.getBool((keyPrefix + "e").c_str(), true);
+
+        strncpy(storedNetworks[i].ssid, ssid.c_str(), WIFI_SSID_MAX_LEN);
+        storedNetworks[i].ssid[WIFI_SSID_MAX_LEN] = '\0';
+        strncpy(storedNetworks[i].password, pass.c_str(), WIFI_PASS_MAX_LEN);
+        storedNetworks[i].password[WIFI_PASS_MAX_LEN] = '\0';
+        storedNetworks[i].priority = priority;
+        storedNetworks[i].enabled = enabled;
+
+        Serial.printf("  [%d] SSID: %s, Priority: %d, Enabled: %s\n",
+                      i, storedNetworks[i].ssid, priority, enabled ? "yes" : "no");
+    }
+
+    wifiPrefs.end();
+
+    // If no stored networks, add the default
+    if (storedNetworkCount == 0 && strlen(WIFI_DEFAULT_SSID) > 0) {
+        Serial.println("No stored networks - adding default");
+        strncpy(storedNetworks[0].ssid, WIFI_DEFAULT_SSID, WIFI_SSID_MAX_LEN);
+        strncpy(storedNetworks[0].password, WIFI_DEFAULT_PASSWORD, WIFI_PASS_MAX_LEN);
+        storedNetworks[0].priority = 0;
+        storedNetworks[0].enabled = true;
+        storedNetworkCount = 1;
+    }
+}
+
+//----------------------------------------------
+// Save WiFi Networks to Flash
+//----------------------------------------------
+void saveWifiNetworks() {
+    wifiPrefs.begin("wifi", false);  // Read-write
+
+    wifiPrefs.putUChar("count", storedNetworkCount);
+
+    for (int i = 0; i < storedNetworkCount; i++) {
+        String keyPrefix = "n" + String(i);
+        wifiPrefs.putString((keyPrefix + "s").c_str(), storedNetworks[i].ssid);
+        wifiPrefs.putString((keyPrefix + "p").c_str(), storedNetworks[i].password);
+        wifiPrefs.putUChar((keyPrefix + "r").c_str(), storedNetworks[i].priority);
+        wifiPrefs.putBool((keyPrefix + "e").c_str(), storedNetworks[i].enabled);
+    }
+
+    // Clear any extra slots
+    for (int i = storedNetworkCount; i < MAX_WIFI_NETWORKS; i++) {
+        String keyPrefix = "n" + String(i);
+        wifiPrefs.remove((keyPrefix + "s").c_str());
+        wifiPrefs.remove((keyPrefix + "p").c_str());
+        wifiPrefs.remove((keyPrefix + "r").c_str());
+        wifiPrefs.remove((keyPrefix + "e").c_str());
+    }
+
+    wifiPrefs.end();
+    Serial.printf("Saved %d WiFi networks to flash\n", storedNetworkCount);
+}
+
+//----------------------------------------------
+// Sort Networks by Priority (bubble sort)
+//----------------------------------------------
+void sortNetworksByPriority() {
+    for (int i = 0; i < storedNetworkCount - 1; i++) {
+        for (int j = 0; j < storedNetworkCount - i - 1; j++) {
+            if (storedNetworks[j].priority > storedNetworks[j + 1].priority) {
+                WiFiNetwork temp = storedNetworks[j];
+                storedNetworks[j] = storedNetworks[j + 1];
+                storedNetworks[j + 1] = temp;
+            }
+        }
+    }
+}
+
+//----------------------------------------------
+// Send WiFi Status Response
+//----------------------------------------------
+void sendWifiStatus(int clientIdx) {
+    String response = "{\"type\":\"wifi_status\"";
+    response += ",\"mode\":\"" + String(wifiIsStationMode ? "station" : "ap") + "\"";
+
+    if (wifiIsStationMode) {
+        response += ",\"ssid\":\"" + String(WiFi.SSID()) + "\"";
+        response += ",\"ip\":\"" + wifiCurrentIP + "\"";
+        response += ",\"rssi\":" + String(WiFi.RSSI());
+        response += ",\"connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false");
+    } else {
+        response += ",\"ssid\":\"" + String(WIFI_AP_SSID) + "\"";
+        response += ",\"ip\":\"" + wifiCurrentIP + "\"";
+        response += ",\"rssi\":0";
+        response += ",\"connected\":" + String(clientCount > 0 ? "true" : "false");
+    }
+
+    response += "}";
+    clients[clientIdx].println(response);
+    Serial.println("Sent wifi_status");
+}
+
+//----------------------------------------------
+// Send WiFi Network List Response
+//----------------------------------------------
+void sendWifiList(int clientIdx) {
+    String response = "{\"type\":\"wifi_list\"";
+    response += ",\"count\":" + String(storedNetworkCount);
+    response += ",\"networks\":[";
+
+    for (int i = 0; i < storedNetworkCount; i++) {
+        if (i > 0) response += ",";
+        response += "{\"ssid\":\"" + String(storedNetworks[i].ssid) + "\"";
+        response += ",\"priority\":" + String(storedNetworks[i].priority);
+        response += ",\"enabled\":" + String(storedNetworks[i].enabled ? "true" : "false");
+        response += "}";
+    }
+
+    response += "]}";
+    clients[clientIdx].println(response);
+    Serial.println("Sent wifi_list");
+}
+
+//----------------------------------------------
+// Handle WiFi Add Network Command
+//----------------------------------------------
+void handleWifiAdd(int clientIdx, const String& command) {
+    if (storedNetworkCount >= MAX_WIFI_NETWORKS) {
+        clients[clientIdx].println("{\"type\":\"ack\",\"ok\":false,\"error\":\"Max networks reached\"}");
+        return;
+    }
+
+    String ssid = extractJsonString(command, "ssid");
+    String password = extractJsonString(command, "password");
+    int priority = extractJsonInt(command, "priority", 100);
+
+    if (ssid.length() == 0) {
+        clients[clientIdx].println("{\"type\":\"ack\",\"ok\":false,\"error\":\"SSID required\"}");
+        return;
+    }
+
+    // Add the network
+    int idx = storedNetworkCount;
+    strncpy(storedNetworks[idx].ssid, ssid.c_str(), WIFI_SSID_MAX_LEN);
+    storedNetworks[idx].ssid[WIFI_SSID_MAX_LEN] = '\0';
+    strncpy(storedNetworks[idx].password, password.c_str(), WIFI_PASS_MAX_LEN);
+    storedNetworks[idx].password[WIFI_PASS_MAX_LEN] = '\0';
+    storedNetworks[idx].priority = (uint8_t)priority;
+    storedNetworks[idx].enabled = true;
+    storedNetworkCount++;
+
+    // Sort by priority
+    sortNetworksByPriority();
+
+    Serial.printf("Added WiFi network: %s (priority %d)\n", ssid.c_str(), priority);
+    clients[clientIdx].println("{\"type\":\"ack\",\"ok\":true}");
+}
+
+//----------------------------------------------
+// Handle WiFi Remove Network Command
+//----------------------------------------------
+void handleWifiRemove(int clientIdx, const String& command) {
+    int index = extractJsonInt(command, "index", -1);
+
+    if (index < 0 || index >= storedNetworkCount) {
+        clients[clientIdx].println("{\"type\":\"ack\",\"ok\":false,\"error\":\"Invalid index\"}");
+        return;
+    }
+
+    Serial.printf("Removing WiFi network: %s\n", storedNetworks[index].ssid);
+
+    // Shift remaining networks down
+    for (int i = index; i < storedNetworkCount - 1; i++) {
+        storedNetworks[i] = storedNetworks[i + 1];
+    }
+    storedNetworkCount--;
+
+    clients[clientIdx].println("{\"type\":\"ack\",\"ok\":true}");
+}
+
+//----------------------------------------------
+// Handle WiFi Save Command
+//----------------------------------------------
+void handleWifiSave(int clientIdx) {
+    saveWifiNetworks();
+    clients[clientIdx].println("{\"type\":\"ack\",\"ok\":true,\"message\":\"Saved to flash\"}");
+}
+
+//----------------------------------------------
+// Handle WiFi Scan Command
+//----------------------------------------------
+void handleWifiScan(int clientIdx) {
+    Serial.println("Scanning WiFi networks...");
+
+    // Send immediate ack that scan is starting
+    clients[clientIdx].println("{\"type\":\"wifi_scan_start\"}");
+
+    // Perform scan (this blocks for a few seconds)
+    int numNetworks = WiFi.scanNetworks(false, false, false, 300);  // active scan, 300ms per channel
+
+    // Deduplicate by SSID, keeping strongest signal
+    // Use simple array to track unique SSIDs
+    String uniqueSsids[20];
+    int uniqueRssi[20];
+    String uniqueSecurity[20];
+    int uniqueChannel[20];
+    int uniqueCount = 0;
+
+    for (int i = 0; i < numNetworks && uniqueCount < 20; i++) {
+        String ssid = WiFi.SSID(i);
+        if (ssid.length() == 0) continue;  // Skip hidden networks
+
+        int rssi = WiFi.RSSI(i);
+
+        // Check if we already have this SSID
+        bool found = false;
+        for (int j = 0; j < uniqueCount; j++) {
+            if (uniqueSsids[j] == ssid) {
+                // Keep the stronger signal
+                if (rssi > uniqueRssi[j]) {
+                    uniqueRssi[j] = rssi;
+                }
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            uniqueSsids[uniqueCount] = ssid;
+            uniqueRssi[uniqueCount] = rssi;
+            uniqueChannel[uniqueCount] = WiFi.channel(i);
+
+            // Encryption type
+            switch (WiFi.encryptionType(i)) {
+                case WIFI_AUTH_OPEN:            uniqueSecurity[uniqueCount] = "open"; break;
+                case WIFI_AUTH_WEP:             uniqueSecurity[uniqueCount] = "WEP"; break;
+                case WIFI_AUTH_WPA_PSK:         uniqueSecurity[uniqueCount] = "WPA"; break;
+                case WIFI_AUTH_WPA2_PSK:        uniqueSecurity[uniqueCount] = "WPA2"; break;
+                case WIFI_AUTH_WPA_WPA2_PSK:    uniqueSecurity[uniqueCount] = "WPA/WPA2"; break;
+                case WIFI_AUTH_WPA3_PSK:        uniqueSecurity[uniqueCount] = "WPA3"; break;
+                case WIFI_AUTH_WPA2_WPA3_PSK:   uniqueSecurity[uniqueCount] = "WPA2/WPA3"; break;
+                default:                        uniqueSecurity[uniqueCount] = "unknown"; break;
+            }
+            uniqueCount++;
+        }
+    }
+
+    // Build response with deduplicated networks
+    String response = "{\"type\":\"wifi_scan\"";
+    response += ",\"count\":" + String(uniqueCount);
+    response += ",\"networks\":[";
+
+    for (int i = 0; i < uniqueCount; i++) {
+        if (i > 0) response += ",";
+        response += "{\"ssid\":\"" + uniqueSsids[i] + "\"";
+        response += ",\"rssi\":" + String(uniqueRssi[i]);
+        response += ",\"security\":\"" + uniqueSecurity[i] + "\"";
+        response += ",\"channel\":" + String(uniqueChannel[i]);
+        response += "}";
+    }
+
+    response += "]}";
+
+    // Clean up scan results
+    WiFi.scanDelete();
+
+    clients[clientIdx].println(response);
+    Serial.printf("Scan complete: %d networks found (%d unique)\n", numNetworks, uniqueCount);
+}
+
+//----------------------------------------------
+// Handle WiFi Connect Command (try to connect now)
+//----------------------------------------------
+void handleWifiConnect(int clientIdx) {
+    clients[clientIdx].println("{\"type\":\"ack\",\"ok\":true,\"message\":\"Reconnecting...\"}");
+
+    // Disconnect and reconnect
+    WiFi.disconnect();
+    delay(100);
+
+    // Try stored networks
+    bool connected = false;
+    for (int i = 0; i < storedNetworkCount && !connected; i++) {
+        if (!storedNetworks[i].enabled) continue;
+
+        Serial.printf("Trying WiFi: %s\n", storedNetworks[i].ssid);
+        displayStatus(storedNetworks[i].ssid, COLOR_YELLOW);
+
+        WiFi.begin(storedNetworks[i].ssid, storedNetworks[i].password);
+
+        uint32_t startTime = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_STA_TIMEOUT_MS) {
+            delay(100);
+        }
+
+        if (WiFi.status() == WL_CONNECTED) {
+            wifiIsStationMode = true;
+            wifiCurrentIP = WiFi.localIP().toString();
+            Serial.printf("Connected to %s, IP: %s\n", storedNetworks[i].ssid, wifiCurrentIP.c_str());
+            connected = true;
+        }
+    }
+
+    if (!connected) {
+        // Fall back to AP mode
+        Serial.println("All networks failed, starting AP mode");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(WIFI_AP_SSID, strlen(WIFI_AP_PASSWORD) >= 8 ? WIFI_AP_PASSWORD : NULL, WIFI_AP_CHANNEL);
+        wifiIsStationMode = false;
+        wifiCurrentIP = WiFi.softAPIP().toString();
+    }
+
+    displayNeedsFullRedraw = true;
 }
 
 //----------------------------------------------
@@ -1424,11 +2009,14 @@ void sendGatewayInfo(int clientIdx) {
     // Version and build info
     response += ",\"version\":\"" + String(FIRMWARE_VERSION_STRING) + "\"";
     response += ",\"build\":\"" + String(__DATE__) + " " + String(__TIME__) + "\"";
+    response += ",\"hostname\":\"RocketGateway.local\"";
 
     // Hardware status booleans
     response += ",\"lora\":true";           // LoRa is working if we got here
     response += ",\"bmp390\":false";        // Heltec doesn't have BMP390
-    response += ",\"gps\":" + String(gps.satellites.value() > 0 ? "true" : "false");
+    response += ",\"ota\":true";            // OTA updates supported
+    // GPS present if we've received any data from it
+    response += ",\"gps\":" + String(gps.charsProcessed() > 0 ? "true" : "false");
     response += ",\"display\":true";        // TFT display is working
 
     // Connection status
@@ -1452,6 +2040,9 @@ void sendGatewayInfo(int clientIdx) {
         response += ",\"gps_lon\":0";
     }
     response += ",\"gps_sats\":" + String(gps.satellites.value());
+    response += ",\"gps_chars\":" + String(gps.charsProcessed());
+    response += ",\"gps_passed\":" + String(gps.passedChecksum());
+    response += ",\"gps_failed\":" + String(gps.failedChecksum());
 
     response += "}";
 
@@ -1490,10 +2081,10 @@ void updateDisplay() {
         // Horizontal line
         tft.drawFastHLine(0, 12, TFT_WIDTH, COLOR_DARK_GRAY);
 
-        // Row 1: IP (static)
+        // Row 1: IP:port (static)
         tft.setTextColor(COLOR_WHITE);
         tft.setCursor(2, 16);
-        tft.print(wifiCurrentIP);
+        tft.printf("%s:%d", wifiCurrentIP.c_str(), TCP_PORT);
 
         // Reset all prev values to force updates
         prevClientCount = -1;
@@ -1535,22 +2126,38 @@ void updateDisplay() {
     int gpsSats = gps.satellites.value();
     double gpsLat = gps.location.lat();
     double gpsLon = gps.location.lng();
+    uint32_t gpsChars = gps.charsProcessed();
 
-    if (gpsValid != prevGpsValid || gpsSats != prevGpsSats ||
-        (gpsValid && (gpsLat != prevGpsLat || gpsLon != prevGpsLon))) {
+    // Update if status changes, or if no fix and chars processed increases (show progress)
+    bool gpsRowNeedsUpdate = (gpsValid != prevGpsValid || gpsSats != prevGpsSats ||
+        (gpsValid && (gpsLat != prevGpsLat || gpsLon != prevGpsLon)) ||
+        (!gpsValid && gpsChars != prevGpsChars));
+
+    if (gpsRowNeedsUpdate) {
         tft.fillRect(2, 40, 156, 10, COLOR_BLACK);
         tft.setCursor(2, 40);
         if (gpsValid) {
             tft.setTextColor(COLOR_GREEN);
             tft.printf("%.4f,%.4f", gpsLat, gpsLon);
         } else {
-            tft.setTextColor(COLOR_DARK_GRAY);
-            tft.printf("GPS: %d sats", gpsSats);
+            // Show more detail when no fix
+            uint32_t charsProc = gps.charsProcessed();
+            if (charsProc == 0) {
+                tft.setTextColor(COLOR_RED);
+                tft.print("GPS: no data");
+            } else if (gps.satellites.age() > 5000) {
+                tft.setTextColor(COLOR_YELLOW);
+                tft.printf("GPS: wait... %luc", charsProc / 100);
+            } else {
+                tft.setTextColor(COLOR_DARK_GRAY);
+                tft.printf("GPS: %d sats", gpsSats);
+            }
         }
         prevGpsValid = gpsValid;
         prevGpsSats = gpsSats;
         prevGpsLat = gpsLat;
         prevGpsLon = gpsLon;
+        prevGpsChars = gpsChars;
     }
 
     // Row 4: Rocket info (ID, distance, state)

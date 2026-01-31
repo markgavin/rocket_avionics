@@ -103,9 +103,10 @@ static uint32_t sButtonCDownMs = 0 ;
 static FlightState sPreviousFlightState = kFlightIdle ;
 static uint32_t sCurrentFlightId = 0 ;
 
-// Rocket ID (loaded from flash, can be edited via display)
+// Rocket ID and name (loaded from flash, can be edited via display)
 static uint8_t sRocketId = 0 ;
 static bool sRocketIdEditing = false ;  // True when editing rocket ID
+static char sRocketName[kRocketNameMaxLen] = "" ;  // Custom rocket name
 
 //----------------------------------------------
 // Forward Declarations
@@ -555,10 +556,11 @@ static void InitializeHardware(void)
     printf("WARNING: Flash storage initialization failed\n") ;
   }
 
-  // Load rocket ID from settings storage
+  // Load rocket ID and name from settings storage
   Storage_Init() ;
   sRocketId = Storage_LoadRocketId() ;
-  printf("Rocket ID: %u\n", sRocketId) ;
+  Storage_LoadRocketName(sRocketName) ;
+  printf("Rocket ID: %u, Name: '%s'\n", sRocketId, sRocketName[0] ? sRocketName : "(none)") ;
 
   printf("Hardware initialization complete\n\n") ;
 }
@@ -901,7 +903,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       break ;
 
     case kDisplayModeRocketId:
-      StatusDisplay_ShowRocketId(sRocketId, sRocketIdEditing) ;
+      StatusDisplay_ShowRocketId(sRocketId, sRocketName, sRocketIdEditing) ;
       // Reset editing flag after display update
       sRocketIdEditing = false ;
       break ;
@@ -992,6 +994,18 @@ static void SendDeviceInfo(void)
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 8) & 0xFF ;
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 16) & 0xFF ;
   thePacket[theOffset++] = (sFlightController.pSampleCount >> 24) & 0xFF ;
+
+  // Rocket ID
+  thePacket[theOffset++] = sRocketId ;
+
+  // Rocket name (length-prefixed string)
+  uint8_t theNameLen = strlen(sRocketName) ;
+  thePacket[theOffset++] = theNameLen ;
+  if (theNameLen > 0)
+  {
+    memcpy(&thePacket[theOffset], sRocketName, theNameLen) ;
+    theOffset += theNameLen ;
+  }
 
   DEBUG_PRINT("LoRa: Sending device info (%d bytes)\n", theOffset) ;
   LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
@@ -1264,6 +1278,31 @@ static void ProcessLoRaCommands(void)
           bool theEnabled = (theLen > 4) ? (theBuffer[4] != 0) : false ;
           DEBUG_PRINT("LoRa: Orientation mode %s\n", theEnabled ? "enabled" : "disabled") ;
           FlightControl_SetOrientationMode(&sFlightController, theEnabled) ;
+        }
+        break ;
+
+      case kCmdSetRocketName:
+        {
+          // Format: magic, type, targetId, cmd, name bytes (null-terminated)
+          if (theLen > 4)
+          {
+            // Extract name from packet (starts at byte 4)
+            char theName[kRocketNameMaxLen] ;
+            size_t theNameLen = theLen - 4 ;
+            if (theNameLen > kRocketNameMaxLen - 1)
+            {
+              theNameLen = kRocketNameMaxLen - 1 ;
+            }
+            memcpy(theName, &theBuffer[4], theNameLen) ;
+            theName[theNameLen] = '\0' ;
+
+            DEBUG_PRINT("LoRa: Set rocket name '%s'\n", theName) ;
+            if (Storage_SaveRocketName(theName))
+            {
+              // Reload name into static variable
+              Storage_LoadRocketName(sRocketName) ;
+            }
+          }
         }
         break ;
 
