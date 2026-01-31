@@ -94,6 +94,12 @@
 #define kPinPyro2Continuity 27  // GP27/A1 - Main continuity ADC (future)
 
 //----------------------------------------------
+// Multi-Rocket Configuration
+//----------------------------------------------
+#define kRocketId           0           // Unique rocket ID (0-15)
+                                        // Change this for each flight computer!
+
+//----------------------------------------------
 // LoRa Radio Configuration
 //----------------------------------------------
 #define kLoRaFrequency      915000000   // 915 MHz ISM band (North America)
