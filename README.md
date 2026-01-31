@@ -1,173 +1,194 @@
 # Rocket Avionics Flight Computer
 
-A model rocket flight avionics system with real-time LoRa telemetry, consisting of an onboard flight computer, ground station gateway, and desktop/iOS applications.
+A complete model rocket avionics system with real-time LoRa telemetry, dual parachute deployment, GPS tracking, and multi-rocket support. Includes flight computer, ground gateway, and desktop/iOS companion apps.
 
 ## Overview
 
-The Rocket Avionics system captures flight telemetry data including altitude, velocity, and acceleration during model rocket flights. Real-time data is transmitted via LoRa radio to a ground station for live monitoring, while high-resolution data is logged to an SD card for post-flight analysis.
+The Rocket Avionics system provides comprehensive flight monitoring and recovery capabilities for model and high-power rockets. Real-time telemetry is transmitted via LoRa radio to a ground station, with GPS coordinates enabling rocket recovery after landing.
 
 ### Key Features
 
-- **10 Hz telemetry** transmitted via LoRa radio (915 MHz)
-- **100 Hz data logging** to SD card with RTC timestamps
+- **Multi-rocket support** - Track up to 16 rockets simultaneously (IDs 0-15)
+- **10 Hz telemetry** via LoRa radio (915 MHz)
+- **GPS tracking** with position saved for offline recovery
+- **Dual parachute deployment** - Drogue at apogee, main at configurable altitude
+- **9-DoF IMU** - Accelerometer, gyroscope, and magnetometer
 - **Barometric altitude** using BMP390 precision sensor
-- **GPS tracking** with position, speed, and heading
-- **Differential altitude** using ground reference BMP390
-- **Real-time ground station** display via LoRa gateway
-- **Cross-platform apps** for macOS, Windows, Linux, and iOS
-- **Flight state machine** with automatic phase detection
-- **Data export** to CSV and JSON formats
+- **WiFi connectivity** - Connect apps directly to gateway over WiFi
+- **OTA updates** - Update Heltec gateway firmware over WiFi
+- **mDNS discovery** - Find gateway at `RocketGateway.local`
+- **Cross-platform apps** for macOS, Windows, and iOS
+- **Rocket recovery navigation** - iOS app guides you to landed rocket
 
 ## System Components
 
-### 1. Flight Computer Firmware (`/firmware_flight/`)
-C firmware for Adafruit Feather RP2040 with RFM95 LoRa Radio.
+### 1. Flight Computer (`/firmware_flight/`)
+RP2040-based flight computer with sensors, LoRa radio, and pyro channels.
 
-- BMP390 barometric pressure/altitude sensor
-- GPS module for position tracking
-- RFM95 LoRa radio for telemetry transmission
-- 128x64 OLED display for status
-- SD card logging with RTC timestamps
-- Automatic flight phase detection
+- **BMP390** barometric altitude sensor
+- **LSM6DSOX + LIS3MDL** 9-DoF IMU (accelerometer, gyro, magnetometer)
+- **GPS module** for position tracking
+- **RFM95 LoRa** radio (915 MHz)
+- **OLED display** with button navigation
+- **Dual pyro channels** with continuity detection
+- **Flash storage** for flight data logging
+- **Configurable rocket ID** (0-15) via display buttons
 
-### 2. Ground Gateway Firmware (`/firmware_gateway/`)
-C firmware for Adafruit Feather RP2040 with RFM95 LoRa Radio.
+### 2. Ground Gateway - Heltec (Recommended) (`/firmware_gateway_heltec/`)
+ESP32-S3 based gateway with built-in WiFi, GPS, and display.
 
-- LoRa to USB bridge
-- BMP390 for ground pressure reference
-- Calculates differential altitude (flight vs ground)
-- Receives telemetry from flight computer
-- Forwards to desktop application via USB serial
-- Relays commands from desktop to flight computer
+- **Heltec Wireless Tracker** (ESP32-S3 + SX1262 + GPS)
+- **WiFi AP/Station mode** - Create hotspot or join existing network
+- **mDNS** - Discover at `RocketGateway.local`
+- **OTA updates** - Flash new firmware over WiFi
+- **Built-in display** - Shows rocket status, GPS, packet count
+- **TCP server** on port 5000 for app connections
 
-### 3. Desktop Application (`/desktop_app/`)
-Xojo desktop application for macOS, Windows, and Linux.
+### 3. Ground Gateway - RP2040 (`/firmware_gateway/`)
+Alternative gateway using RP2040 with optional WiFi.
 
-- Real-time altitude/velocity visualization
-- Flight control and monitoring
+- **Feather RP2040 + RFM95** LoRa radio
+- **USB serial** output for desktop connection
+- **Optional AirLift** WiFi FeatherWing
+
+### 4. Desktop Application (`/desktop_app/`)
+Xojo application for macOS and Windows.
+
+- Real-time altitude/velocity charts
+- Multi-rocket tracking with rocket list
+- Rename rockets with custom names
+- Flight data download from flash storage
+- Gateway status and configuration
 - Flight history database
-- Data export (CSV, JSON)
+- Data export (CSV)
 
-### 4. iOS Application (`/ios_app/`)
-Xojo mobile application for iPhone and iPad.
+### 5. iOS Application (`/ios_app/`)
+Xojo mobile app for iPhone.
 
 - Live telemetry display
-- Flight history
-- Post-flight analysis
+- **Rocket recovery navigation** - Compass and distance to landed rocket
+- Uses iPhone GPS to guide you to rocket location
+- Works offline with cached rocket coordinates
+- Multi-rocket support with individual recovery
 
-## Hardware Components
+## Hardware
 
 ### Flight Computer
-| Component | Product ID | Function |
-|-----------|------------|----------|
-| Feather RP2040 + RFM95 LoRa 915MHz | 5714 | MCU + LoRa radio |
-| BMP390 Barometric Sensor | 4816 | Altitude via STEMMA QT |
-| GPS Module (UART) | varies | Position tracking |
-| Adalogger FeatherWing | 2922 | RTC + SD card |
-| FeatherWing OLED 128x64 | 4650 | Status display |
-| Quad Side-By-Side FeatherWing Kit | 4254 | Mounting |
+| Component | Description |
+|-----------|-------------|
+| Adafruit Feather RP2040 + RFM95 | MCU with 915 MHz LoRa radio |
+| Adafruit BMP390 | Barometric pressure/altitude |
+| Adafruit LSM6DSOX + LIS3MDL | 9-DoF IMU FeatherWing |
+| Adafruit FeatherWing OLED 128x64 | Status display with buttons |
+| GPS Module | UART GPS for position tracking |
 
-### Ground Station
-| Component | Product ID | Function |
-|-----------|------------|----------|
-| Feather RP2040 + RFM95 LoRa 915MHz | 5714 | Gateway MCU + radio |
-| BMP390 Barometric Sensor | 4816 | Ground pressure reference |
+### Ground Gateway (Heltec - Recommended)
+| Component | Description |
+|-----------|-------------|
+| Heltec Wireless Tracker | ESP32-S3 + SX1262 LoRa + GPS + Display |
+
+### Ground Gateway (RP2040 - Alternative)
+| Component | Description |
+|-----------|-------------|
+| Adafruit Feather RP2040 + RFM95 | MCU with 915 MHz LoRa radio |
+| Adafruit AirLift FeatherWing | Optional WiFi (ESP32) |
 
 ## Quick Start
 
-### 1. Build Flight Firmware
+### Flight Computer
 ```bash
 cd firmware_flight
-mkdir build && cd build
-cmake ..
-make -j4
+mkdir -p build && cd build
+cmake .. && make -j4
+picotool load rocket_avionics_flight.uf2 -f
 ```
 
-### 2. Flash Firmware
-Copy `rocket_avionics_flight.uf2` to the Feather in bootloader mode.
-
-### 3. Build Gateway Firmware
+### Heltec Gateway
 ```bash
-cd firmware_gateway
-mkdir build && cd build
-cmake ..
-make -j4
+cd firmware_gateway_heltec
+./increment_build.sh
+# Use Arduino IDE or arduino-cli to compile and upload
 ```
 
-### 4. Flash Gateway
-Copy `rocket_avionics_gateway.uf2` to the gateway Feather.
+### OTA Update (Heltec Gateway)
+```bash
+python3 ~/Library/Arduino15/packages/Heltec-esp32/hardware/esp32/3.0.3/tools/espota.py \
+  -i RocketGateway.local -p 3232 -f firmware_gateway_heltec.ino.bin
+```
 
-### 5. Connect Desktop Application
-- Plug gateway into USB
-- Open desktop application
-- Select serial port
-- Connect
+### Connect to Gateway
+```bash
+# Via mDNS hostname
+nc RocketGateway.local 5000
 
-## Flight Procedure
+# Query gateway info
+echo '{"cmd":"gw_info"}' | nc RocketGateway.local 5000
+```
 
-### Pre-Flight
-1. Power on flight computer
-2. Wait for GPS lock / sensor initialization
-3. Verify telemetry reception on ground station
-4. Press **ARM** when ready
+## Flight Computer Display
 
-### Launch
-1. Flight computer automatically detects launch
-2. Real-time telemetry displayed on ground station
-3. Apogee automatically detected
-4. Landing detected when stationary
+The OLED display has two buttons for navigation:
 
-### Post-Flight
-1. Connect to flight computer (or download via LoRa)
-2. Download high-resolution SD card data
-3. Analyze flight profile in desktop app
+| Button | Action |
+|--------|--------|
+| **A** | Cycle through screens: Live → Sensors → Pyro → Storage → Rocket ID → About |
+| **B** | On Rocket ID screen: Change ID (0-15). On other screens: Return to Live |
+
+## Multi-Rocket Support
+
+Each flight computer has a unique rocket ID (0-15):
+
+1. Navigate to **Rocket ID** screen (Button A)
+2. Press **Button B** to cycle through IDs
+3. ID is saved to flash and persists across reboots
+4. All telemetry packets include the rocket ID
+5. Gateway and apps track all rockets independently
 
 ## Flight States
 
-| State | Description | Transition |
-|-------|-------------|------------|
-| IDLE | Pre-flight, on pad | ARM command |
-| ARMED | Ready for launch | Altitude >10m or velocity >10m/s |
-| BOOST | Motor burning | Acceleration <0 |
-| COAST | Coasting to apogee | Velocity crosses zero |
-| APOGEE | Peak altitude | Immediate |
-| DESCENT | Falling under chute | Stationary for 5 seconds |
-| LANDED | On ground | Download command |
-| COMPLETE | Data downloaded | Reset |
+| State | Description | Trigger |
+|-------|-------------|---------|
+| IDLE | On pad, pre-flight | Power on |
+| ARMED | Ready for launch | ARM command |
+| BOOST | Motor burning | Altitude >10m or velocity >10m/s |
+| COAST | Coasting to apogee | Acceleration drops |
+| APOGEE | Peak altitude | Velocity crosses zero (fires drogue) |
+| DROGUE | Descending on drogue | Drogue deployed |
+| MAIN | Main chute altitude | Below configured altitude (fires main) |
+| LANDED | On ground | Stationary for 5 seconds |
+
+## Pyro Channels
+
+| Channel | Purpose | Fire Condition |
+|---------|---------|----------------|
+| Pyro 1 | Drogue parachute | At apogee (velocity = 0) |
+| Pyro 2 | Main parachute | Below main deploy altitude |
+
+**Safety:** Arm switch must be closed to enable pyro firing.
 
 ## Directory Structure
 
 ```
 rocket_avionics/
-├── firmware_flight/        # Flight computer (C, Pico SDK)
-│   ├── src/                # Source files
-│   ├── include/            # Header files
-│   └── CMakeLists.txt
-├── firmware_gateway/       # Ground gateway (C, Pico SDK)
-│   ├── src/
-│   ├── include/
-│   └── CMakeLists.txt
-├── desktop_app/            # Xojo desktop application
-├── ios_app/                # Xojo iOS application
-├── docs/                   # Documentation
-│   ├── PROTOCOL.md
-│   ├── HARDWARE.md
-│   └── ARCHITECTURE.md
-└── sdk/                    # Symlink to Pico SDK
+├── firmware_flight/          # Flight computer (RP2040, C)
+├── firmware_gateway/         # RP2040 gateway (C)
+├── firmware_gateway_heltec/  # Heltec gateway (Arduino)
+├── desktop_app/              # Desktop app (Xojo)
+├── ios_app/                  # iOS app (Xojo)
+├── hardware/                 # PCB designs
+├── docs/                     # Documentation
+└── tools/                    # Utility scripts
 ```
 
 ## Documentation
 
-- [Hardware Setup](docs/HARDWARE.md)
-- [Protocol Specification](docs/PROTOCOL.md)
-- [Architecture Overview](docs/ARCHITECTURE.md)
-
-## Future Enhancements
-
-- Accelerometer integration (LSM6DS3 or ADXL345)
-- Pyro channel control for ejection charges
-- Dual deployment (drogue at apogee, main at altitude)
-- Bluetooth LE gateway option for iOS direct connection
+- `CLAUDE.md` - Project overview and coding conventions
+- `firmware_flight/CLAUDE.md` - Flight computer details
+- `firmware_gateway_heltec/CLAUDE.md` - Heltec gateway (OTA, mDNS, GPS)
+- `desktop_app/CLAUDE.md` - Desktop application
+- `ios_app/CLAUDE.md` - iOS app (recovery, multi-rocket)
+- `docs/software_versioning.md` - Version management
+- `docs/flight_computer_carrier_board_design.md` - Custom PCB design
 
 ## License
 
