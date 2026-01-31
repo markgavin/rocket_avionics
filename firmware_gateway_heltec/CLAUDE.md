@@ -18,6 +18,9 @@ Ground station gateway firmware for Heltec Wireless Tracker. An alternative to t
 firmware_gateway_heltec/
 ├── firmware_gateway_heltec.ino  # Main Arduino sketch
 ├── version.h                    # Version information
+├── build_number.h               # Auto-generated build number
+├── build_number.txt             # Persistent build counter
+├── increment_build.sh           # Script to increment build number
 └── README.md                    # Setup instructions
 ```
 
@@ -91,10 +94,10 @@ firmware_gateway_heltec/
 #define LORA_RST    12
 #define LORA_BUSY   13
 
-// GPS UART
+// GPS UART (UC6580 module)
 #define GPS_RX      33
 #define GPS_TX      34
-#define GPS_BAUD    9600
+#define GPS_BAUD    115200  // UC6580 default baud rate
 
 // Display I2C
 #define DISPLAY_SDA 17
@@ -151,6 +154,99 @@ Gateway Ready!
   LoRa Freq: 915.0 MHz
 ```
 
+## Network Discovery (mDNS)
+
+The gateway advertises itself via mDNS for easy network discovery:
+
+- **Hostname:** `RocketGateway.local`
+- **Service:** `_rocket._tcp` on port 5000
+- **TXT Records:** version, type=gateway, board=heltec
+
+### Connecting via mDNS
+
+Instead of using an IP address, connect using the hostname:
+
+```bash
+# Ping the gateway
+ping RocketGateway.local
+
+# Connect via netcat
+nc RocketGateway.local 5000
+
+# Query gateway info
+echo '{"cmd":"gw_info"}' | nc RocketGateway.local 5000
+```
+
+Works on macOS, iOS, and Linux (with Avahi). Windows requires Bonjour.
+
+## OTA (Over-The-Air) Updates
+
+The gateway supports wireless firmware updates via ArduinoOTA.
+
+### Prerequisites
+
+- Gateway must be connected to WiFi (Station mode)
+- Computer must be on the same network
+- First OTA-enabled firmware must be flashed via USB
+
+### Update Procedure
+
+1. **Increment build number and compile:**
+   ```bash
+   cd firmware_gateway_heltec
+   ./increment_build.sh
+   arduino-cli compile --fqbn "Heltec-esp32:esp32:heltec_wireless_tracker" \
+     --output-dir /tmp/heltec_build .
+   ```
+
+2. **Upload via OTA:**
+   ```bash
+   python3 ~/Library/Arduino15/packages/Heltec-esp32/hardware/esp32/3.0.3/tools/espota.py \
+     -i RocketGateway.local -p 3232 \
+     -f /tmp/heltec_build/firmware_gateway_heltec.ino.bin
+   ```
+
+   Or using IP address:
+   ```bash
+   python3 .../espota.py -i 192.168.x.x -p 3232 -f /tmp/heltec_build/firmware_gateway_heltec.ino.bin
+   ```
+
+3. **Verify update:**
+   ```bash
+   echo '{"cmd":"gw_info"}' | nc RocketGateway.local 5000 | grep version
+   ```
+
+### OTA Display Feedback
+
+During OTA update, the gateway display shows:
+- "OTA UPDATE in progress..." with progress bar
+- "OTA Complete!" on success
+- Error message on failure
+
+### OTA Security
+
+OTA is currently open (no password). To add password protection, uncomment in `initOTA()`:
+```cpp
+ArduinoOTA.setPassword("your_password");
+```
+
+## Build Numbers
+
+Firmware uses auto-incrementing build numbers instead of semantic versioning:
+
+- **Format:** "Build N" (e.g., "Build 14")
+- **Storage:** `build_number.txt` (persistent counter)
+- **Header:** `build_number.h` (auto-generated)
+
+### Incrementing Build Number
+
+Run before each build:
+```bash
+./increment_build.sh
+```
+
+This updates both `build_number.txt` and `build_number.h`.
+
 ## Troubleshooting
 
 ### No LoRa packets received
@@ -164,9 +260,18 @@ Gateway Ready!
 - Check serial output for errors
 
 ### GPS no fix
-- Ensure GPS antenna is connected
-- Move to area with clear sky view
+- The UC6580 GPS has a weak ceramic antenna
+- Requires clear sky view (won't work indoors)
+- Move gateway outside or to window with direct sky view
 - Wait 1-2 minutes for cold start fix
+- Flight computer GPS modules are more sensitive
+
+### OTA update fails
+- Verify gateway is on same network as computer
+- Check gateway IP with `ping RocketGateway.local`
+- Ensure port 3232 is not blocked by firewall
+- Try using IP address instead of hostname
+- Power cycle gateway and retry
 
 ## Claude Code Notes
 
@@ -183,7 +288,9 @@ For debugging:
 |---------|----------------|----------------|
 | LoRa chip | RFM95 (SX1276) | SX1262 |
 | WiFi | Optional AirLift | Built-in |
-| GPS | Optional FeatherWing | Built-in |
-| Display | FeatherWing OLED | Built-in |
+| GPS | Optional FeatherWing | Built-in (UC6580) |
+| Display | FeatherWing OLED | Built-in TFT |
 | Build system | CMake/Pico SDK | Arduino IDE |
 | Primary output | USB Serial | WiFi TCP |
+| OTA updates | Not supported | Supported |
+| mDNS | Not supported | RocketGateway.local |
