@@ -8,19 +8,33 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 |-----------|-------------|-------|------|
 | Heltec Wireless Tracker | ESP32-S3 + SX1262 + GPS + Display | $26.90 | [heltec.org](https://heltec.org/project/wireless-tracker/) |
 | Adafruit BMP390 | Barometric pressure sensor (STEMMA QT) | $12.50 | [adafruit.com/product/4816](https://www.adafruit.com/product/4816) |
+| **Adafruit ICM-20649** | Wide-range IMU ±30g, ±4000dps (Recommended) | $14.95 | [adafruit.com/product/4464](https://www.adafruit.com/product/4464) |
 | LiPo Battery 3.7V 500mAh | Power source | $7.95 | [adafruit.com/product/258](https://www.adafruit.com/product/258) |
 
-### IMU Options (choose one)
+**Core Components Subtotal:** ~$62
 
-| IMU | Range | Price | Best For |
-|-----|-------|-------|----------|
-| **ICM-20649 (Recommended)** | ±30g, ±4000dps | $14.95 | High-thrust motors (E-I class) |
-| LSM6DSOX + LIS3MDL | ±16g, ±2000dps | $19.95 | Low-power motors + magnetometer |
+## Why ICM-20649?
 
-- [ICM-20649](https://www.adafruit.com/product/4464) - Wide range, won't clip during high-g boost
-- [LSM6DSOX + LIS3MDL](https://www.adafruit.com/product/4517) - Includes magnetometer for heading
+The ICM-20649 is the recommended IMU for rocket flight computers:
 
-**Core Components Subtotal:** ~$62 (with ICM-20649) or ~$67 (with LSM6DSOX)
+| Spec | ICM-20649 | LSM6DSOX |
+|------|-----------|----------|
+| Accelerometer | **±30g** | ±16g |
+| Gyroscope | **±4000 dps** | ±2000 dps |
+| Price | **$14.95** | $19.95 |
+| Magnetometer | No | Yes (with LIS3MDL) |
+
+**Benefits:**
+- **Won't clip during boost** - High-thrust motors (E-I class) can produce 20-30g
+- **Handles fast spins** - If fins are canted or rocket tumbles
+- **Cheaper** - Saves $5 per flight computer
+- **Magnetometer not needed** - Parachute deployment is altitude-based, not heading-based
+
+### Alternative: LSM6DSOX + LIS3MDL
+
+If you need magnetometer data for heading/orientation:
+- [LSM6DSOX + LIS3MDL 9-DoF](https://www.adafruit.com/product/4517) - $19.95
+- Only use for low-power motors (A-D class) where g-forces stay under 16g
 
 ## Pyro Channel Components
 
@@ -48,10 +62,10 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 
 | Category | Cost |
 |----------|------|
-| Core Components | ~$67 |
+| Core Components (with ICM-20649) | ~$62 |
 | Pyro Components | ~$6 |
 | Wiring Supplies | ~$8 |
-| **Total** | **~$81** |
+| **Total** | **~$76** |
 
 ## Cost Comparison
 
@@ -60,13 +74,13 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 | MCU + LoRa | $24.95 | $26.90 | - |
 | GPS | $29.95 | Built-in | $29.95 |
 | Display | $14.95 | Built-in | $14.95 |
-| IMU | $19.95 | $19.95 | - |
+| IMU | $19.95 | $14.95 (ICM-20649) | $5.00 |
 | Barometer | $12.50 | $12.50 | - |
 | Stacking board | $8.50 | N/A | $8.50 |
 | Battery | $7.95 | $7.95 | - |
 | Pyro | $6.00 | $6.00 | - |
 | Wiring | $0 | $8.00 | -$8.00 |
-| **Total** | **~$125** | **~$81** | **~$44 (35%)** |
+| **Total** | **~$125** | **~$76** | **~$49 (39%)** |
 
 ## Wiring Diagram
 
@@ -74,10 +88,10 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 Heltec Wireless Tracker (edge pads)
     │
     ├── GPIO 5 (SDA) ────┬──── BMP390 SDA
-    │                    └──── IMU SDA
+    │                    └──── ICM-20649 SDA
     │
     ├── GPIO 6 (SCL) ────┬──── BMP390 SCL
-    │                    └──── IMU SCL
+    │                    └──── ICM-20649 SCL
     │
     ├── GPIO 7 ──[1kΩ]──┬── MOSFET 1 Gate (Drogue)
     │                   │
@@ -98,10 +112,10 @@ Heltec Wireless Tracker (edge pads)
     ├── GPIO 46 ──── Arm Switch ──── GND
     │
     ├── 3.3V ────┬──── BMP390 VIN
-    │            └──── IMU VIN
+    │            └──── ICM-20649 VIN
     │
     └── GND ─────┬──── BMP390 GND
-                 └──── IMU GND
+                 └──── ICM-20649 GND
 ```
 
 ## Sensor I2C Addresses
@@ -109,7 +123,12 @@ Heltec Wireless Tracker (edge pads)
 | Sensor | Address | Function |
 |--------|---------|----------|
 | BMP390 | 0x77 | Barometric pressure |
-| LSM6DSOX | 0x6A | Accelerometer + Gyroscope |
+| ICM-20649 | 0x68 | Accelerometer + Gyroscope (±30g, ±4000dps) |
+
+Alternative (if using LSM6DSOX):
+| Sensor | Address | Function |
+|--------|---------|----------|
+| LSM6DSOX | 0x6A | Accelerometer + Gyroscope (±16g, ±2000dps) |
 | LIS3MDL | 0x1E | Magnetometer |
 
 All sensors share the same I2C bus (GPIO 5/6).
@@ -118,7 +137,7 @@ All sensors share the same I2C bus (GPIO 5/6).
 
 1. **Solder I2C wires to Heltec edge pads** (GPIO 5, 6, 3.3V, GND)
 2. **Connect BMP390 via STEMMA QT** or solder directly
-3. **Connect IMU** - can use STEMMA QT or direct solder
+3. **Connect ICM-20649 via STEMMA QT** or solder directly
 4. **Wire pyro channels** to GPIO 7, 45, 2, 4, 46
 5. **Secure with heat shrink** and cable ties
 
@@ -129,7 +148,7 @@ The Heltec is very compact (~50x25mm). The external sensors add bulk but the tot
 Suggested mounting:
 - Heltec board oriented with display facing out
 - BMP390 mounted nearby with port exposed to air
-- IMU mounted rigidly to sense rocket motion
+- ICM-20649 mounted rigidly to sense rocket motion
 - Pyro terminals accessible for e-match connection
 
 ## Where to Buy
