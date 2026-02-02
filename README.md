@@ -22,17 +22,26 @@ The Rocket Avionics system provides comprehensive flight monitoring and recovery
 
 ## System Components
 
-### 1. Flight Computer (`/firmware_flight/`)
-RP2040-based flight computer with sensors, LoRa radio, and pyro channels.
+### 1a. Flight Computer - RP2040 (`/firmware_flight/`)
+RP2040-based flight computer with Feather ecosystem.
 
+- **Feather RP2040 + RFM95** LoRa radio (915 MHz)
 - **BMP390** barometric altitude sensor
-- **LSM6DSOX + LIS3MDL** 9-DoF IMU (accelerometer, gyro, magnetometer)
+- **LSM6DSOX + LIS3MDL** 9-DoF IMU
 - **GPS module** for position tracking
-- **RFM95 LoRa** radio (915 MHz)
 - **OLED display** with button navigation
 - **Dual pyro channels** with continuity detection
-- **Flash storage** for flight data logging
-- **Configurable rocket ID** (0-15) via display buttons
+- **~$125 total cost**
+
+### 1b. Flight Computer - Heltec (Lower Cost) (`/firmware_flight_heltec/`)
+ESP32-S3 based flight computer with built-in GPS and display.
+
+- **Heltec Wireless Tracker** (ESP32-S3 + SX1262 + GPS + Display)
+- **BMP390** barometric altitude (external I2C)
+- **LSM6DSOX + LIS3MDL** 9-DoF IMU (external I2C)
+- **Built-in GPS** and TFT display
+- **Dual pyro channels** with continuity detection
+- **~$81 total cost (35% savings)**
 
 ### 2. Ground Gateway - Heltec (Recommended) (`/firmware_gateway_heltec/`)
 ESP32-S3 based gateway with built-in WiFi, GPS, and display.
@@ -73,7 +82,7 @@ Xojo mobile app for iPhone.
 
 ## Hardware
 
-### Flight Computer
+### Flight Computer (RP2040 - Full Featured)
 | Component | Description |
 |-----------|-------------|
 | Adafruit Feather RP2040 + RFM95 | MCU with 915 MHz LoRa radio |
@@ -81,6 +90,13 @@ Xojo mobile app for iPhone.
 | Adafruit LSM6DSOX + LIS3MDL | 9-DoF IMU FeatherWing |
 | Adafruit FeatherWing OLED 128x64 | Status display with buttons |
 | GPS Module | UART GPS for position tracking |
+
+### Flight Computer (Heltec - Lower Cost)
+| Component | Description |
+|-----------|-------------|
+| Heltec Wireless Tracker | ESP32-S3 + SX1262 + GPS + Display |
+| Adafruit BMP390 | Barometric pressure (I2C) |
+| Adafruit LSM6DSOX + LIS3MDL | 9-DoF IMU (I2C) |
 
 ### Ground Gateway (Heltec - Recommended)
 | Component | Description |
@@ -171,6 +187,7 @@ Each flight computer has a unique rocket ID (0-15):
 ```
 rocket_avionics/
 ├── firmware_flight/          # Flight computer (RP2040, C)
+├── firmware_flight_heltec/   # Flight computer (Heltec, Arduino)
 ├── firmware_gateway/         # RP2040 gateway (C)
 ├── firmware_gateway_heltec/  # Heltec gateway (Arduino)
 ├── desktop_app/              # Desktop app (Xojo)
@@ -183,12 +200,14 @@ rocket_avionics/
 ## Documentation
 
 - `CLAUDE.md` - Project overview and coding conventions
-- `firmware_flight/CLAUDE.md` - Flight computer details
+- `firmware_flight/CLAUDE.md` - RP2040 flight computer details
+- `firmware_flight_heltec/CLAUDE.md` - Heltec flight computer details
 - `firmware_gateway_heltec/CLAUDE.md` - Heltec gateway (OTA, mDNS, GPS)
 - `desktop_app/CLAUDE.md` - Desktop application
 - `ios_app/CLAUDE.md` - iOS app (recovery, multi-rocket)
-- `docs/software_versioning.md` - Version management
-- `docs/flight_computer_carrier_board_design.md` - Custom PCB design
+- `docs/flight_computer_parts_list.md` - RP2040 flight computer BOM
+- `docs/heltec_flight_computer_parts_list.md` - Heltec flight computer BOM
+- `docs/gateway_parts_list.md` - Gateway options BOM
 
 ## License
 
