@@ -8,10 +8,19 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 |-----------|-------------|-------|------|
 | Heltec Wireless Tracker | ESP32-S3 + SX1262 + GPS + Display | $26.90 | [heltec.org](https://heltec.org/project/wireless-tracker/) |
 | Adafruit BMP390 | Barometric pressure sensor (STEMMA QT) | $12.50 | [adafruit.com/product/4816](https://www.adafruit.com/product/4816) |
-| Adafruit LSM6DSOX + LIS3MDL | 9-DoF IMU (I2C) | $19.95 | [adafruit.com/product/4565](https://www.adafruit.com/product/4565) |
 | LiPo Battery 3.7V 500mAh | Power source | $7.95 | [adafruit.com/product/258](https://www.adafruit.com/product/258) |
 
-**Core Components Subtotal:** ~$67
+### IMU Options (choose one)
+
+| IMU | Range | Price | Best For |
+|-----|-------|-------|----------|
+| **ICM-20649 (Recommended)** | ±30g, ±4000dps | $14.95 | High-thrust motors (E-I class) |
+| LSM6DSOX + LIS3MDL | ±16g, ±2000dps | $19.95 | Low-power motors + magnetometer |
+
+- [ICM-20649](https://www.adafruit.com/product/4464) - Wide range, won't clip during high-g boost
+- [LSM6DSOX + LIS3MDL](https://www.adafruit.com/product/4517) - Includes magnetometer for heading
+
+**Core Components Subtotal:** ~$62 (with ICM-20649) or ~$67 (with LSM6DSOX)
 
 ## Pyro Channel Components
 

@@ -8,7 +8,9 @@ Rocket flight computer firmware for Heltec Wireless Tracker. A lower-cost altern
 
 - **Board:** Heltec Wireless Tracker (ESP32-S3 + SX1262 LoRa + GPS)
 - **Barometer:** Adafruit BMP390 (external, I2C)
-- **IMU:** Adafruit LSM6DSOX + LIS3MDL 9-DoF (external, I2C)
+- **IMU:** Auto-detected, supports either:
+  - **ICM-20649** (recommended) - ±30g, ±4000dps - better for high-g rockets
+  - **LSM6DSOX + LIS3MDL** - ±16g, ±2000dps - includes magnetometer
 - **Display:** Built-in 0.96" TFT (ST7735, 160x80)
 - **GPS:** Built-in UC6580 module
 - **LoRa:** Built-in SX1262 (915 MHz)

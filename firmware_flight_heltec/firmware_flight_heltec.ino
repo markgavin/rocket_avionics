@@ -108,6 +108,29 @@
 #define BMP390_ADDR     0x77
 #define LSM6DSOX_ADDR   0x6A
 #define LIS3MDL_ADDR    0x1E
+#define ICM20649_ADDR   0x68    // Wide-range IMU (±30g, ±4000dps)
+
+//----------------------------------------------
+// ICM-20649 Register Definitions
+//----------------------------------------------
+#define ICM20649_REG_BANK_SEL   0x7F
+#define ICM20649_WHO_AM_I       0x00
+#define ICM20649_WHO_AM_I_VAL   0xE1
+#define ICM20649_PWR_MGMT_1     0x06
+#define ICM20649_ACCEL_XOUT_H   0x2D
+#define ICM20649_GYRO_XOUT_H    0x33
+// Bank 2 registers
+#define ICM20649_GYRO_CONFIG_1  0x01
+#define ICM20649_ACCEL_CONFIG   0x14
+
+//----------------------------------------------
+// IMU Type Detection
+//----------------------------------------------
+typedef enum {
+    IMU_NONE = 0,
+    IMU_LSM6DSOX,       // ±16g, ±2000dps (standard)
+    IMU_ICM20649        // ±30g, ±4000dps (wide range - better for rockets)
+} ImuType;
 
 //----------------------------------------------
 // Flight States
@@ -227,6 +250,8 @@ uint32_t lastDisplayMs = 0;
 BMP390Calibration bmpCal;
 bool bmpInitialized = false;
 bool imuInitialized = false;
+ImuType detectedImu = IMU_NONE;
+bool magInitialized = false;  // LIS3MDL (only with LSM6DSOX)
 
 // LoRa
 volatile bool loraPacketReceived = false;
@@ -376,50 +401,149 @@ float pressureToAltitude(float pressure, float groundPressure) {
 }
 
 //----------------------------------------------
-// IMU Functions (LSM6DSOX + LIS3MDL)
+// ICM-20649 Helper Functions
 //----------------------------------------------
-bool initIMU() {
-    Serial.println("Initializing IMU...");
+void icm20649SetBank(uint8_t bank) {
+    i2cWriteReg(ICM20649_ADDR, ICM20649_REG_BANK_SEL, bank << 4);
+}
 
-    // Check LSM6DSOX
+bool initICM20649() {
+    Serial.println("  Trying ICM-20649 (wide range)...");
+
+    // Select bank 0
+    icm20649SetBank(0);
+
+    // Check WHO_AM_I
     uint8_t whoAmI;
-    if (!i2cReadRegs(LSM6DSOX_ADDR, 0x0F, &whoAmI, 1) || whoAmI != 0x6C) {
-        Serial.printf("  LSM6DSOX not found (0x%02X)\n", whoAmI);
+    if (!i2cReadRegs(ICM20649_ADDR, ICM20649_WHO_AM_I, &whoAmI, 1)) {
+        Serial.println("    ICM-20649 not responding");
         return false;
     }
 
-    // Configure LSM6DSOX
-    i2cWriteReg(LSM6DSOX_ADDR, 0x10, 0x60);  // Accel: 416Hz, +-2g
-    i2cWriteReg(LSM6DSOX_ADDR, 0x11, 0x60);  // Gyro: 416Hz, 250dps
+    if (whoAmI != ICM20649_WHO_AM_I_VAL) {
+        Serial.printf("    Wrong WHO_AM_I: 0x%02X (expected 0xE1)\n", whoAmI);
+        return false;
+    }
 
-    // Check LIS3MDL
+    // Reset device
+    i2cWriteReg(ICM20649_ADDR, ICM20649_PWR_MGMT_1, 0x80);
+    delay(100);
+
+    // Wake up, auto-select clock
+    i2cWriteReg(ICM20649_ADDR, ICM20649_PWR_MGMT_1, 0x01);
+    delay(50);
+
+    // Select bank 2 for config
+    icm20649SetBank(2);
+
+    // Configure gyro: ±4000 dps, DLPF enabled
+    // GYRO_CONFIG_1: [7:6]=FS_SEL (3=4000dps), [5:3]=DLPF_CFG, [0]=FCHOICE
+    i2cWriteReg(ICM20649_ADDR, ICM20649_GYRO_CONFIG_1, 0xC7);  // 4000dps, DLPF ~197Hz
+
+    // Configure accel: ±30g, DLPF enabled
+    // ACCEL_CONFIG: [7:6]=FS_SEL (3=30g), [5:3]=DLPF_CFG, [0]=FCHOICE
+    i2cWriteReg(ICM20649_ADDR, ICM20649_ACCEL_CONFIG, 0xC7);  // 30g, DLPF ~246Hz
+
+    // Set sample rate divisor (0 = max rate)
+    i2cWriteReg(ICM20649_ADDR, 0x00, 0x00);  // Gyro rate divider
+    i2cWriteReg(ICM20649_ADDR, 0x10, 0x00);  // Accel rate divider MSB
+    i2cWriteReg(ICM20649_ADDR, 0x11, 0x00);  // Accel rate divider LSB
+
+    // Return to bank 0 for data reads
+    icm20649SetBank(0);
+
+    Serial.println("    ICM-20649 initialized (±30g, ±4000dps)");
+    return true;
+}
+
+bool readICM20649() {
+    uint8_t data[12];
+
+    // Read accel (6 bytes) + gyro (6 bytes) in one transaction
+    // Data starts at ACCEL_XOUT_H (0x2D)
+    if (!i2cReadRegs(ICM20649_ADDR, ICM20649_ACCEL_XOUT_H, data, 12)) {
+        return false;
+    }
+
+    // Accelerometer (big-endian)
+    int16_t ax = (int16_t)((data[0] << 8) | data[1]);
+    int16_t ay = (int16_t)((data[2] << 8) | data[3]);
+    int16_t az = (int16_t)((data[4] << 8) | data[5]);
+
+    // Gyroscope (big-endian)
+    int16_t gx = (int16_t)((data[6] << 8) | data[7]);
+    int16_t gy = (int16_t)((data[8] << 8) | data[9]);
+    int16_t gz = (int16_t)((data[10] << 8) | data[11]);
+
+    // Convert accel to g's (±30g range = 1024 LSB/g)
+    accelX = ax / 1024.0f;
+    accelY = ay / 1024.0f;
+    accelZ = az / 1024.0f;
+    accelMagnitude = sqrtf(accelX*accelX + accelY*accelY + accelZ*accelZ);
+
+    // Convert gyro to deg/s (±4000dps = 8.192 LSB/dps)
+    gyroX = gx / 8.192f;
+    gyroY = gy / 8.192f;
+    gyroZ = gz / 8.192f;
+
+    // No magnetometer on ICM-20649
+    magX = magY = magZ = 0;
+
+    return true;
+}
+
+//----------------------------------------------
+// LSM6DSOX + LIS3MDL Functions
+//----------------------------------------------
+bool initLSM6DSOX() {
+    Serial.println("  Trying LSM6DSOX...");
+
+    uint8_t whoAmI;
+    if (!i2cReadRegs(LSM6DSOX_ADDR, 0x0F, &whoAmI, 1) || whoAmI != 0x6C) {
+        Serial.printf("    LSM6DSOX not found (0x%02X)\n", whoAmI);
+        return false;
+    }
+
+    // Configure LSM6DSOX for max range
+    // CTRL1_XL: ODR=416Hz, FS=±16g (0x64)
+    i2cWriteReg(LSM6DSOX_ADDR, 0x10, 0x64);  // Accel: 416Hz, ±16g
+    // CTRL2_G: ODR=416Hz, FS=2000dps (0x6C)
+    i2cWriteReg(LSM6DSOX_ADDR, 0x11, 0x6C);  // Gyro: 416Hz, 2000dps
+
+    Serial.println("    LSM6DSOX initialized (±16g, ±2000dps)");
+    return true;
+}
+
+bool initLIS3MDL() {
+    uint8_t whoAmI;
     if (!i2cReadRegs(LIS3MDL_ADDR, 0x0F, &whoAmI, 1) || whoAmI != 0x3D) {
-        Serial.printf("  LIS3MDL not found (0x%02X)\n", whoAmI);
+        Serial.printf("    LIS3MDL not found (0x%02X)\n", whoAmI);
         return false;
     }
 
     // Configure LIS3MDL
     i2cWriteReg(LIS3MDL_ADDR, 0x20, 0x70);  // Temp enable, high perf XY, 10Hz
-    i2cWriteReg(LIS3MDL_ADDR, 0x21, 0x00);  // +-4 gauss
+    i2cWriteReg(LIS3MDL_ADDR, 0x21, 0x00);  // ±4 gauss
     i2cWriteReg(LIS3MDL_ADDR, 0x22, 0x00);  // Continuous mode
     i2cWriteReg(LIS3MDL_ADDR, 0x23, 0x0C);  // High perf Z, little endian
 
-    Serial.println("  IMU initialized (LSM6DSOX + LIS3MDL)");
+    Serial.println("    LIS3MDL initialized");
     return true;
 }
 
-bool readIMU() {
-    // Read accelerometer (6 bytes)
+bool readLSM6DSOX() {
     uint8_t data[6];
+
+    // Read accelerometer (6 bytes)
     if (i2cReadRegs(LSM6DSOX_ADDR, 0x28, data, 6)) {
         int16_t ax = (int16_t)(data[0] | (data[1] << 8));
         int16_t ay = (int16_t)(data[2] | (data[3] << 8));
         int16_t az = (int16_t)(data[4] | (data[5] << 8));
 
-        // Convert to g's (+-2g range = 0.061 mg/LSB)
-        accelX = ax * 0.061f / 1000.0f;
-        accelY = ay * 0.061f / 1000.0f;
-        accelZ = az * 0.061f / 1000.0f;
+        // Convert to g's (±16g range = 0.488 mg/LSB)
+        accelX = ax * 0.488f / 1000.0f;
+        accelY = ay * 0.488f / 1000.0f;
+        accelZ = az * 0.488f / 1000.0f;
         accelMagnitude = sqrtf(accelX*accelX + accelY*accelY + accelZ*accelZ);
     }
 
@@ -429,25 +553,66 @@ bool readIMU() {
         int16_t gy = (int16_t)(data[2] | (data[3] << 8));
         int16_t gz = (int16_t)(data[4] | (data[5] << 8));
 
-        // Convert to deg/s (250dps range = 8.75 mdps/LSB)
-        gyroX = gx * 8.75f / 1000.0f;
-        gyroY = gy * 8.75f / 1000.0f;
-        gyroZ = gz * 8.75f / 1000.0f;
+        // Convert to deg/s (2000dps range = 70 mdps/LSB)
+        gyroX = gx * 70.0f / 1000.0f;
+        gyroY = gy * 70.0f / 1000.0f;
+        gyroZ = gz * 70.0f / 1000.0f;
     }
 
-    // Read magnetometer (6 bytes)
-    if (i2cReadRegs(LIS3MDL_ADDR, 0x28, data, 6)) {
+    // Read magnetometer if present
+    if (magInitialized && i2cReadRegs(LIS3MDL_ADDR, 0x28, data, 6)) {
         int16_t mx = (int16_t)(data[0] | (data[1] << 8));
         int16_t my = (int16_t)(data[2] | (data[3] << 8));
         int16_t mz = (int16_t)(data[4] | (data[5] << 8));
 
-        // Convert to gauss (+-4 gauss range = 6842 LSB/gauss)
+        // Convert to gauss (±4 gauss range = 6842 LSB/gauss)
         magX = mx / 6842.0f;
         magY = my / 6842.0f;
         magZ = mz / 6842.0f;
     }
 
     return true;
+}
+
+//----------------------------------------------
+// IMU Functions (auto-detect ICM-20649 or LSM6DSOX)
+//----------------------------------------------
+bool initIMU() {
+    Serial.println("Initializing IMU...");
+
+    // Try ICM-20649 first (better for rockets: ±30g, ±4000dps)
+    if (initICM20649()) {
+        detectedImu = IMU_ICM20649;
+        imuInitialized = true;
+        return true;
+    }
+
+    // Fall back to LSM6DSOX
+    if (initLSM6DSOX()) {
+        detectedImu = IMU_LSM6DSOX;
+        imuInitialized = true;
+
+        // Try to initialize magnetometer
+        magInitialized = initLIS3MDL();
+
+        return true;
+    }
+
+    Serial.println("  No IMU found!");
+    detectedImu = IMU_NONE;
+    imuInitialized = false;
+    return false;
+}
+
+bool readIMU() {
+    switch (detectedImu) {
+        case IMU_ICM20649:
+            return readICM20649();
+        case IMU_LSM6DSOX:
+            return readLSM6DSOX();
+        default:
+            return false;
+    }
 }
 
 //----------------------------------------------
@@ -980,7 +1145,17 @@ void setup() {
     Serial.printf("  Rocket ID: %d\n", rocketId);
     Serial.printf("  Rocket Name: %s\n", rocketName);
     Serial.printf("  BMP390: %s\n", bmpInitialized ? "OK" : "FAIL");
-    Serial.printf("  IMU: %s\n", imuInitialized ? "OK" : "FAIL");
+
+    // Show IMU type
+    if (detectedImu == IMU_ICM20649) {
+        Serial.println("  IMU: ICM-20649 (±30g, ±4000dps)");
+    } else if (detectedImu == IMU_LSM6DSOX) {
+        Serial.printf("  IMU: LSM6DSOX (±16g, ±2000dps) + LIS3MDL: %s\n",
+                      magInitialized ? "OK" : "NO");
+    } else {
+        Serial.println("  IMU: NONE");
+    }
+
     Serial.printf("  Main Deploy Alt: %dm\n", MAIN_DEPLOY_ALTITUDE_M);
     Serial.println("========================================");
     Serial.println();
