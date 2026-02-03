@@ -1012,6 +1012,20 @@ static void SendDeviceInfo(void)
     theOffset += theNameLen ;
   }
 
+  // Barometer type string (for Heltec compatibility)
+  const char * theBaroType = sBmp390Ok ? "BMP390" : "None" ;
+  uint8_t theBaroTypeLen = strlen(theBaroType) ;
+  thePacket[theOffset++] = theBaroTypeLen ;
+  memcpy(&thePacket[theOffset], theBaroType, theBaroTypeLen) ;
+  theOffset += theBaroTypeLen ;
+
+  // IMU type string (for Heltec compatibility)
+  const char * theImuType = sImuOk ? "LSM6DSOX+LIS3MDL" : "None" ;
+  uint8_t theImuTypeLen = strlen(theImuType) ;
+  thePacket[theOffset++] = theImuTypeLen ;
+  memcpy(&thePacket[theOffset], theImuType, theImuTypeLen) ;
+  theOffset += theImuTypeLen ;
+
   DEBUG_PRINT("LoRa: Sending device info (%d bytes)\n", theOffset) ;
   LoRa_SendBlocking(&sLoRaRadio, thePacket, theOffset, 500) ;
 }

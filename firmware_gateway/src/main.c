@@ -843,15 +843,51 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
                           (theBuffer[theOffset + 3] << 24) ;
     theOffset += 4 ;
 
-    // SD free space (KB)
-    uint32_t theFreeKb = theBuffer[theOffset] |
-                         (theBuffer[theOffset + 1] << 8) |
-                         (theBuffer[theOffset + 2] << 16) |
-                         (theBuffer[theOffset + 3] << 24) ;
-    theOffset += 4 ;
+    // Rocket ID
+    uint8_t theRocketId = 0 ;
+    if (theOffset < theLen)
+    {
+      theRocketId = theBuffer[theOffset++] ;
+    }
 
-    // Flight count
-    uint8_t theFlightCount = theBuffer[theOffset++] ;
+    // Rocket name (length-prefixed string)
+    char theRocketName[32] = "" ;
+    if (theOffset < theLen)
+    {
+      uint8_t theNameLen = theBuffer[theOffset++] ;
+      if (theNameLen < 32 && theOffset + theNameLen <= theLen)
+      {
+        memcpy(theRocketName, &theBuffer[theOffset], theNameLen) ;
+        theRocketName[theNameLen] = '\0' ;
+        theOffset += theNameLen ;
+      }
+    }
+
+    // Barometer type string (length-prefixed)
+    char theBaroType[32] = "" ;
+    if (theOffset < theLen)
+    {
+      uint8_t theBaroTypeLen = theBuffer[theOffset++] ;
+      if (theBaroTypeLen < 32 && theOffset + theBaroTypeLen <= theLen)
+      {
+        memcpy(theBaroType, &theBuffer[theOffset], theBaroTypeLen) ;
+        theBaroType[theBaroTypeLen] = '\0' ;
+        theOffset += theBaroTypeLen ;
+      }
+    }
+
+    // IMU type string (length-prefixed)
+    char theImuType[32] = "" ;
+    if (theOffset < theLen)
+    {
+      uint8_t theImuTypeLen = theBuffer[theOffset++] ;
+      if (theImuTypeLen < 32 && theOffset + theImuTypeLen <= theLen)
+      {
+        memcpy(theImuType, &theBuffer[theOffset], theImuTypeLen) ;
+        theImuType[theImuTypeLen] = '\0' ;
+        theOffset += theImuTypeLen ;
+      }
+    }
 
     // Build JSON response
     // Note: Hardware flags from flight firmware:
@@ -866,8 +902,8 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
            "\"gps\":%s,"
            "\"state\":\"%s\","
            "\"samples\":%lu,"
-           "\"sd_free_kb\":%lu,"
-           "\"flight_count\":%u}\n",
+           "\"rocket_id\":%u,"
+           "\"rocket_name\":\"%s\"",
            theVersion,
            theBuild,
            (theFlags & 0x01) ? "true" : "false",
@@ -877,8 +913,20 @@ static void ProcessLoRaPackets(uint32_t inCurrentMs)
            (theFlags & 0x20) ? "true" : "false",
            GatewayProtocol_GetStateName(theState),
            (unsigned long)theSamples,
-           (unsigned long)theFreeKb,
-           theFlightCount) ;
+           theRocketId,
+           theRocketName) ;
+
+    // Add sensor type strings if present
+    if (theBaroType[0] != '\0')
+    {
+      printf(",\"baro_type\":\"%s\"", theBaroType) ;
+    }
+    if (theImuType[0] != '\0')
+    {
+      printf(",\"imu_type\":\"%s\"", theImuType) ;
+    }
+
+    printf("}\n") ;
     stdio_flush() ;
   }
 
