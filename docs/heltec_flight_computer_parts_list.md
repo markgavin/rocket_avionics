@@ -7,11 +7,36 @@ Lower-cost flight computer using Heltec Wireless Tracker with external sensors.
 | Component | Description | Price | Link |
 |-----------|-------------|-------|------|
 | Heltec Wireless Tracker | ESP32-S3 + SX1262 + GPS + Display | $26.90 | [heltec.org](https://heltec.org/project/wireless-tracker/) |
-| Adafruit BMP390 | Barometric pressure sensor (STEMMA QT) | $12.50 | [adafruit.com/product/4816](https://www.adafruit.com/product/4816) |
+| **Adafruit BMP581** | High-accuracy barometer ±3.3cm (Recommended) | $9.95 | [adafruit.com/product/5857](https://www.adafruit.com/product/5857) |
 | **Adafruit ICM-20649** | Wide-range IMU ±30g, ±4000dps (Recommended) | $14.95 | [adafruit.com/product/4464](https://www.adafruit.com/product/4464) |
 | LiPo Battery 3.7V 500mAh | Power source | $7.95 | [adafruit.com/product/258](https://www.adafruit.com/product/258) |
 
-**Core Components Subtotal:** ~$62
+**Core Components Subtotal:** ~$60
+
+## Why BMP581?
+
+The BMP581 is the recommended barometer for rocket flight computers:
+
+| Spec | BMP581 | BMP390 |
+|------|--------|--------|
+| Accuracy | **±0.4 Pa (±3.3cm)** | ±3 Pa (±25cm) |
+| Max ODR | **240 Hz** | 200 Hz |
+| Noise | **1 cm** | 10 cm |
+| Price | **$9.95** | $12.50 |
+
+**Benefits:**
+- **7.5x better altitude accuracy** - Critical for precise apogee detection
+- **Lower noise** - Cleaner velocity calculations for deployment timing
+- **Faster sampling** - Better response during rapid altitude changes
+- **Cheaper** - Saves $2.55 per flight computer
+- **Newer technology** - Capacitive sensing vs piezo-resistive
+
+### Alternative: BMP390
+
+If you already have BMP390 sensors:
+- [Adafruit BMP390](https://www.adafruit.com/product/4816) - $12.50
+- Firmware auto-detects and supports both sensors
+- Still good performance for most rockets
 
 ## Why ICM-20649?
 
@@ -62,10 +87,10 @@ If you need magnetometer data for heading/orientation:
 
 | Category | Cost |
 |----------|------|
-| Core Components (with ICM-20649) | ~$62 |
+| Core Components (BMP581 + ICM-20649) | ~$60 |
 | Pyro Components | ~$6 |
 | Wiring Supplies | ~$8 |
-| **Total** | **~$76** |
+| **Total** | **~$74** |
 
 ## Cost Comparison
 
@@ -75,22 +100,22 @@ If you need magnetometer data for heading/orientation:
 | GPS | $29.95 | Built-in | $29.95 |
 | Display | $14.95 | Built-in | $14.95 |
 | IMU | $19.95 | $14.95 (ICM-20649) | $5.00 |
-| Barometer | $12.50 | $12.50 | - |
+| Barometer | $12.50 | $9.95 (BMP581) | $2.55 |
 | Stacking board | $8.50 | N/A | $8.50 |
 | Battery | $7.95 | $7.95 | - |
 | Pyro | $6.00 | $6.00 | - |
 | Wiring | $0 | $8.00 | -$8.00 |
-| **Total** | **~$125** | **~$76** | **~$49 (39%)** |
+| **Total** | **~$125** | **~$74** | **~$51 (41%)** |
 
 ## Wiring Diagram
 
 ```
 Heltec Wireless Tracker (edge pads)
     │
-    ├── GPIO 5 (SDA) ────┬──── BMP390 SDA
+    ├── GPIO 5 (SDA) ────┬──── BMP581 SDA
     │                    └──── ICM-20649 SDA
     │
-    ├── GPIO 6 (SCL) ────┬──── BMP390 SCL
+    ├── GPIO 6 (SCL) ────┬──── BMP581 SCL
     │                    └──── ICM-20649 SCL
     │
     ├── GPIO 7 ──[1kΩ]──┬── MOSFET 1 Gate (Drogue)
@@ -111,32 +136,34 @@ Heltec Wireless Tracker (edge pads)
     │
     ├── GPIO 46 ──── Arm Switch ──── GND
     │
-    ├── 3.3V ────┬──── BMP390 VIN
+    ├── 3.3V ────┬──── BMP581 VIN
     │            └──── ICM-20649 VIN
     │
-    └── GND ─────┬──── BMP390 GND
+    └── GND ─────┬──── BMP581 GND
                  └──── ICM-20649 GND
 ```
 
 ## Sensor I2C Addresses
 
+Recommended sensors:
 | Sensor | Address | Function |
 |--------|---------|----------|
-| BMP390 | 0x77 | Barometric pressure |
+| BMP581 | 0x47 | Barometric pressure (±3.3cm accuracy) |
 | ICM-20649 | 0x68 | Accelerometer + Gyroscope (±30g, ±4000dps) |
 
-Alternative (if using LSM6DSOX):
+Alternative sensors (auto-detected):
 | Sensor | Address | Function |
 |--------|---------|----------|
+| BMP390 | 0x77 | Barometric pressure (±25cm accuracy) |
 | LSM6DSOX | 0x6A | Accelerometer + Gyroscope (±16g, ±2000dps) |
 | LIS3MDL | 0x1E | Magnetometer |
 
-All sensors share the same I2C bus (GPIO 5/6).
+All sensors share the same I2C bus (GPIO 5/6). Firmware auto-detects which sensors are connected.
 
 ## Assembly Notes
 
 1. **Solder I2C wires to Heltec edge pads** (GPIO 5, 6, 3.3V, GND)
-2. **Connect BMP390 via STEMMA QT** or solder directly
+2. **Connect BMP581 via STEMMA QT** or solder directly
 3. **Connect ICM-20649 via STEMMA QT** or solder directly
 4. **Wire pyro channels** to GPIO 7, 45, 2, 4, 46
 5. **Secure with heat shrink** and cable ties
@@ -147,7 +174,7 @@ The Heltec is very compact (~50x25mm). The external sensors add bulk but the tot
 
 Suggested mounting:
 - Heltec board oriented with display facing out
-- BMP390 mounted nearby with port exposed to air
+- BMP581 mounted nearby with port exposed to air
 - ICM-20649 mounted rigidly to sense rocket motion
 - Pyro terminals accessible for e-match connection
 

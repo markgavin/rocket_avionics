@@ -7,7 +7,9 @@ Rocket flight computer firmware for Heltec Wireless Tracker. A lower-cost altern
 ## Hardware
 
 - **Board:** Heltec Wireless Tracker (ESP32-S3 + SX1262 LoRa + GPS)
-- **Barometer:** Adafruit BMP390 (external, I2C)
+- **Barometer:** Auto-detected, supports either:
+  - **BMP581** (recommended) - ±3.3cm accuracy, 240Hz - newer, more accurate
+  - **BMP390** - ±25cm accuracy, 200Hz - legacy, still good
 - **IMU:** Auto-detected, supports either:
   - **ICM-20649** (recommended) - ±30g, ±4000dps - better for high-g rockets
   - **LSM6DSOX + LIS3MDL** - ±16g, ±2000dps - includes magnetometer
@@ -21,8 +23,8 @@ Rocket flight computer firmware for Heltec Wireless Tracker. A lower-cost altern
 
 | Function | GPIO | Notes |
 |----------|------|-------|
-| I2C SDA | 5 | BMP390 + IMU |
-| I2C SCL | 6 | BMP390 + IMU |
+| I2C SDA | 5 | Barometer + IMU |
+| I2C SCL | 6 | Barometer + IMU |
 
 ### Pyro Channels
 
@@ -179,21 +181,27 @@ Configure via:
 | Component | RP2040 Flight | Heltec Flight |
 |-----------|---------------|---------------|
 | MCU + LoRa | $24.95 | $26.90 (includes GPS, display) |
-| BMP390 | $12.50 | $12.50 |
-| IMU | $19.95 | $19.95 |
+| Barometer | $12.50 (BMP390) | $9.95 (BMP581) |
+| IMU | $19.95 (LSM6DSOX) | $14.95 (ICM-20649) |
 | Display | $14.95 | Built-in |
 | GPS | $29.95 | Built-in |
 | Stacking | $8.50 | N/A |
-| **Total** | **~$111** | **~$59** |
+| **Total** | **~$111** | **~$52** |
 
-**Savings: ~$52 per flight computer (47%)**
+**Savings: ~$59 per flight computer (53%)**
+
+Note: Heltec version uses recommended sensors (BMP581, ICM-20649) which are both cheaper and better performing than the RP2040 version's sensors.
 
 ## Troubleshooting
 
 ### Sensors not detected
 - Check I2C wiring (SDA to GPIO5, SCL to GPIO6)
 - Verify 3.3V power to sensors
-- Check I2C addresses (BMP390: 0x77, LSM6DSOX: 0x6A, LIS3MDL: 0x1E)
+- Check I2C addresses:
+  - BMP581: 0x47 (recommended barometer)
+  - BMP390: 0x77 (legacy barometer)
+  - ICM-20649: 0x68 (recommended IMU)
+  - LSM6DSOX: 0x6A, LIS3MDL: 0x1E (legacy IMU)
 
 ### No GPS fix
 - Built-in GPS antenna is weak

@@ -2,7 +2,8 @@
 // Rocket Avionics Flight Computer - Heltec Wireless Tracker
 //
 // Hardware: Heltec Wireless Tracker (ESP32-S3 + SX1262 + GPS)
-//           External: BMP390 (I2C), LSM6DSOX+LIS3MDL IMU (I2C)
+//           Barometer: BMP581 (preferred) or BMP390 (I2C, auto-detect)
+//           IMU: ICM-20649 (preferred) or LSM6DSOX+LIS3MDL (I2C, auto-detect)
 // Purpose:  Rocket flight computer with telemetry, GPS, dual deploy
 //
 // Author: Mark Gavin
@@ -105,10 +106,33 @@
 //----------------------------------------------
 // I2C Addresses
 //----------------------------------------------
+#define BMP581_ADDR     0x47    // BMP581 default address (can also be 0x46)
 #define BMP390_ADDR     0x77
 #define LSM6DSOX_ADDR   0x6A
 #define LIS3MDL_ADDR    0x1E
 #define ICM20649_ADDR   0x68    // Wide-range IMU (±30g, ±4000dps)
+
+//----------------------------------------------
+// BMP581 Register Definitions
+//----------------------------------------------
+#define BMP581_REG_CHIP_ID      0x01
+#define BMP581_CHIP_ID_VAL      0x50
+#define BMP581_REG_OSR_CONFIG   0x36
+#define BMP581_REG_ODR_CONFIG   0x37
+#define BMP581_REG_DSP_CONFIG   0x30
+#define BMP581_REG_DSP_IIR      0x31
+#define BMP581_REG_TEMP_DATA    0x1D    // 3 bytes: XLSB, LSB, MSB
+#define BMP581_REG_PRESS_DATA   0x20    // 3 bytes: XLSB, LSB, MSB
+#define BMP581_REG_CMD          0x7E
+
+//----------------------------------------------
+// Barometer Type Detection
+//----------------------------------------------
+typedef enum {
+    BARO_NONE = 0,
+    BARO_BMP581,        // Newer, better accuracy (±3.3cm), 240Hz, recommended
+    BARO_BMP390         // Legacy, still good (±25cm), 200Hz
+} BaroType;
 
 //----------------------------------------------
 // ICM-20649 Register Definitions
@@ -248,8 +272,9 @@ uint32_t lastTelemetryMs = 0;
 uint32_t lastSensorMs = 0;
 uint32_t lastDisplayMs = 0;
 BMP390Calibration bmpCal;
-bool bmpInitialized = false;
+bool baroInitialized = false;
 bool imuInitialized = false;
+BaroType detectedBaro = BARO_NONE;
 ImuType detectedImu = IMU_NONE;
 bool magInitialized = false;  // LIS3MDL (only with LSM6DSOX)
 
@@ -290,17 +315,17 @@ bool i2cReadRegs(uint8_t addr, uint8_t reg, uint8_t* buffer, uint8_t len) {
 // BMP390 Functions
 //----------------------------------------------
 bool initBMP390() {
-    Serial.println("Initializing BMP390...");
+    Serial.println("  Trying BMP390 (standard)...");
 
     // Check chip ID
     uint8_t chipId;
     if (!i2cReadRegs(BMP390_ADDR, 0x00, &chipId, 1)) {
-        Serial.println("  BMP390 not found!");
+        Serial.println("    BMP390 not responding");
         return false;
     }
 
     if (chipId != 0x60) {
-        Serial.printf("  Wrong chip ID: 0x%02X (expected 0x60)\n", chipId);
+        Serial.printf("    Wrong chip ID: 0x%02X (expected 0x60)\n", chipId);
         return false;
     }
 
@@ -311,7 +336,7 @@ bool initBMP390() {
     // Read calibration data
     uint8_t calData[21];
     if (!i2cReadRegs(BMP390_ADDR, 0x31, calData, 21)) {
-        Serial.println("  Failed to read calibration!");
+        Serial.println("    Failed to read calibration!");
         return false;
     }
 
@@ -354,7 +379,7 @@ bool initBMP390() {
     i2cWriteReg(BMP390_ADDR, 0x1F, 0x02);  // IIR filter coefficient 1
     i2cWriteReg(BMP390_ADDR, 0x1B, 0x33);  // Enable temp + press, normal mode
 
-    Serial.println("  BMP390 initialized");
+    Serial.println("    BMP390 initialized (±25cm accuracy, 200Hz)");
     return true;
 }
 
@@ -398,6 +423,113 @@ bool readBMP390(float* pressure, float* temperature) {
 float pressureToAltitude(float pressure, float groundPressure) {
     // Hypsometric formula
     return 44330.0f * (1.0f - powf(pressure / groundPressure, 0.1903f));
+}
+
+//----------------------------------------------
+// BMP581 Functions (newer, better accuracy)
+//----------------------------------------------
+bool initBMP581() {
+    Serial.println("  Trying BMP581 (high accuracy)...");
+
+    // Check chip ID
+    uint8_t chipId;
+    if (!i2cReadRegs(BMP581_ADDR, BMP581_REG_CHIP_ID, &chipId, 1)) {
+        Serial.println("    BMP581 not responding");
+        return false;
+    }
+
+    if (chipId != BMP581_CHIP_ID_VAL) {
+        Serial.printf("    Wrong chip ID: 0x%02X (expected 0x50)\n", chipId);
+        return false;
+    }
+
+    // Soft reset
+    i2cWriteReg(BMP581_ADDR, BMP581_REG_CMD, 0xB6);
+    delay(10);
+
+    // Wait for device ready (check status register)
+    delay(5);
+
+    // Configure OSR (oversampling): temp x1, press x16 for low noise
+    // OSR_CONFIG: [5:3]=osr_t, [2:0]=osr_p
+    // osr_p=4 (x16), osr_t=0 (x1) -> 0x04
+    i2cWriteReg(BMP581_ADDR, BMP581_REG_OSR_CONFIG, 0x04);
+
+    // Configure ODR (output data rate): 100Hz continuous mode
+    // ODR_CONFIG: [6:5]=pwr_mode, [4:0]=odr
+    // pwr_mode=3 (continuous), odr=8 (100Hz) -> 0x68
+    i2cWriteReg(BMP581_ADDR, BMP581_REG_ODR_CONFIG, 0x68);
+
+    // Configure IIR filter: coefficient 3 for noise reduction
+    // DSP_IIR: [5:3]=set_iir_t, [2:0]=set_iir_p
+    // IIR coeff 3 for both -> 0x1B
+    i2cWriteReg(BMP581_ADDR, BMP581_REG_DSP_IIR, 0x1B);
+
+    Serial.println("    BMP581 initialized (±3.3cm accuracy, 100Hz)");
+    return true;
+}
+
+bool readBMP581(float* pressure, float* temperature) {
+    uint8_t data[6];
+
+    // Read temperature (3 bytes at 0x1D)
+    if (!i2cReadRegs(BMP581_ADDR, BMP581_REG_TEMP_DATA, data, 3)) {
+        return false;
+    }
+    int32_t rawTemp = (int32_t)data[0] | ((int32_t)data[1] << 8) | ((int32_t)data[2] << 16);
+    // Sign extend 24-bit to 32-bit
+    if (rawTemp & 0x800000) {
+        rawTemp |= 0xFF000000;
+    }
+    // BMP581 outputs temperature in 1/65536 °C units
+    *temperature = rawTemp / 65536.0f;
+
+    // Read pressure (3 bytes at 0x20)
+    if (!i2cReadRegs(BMP581_ADDR, BMP581_REG_PRESS_DATA, data, 3)) {
+        return false;
+    }
+    uint32_t rawPress = (uint32_t)data[0] | ((uint32_t)data[1] << 8) | ((uint32_t)data[2] << 16);
+    // BMP581 outputs pressure in 1/64 Pa units
+    *pressure = rawPress / 64.0f;
+
+    return true;
+}
+
+//----------------------------------------------
+// Barometer Init (auto-detect BMP581 or BMP390)
+//----------------------------------------------
+bool initBarometer() {
+    Serial.println("Initializing barometer...");
+
+    // Try BMP581 first (better accuracy: ±3.3cm vs ±25cm)
+    if (initBMP581()) {
+        detectedBaro = BARO_BMP581;
+        baroInitialized = true;
+        return true;
+    }
+
+    // Fall back to BMP390
+    if (initBMP390()) {
+        detectedBaro = BARO_BMP390;
+        baroInitialized = true;
+        return true;
+    }
+
+    Serial.println("  No barometer found!");
+    detectedBaro = BARO_NONE;
+    baroInitialized = false;
+    return false;
+}
+
+bool readBarometer(float* pressure, float* temperature) {
+    switch (detectedBaro) {
+        case BARO_BMP581:
+            return readBMP581(pressure, temperature);
+        case BARO_BMP390:
+            return readBMP390(pressure, temperature);
+        default:
+            return false;
+    }
 }
 
 //----------------------------------------------
@@ -1087,7 +1219,7 @@ void calibrateGroundPressure() {
 
     for (int i = 0; i < 50; i++) {
         float pressure, temp;
-        if (readBMP390(&pressure, &temp)) {
+        if (readBarometer(&pressure, &temp)) {
             totalPressure += pressure;
             samples++;
         }
@@ -1126,7 +1258,7 @@ void setup() {
     initPyro();
     initGPS();
 
-    bmpInitialized = initBMP390();
+    baroInitialized = initBarometer();
     imuInitialized = initIMU();
 
     if (!initLoRa()) {
@@ -1135,7 +1267,7 @@ void setup() {
     }
 
     // Calibrate ground pressure
-    if (bmpInitialized) {
+    if (baroInitialized) {
         calibrateGroundPressure();
     }
 
@@ -1144,7 +1276,15 @@ void setup() {
     Serial.println("Flight Computer Ready!");
     Serial.printf("  Rocket ID: %d\n", rocketId);
     Serial.printf("  Rocket Name: %s\n", rocketName);
-    Serial.printf("  BMP390: %s\n", bmpInitialized ? "OK" : "FAIL");
+
+    // Show barometer type
+    if (detectedBaro == BARO_BMP581) {
+        Serial.println("  Baro: BMP581 (±3.3cm accuracy, 240Hz)");
+    } else if (detectedBaro == BARO_BMP390) {
+        Serial.println("  Baro: BMP390 (±25cm accuracy, 200Hz)");
+    } else {
+        Serial.println("  Baro: NONE");
+    }
 
     // Show IMU type
     if (detectedImu == IMU_ICM20649) {
@@ -1172,9 +1312,9 @@ void loop() {
         lastSensorMs = now;
 
         // Read barometer
-        if (bmpInitialized) {
+        if (baroInitialized) {
             float pressure;
-            if (readBMP390(&pressure, &temperatureC)) {
+            if (readBarometer(&pressure, &temperatureC)) {
                 altitudeM = pressureToAltitude(pressure, groundPressurePa);
                 updateVelocity();
             }
