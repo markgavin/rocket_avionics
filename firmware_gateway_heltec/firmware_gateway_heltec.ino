@@ -995,7 +995,8 @@ void forwardAckAsJson() {
 // Forward Device Info (fc_info) as JSON
 //----------------------------------------------
 void forwardDeviceInfoAsJson() {
-    // Format: magic, type, versionLen, version[], buildLen, build[], flags, state, sampleCount(4)
+    // Format: magic, type, versionLen, version[], buildLen, build[], flags, state, sampleCount(4),
+    //         rocketId, nameLen, name[], baroTypeLen, baroType[], imuTypeLen, imuType[]
     if (lastLoraPacketLen < 5) {
         forwardAsHex();
         return;
@@ -1056,6 +1057,24 @@ void forwardDeviceInfoAsJson() {
         }
     }
 
+    // Barometer type string (added in v3 - Heltec flight computer)
+    String baroType = "";
+    if (offset < lastLoraPacketLen) {
+        uint8_t baroTypeLen = lastLoraPacketBinary[offset++];
+        for (int i = 0; i < baroTypeLen && offset < lastLoraPacketLen; i++) {
+            baroType += (char)lastLoraPacketBinary[offset++];
+        }
+    }
+
+    // IMU type string (added in v3 - Heltec flight computer)
+    String imuType = "";
+    if (offset < lastLoraPacketLen) {
+        uint8_t imuTypeLen = lastLoraPacketBinary[offset++];
+        for (int i = 0; i < imuTypeLen && offset < lastLoraPacketLen; i++) {
+            imuType += (char)lastLoraPacketBinary[offset++];
+        }
+    }
+
     String json = "{\"type\":\"fc_info\"";
     json += ",\"version\":\"" + version + "\"";
     json += ",\"build\":\"" + build + "\"";
@@ -1068,6 +1087,15 @@ void forwardDeviceInfoAsJson() {
     json += ",\"samples\":" + String(samples);
     json += ",\"rocket_id\":" + String(rocketId);
     json += ",\"rocket_name\":\"" + rocketName + "\"";
+
+    // Include sensor type strings if present (from Heltec flight computer)
+    if (baroType.length() > 0) {
+        json += ",\"baro_type\":\"" + baroType + "\"";
+    }
+    if (imuType.length() > 0) {
+        json += ",\"imu_type\":\"" + imuType + "\"";
+    }
+
     json += "}";
 
     for (int i = 0; i < MAX_CLIENTS; i++) {

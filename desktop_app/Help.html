@@ -50,7 +50,7 @@
     <h2 id="overview">System Overview</h2>
     <p>The Rocket Avionics system consists of three main components:</p>
     <ul>
-        <li><strong>Flight Computer</strong> - Installed in the rocket, measures altitude, velocity, and flight state using a BMP390 barometric sensor. Transmits telemetry via LoRa radio at 10 Hz.</li>
+        <li><strong>Flight Computer</strong> - Installed in the rocket, measures altitude, velocity, and flight state. Supports BMP581 (recommended) or BMP390 barometer, and ICM-20649 (recommended) or LSM6DSOX IMU. Transmits telemetry via LoRa radio at 10 Hz.</li>
         <li><strong>Ground Gateway</strong> - USB-connected device that receives LoRa telemetry from the flight computer and forwards it to the desktop application via serial JSON protocol.</li>
         <li><strong>Ground Station Software</strong> - This desktop application that displays live telemetry, records flight data, and provides flight history analysis.</li>
     </ul>
@@ -58,10 +58,13 @@
     <h3>Hardware Components</h3>
     <table>
         <tr><th>Component</th><th>Description</th></tr>
-        <tr><td>Feather RP2040 + RFM95</td><td>Flight computer and gateway microcontroller with LoRa radio</td></tr>
-        <tr><td>BMP390</td><td>High-precision barometric pressure sensor for altitude measurement</td></tr>
-        <tr><td>Adalogger FeatherWing</td><td>SD card logging and real-time clock</td></tr>
-        <tr><td>OLED Display</td><td>128x64 display for on-device status</td></tr>
+        <tr><td>Heltec Wireless Tracker</td><td>ESP32-S3 flight computer or gateway with built-in LoRa, GPS, and display</td></tr>
+        <tr><td>Feather RP2040 + RFM95</td><td>Alternative flight computer and gateway microcontroller with LoRa radio</td></tr>
+        <tr><td>BMP581</td><td>High-accuracy barometer (±3.3cm) - recommended for Heltec flight computer</td></tr>
+        <tr><td>BMP390</td><td>Barometric pressure sensor (±25cm) - legacy option</td></tr>
+        <tr><td>ICM-20649</td><td>Wide-range IMU (±30g, ±4000dps) - recommended for rockets</td></tr>
+        <tr><td>LSM6DSOX + LIS3MDL</td><td>9-DoF IMU (±16g, ±2000dps) - legacy option with magnetometer</td></tr>
+        <tr><td>OLED/TFT Display</td><td>On-device status display</td></tr>
     </table>
 
     <h2 id="getting-started">Getting Started</h2>
@@ -306,7 +309,7 @@
     <h3>Altitude Readings Incorrect</h3>
     <ul>
         <li>Allow the flight computer to stabilize for 30 seconds after power-on</li>
-        <li>Verify the BMP390 sensor is functioning (check Device Info)</li>
+        <li>Verify the barometer (BMP581 or BMP390) is functioning (check Device Info)</li>
         <li>The flight computer calibrates ground pressure on startup - restart if altitude is offset</li>
     </ul>
 

@@ -596,6 +596,9 @@ Protected Class FlightConnection
 		      theInfo.Value("flight_count") = theJson.Lookup("flight_count", 0)
 		      theInfo.Value("rocket_id") = theJson.Lookup("rocket_id", 0)
 		      theInfo.Value("rocket_name") = theJson.Lookup("rocket_name", "")
+		      // Sensor type strings (from Heltec flight computer)
+		      theInfo.Value("baro_type") = theJson.Lookup("baro_type", "")
+		      theInfo.Value("imu_type") = theJson.Lookup("imu_type", "")
 		      RaiseEvent DeviceInfoReceived(False, theInfo)
 
 		      // Also update Device Info window if visible

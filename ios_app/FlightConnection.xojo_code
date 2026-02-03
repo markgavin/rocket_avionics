@@ -269,6 +269,29 @@ Protected Class FlightConnection
 		      Next
 		      RaiseEvent RocketsReceived(theCount, theRockets)
 
+		    Case "fc_info"
+		      // Flight computer device info
+		      Var theInfo As New Dictionary
+		      theInfo.Value("version") = theJson.Lookup("version", "")
+		      theInfo.Value("build") = theJson.Lookup("build", "")
+		      theInfo.Value("baro_type") = theJson.Lookup("baro_type", "")
+		      theInfo.Value("imu_type") = theJson.Lookup("imu_type", "")
+		      theInfo.Value("rocket_id") = theJson.Lookup("rocket_id", 0)
+		      theInfo.Value("rocket_name") = theJson.Lookup("rocket_name", "")
+		      theInfo.Value("state") = theJson.Lookup("state", "")
+		      RaiseEvent DeviceInfoReceived(theInfo)
+
+		    Case "gw_info"
+		      // Gateway device info
+		      Var theInfo As New Dictionary
+		      theInfo.Value("version") = theJson.Lookup("version", "")
+		      theInfo.Value("build") = theJson.Lookup("build", "")
+		      theInfo.Value("gps_fix") = theJson.Lookup("gps_fix", False)
+		      theInfo.Value("gps_sats") = theJson.Lookup("gps_sats", 0)
+		      theInfo.Value("rx") = theJson.Lookup("rx", 0)
+		      theInfo.Value("tx") = theJson.Lookup("tx", 0)
+		      RaiseEvent GatewayInfoReceived(theInfo)
+
 		    End Select
 
 		  Catch theError As JSONException
@@ -310,6 +333,14 @@ Protected Class FlightConnection
 
 	#tag Hook, Flags = &h0
 		Event RocketsReceived(inCount As Integer, inRockets() As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event DeviceInfoReceived(inInfo As Dictionary)
+	#tag EndHook
+
+	#tag Hook, Flags = &h0
+		Event GatewayInfoReceived(inInfo As Dictionary)
 	#tag EndHook
 
 

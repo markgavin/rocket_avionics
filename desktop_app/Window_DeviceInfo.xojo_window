@@ -1307,17 +1307,57 @@ End
 		Sub ShowFlightComputerInfo(inInfo As Dictionary)
 		  // Update firmware details from fc_info response
 		  // This gets called when detailed flight computer info is received via LoRa
-		  
+
 		  Var theVersion As String = inInfo.Lookup("version", "").StringValue
 		  Var theBuild As String = inInfo.Lookup("build", "").StringValue
-		  
+
 		  If theVersion <> "" Then
 		    LabelVersionValue.Text = "v" + theVersion
 		  End If
 		  If theBuild <> "" Then
 		    LabelBuildValue.Text = theBuild
 		  End If
-		  
+
+		  // Hardware section - display sensor types
+		  LabelHw1Type.Text = "LoRa:"
+		  Var hasLora As Boolean = inInfo.Lookup("lora", False).BooleanValue
+		  LabelHw1Value.Text = If(hasLora, "OK", "Not detected")
+		  LabelHw1Value.TextColor = If(hasLora, &c006600, &cCC0000)
+
+		  LabelHw2Type.Text = "Barometer:"
+		  Var baroType As String = inInfo.Lookup("baro_type", "").StringValue
+		  Var hasBaro As Boolean = inInfo.Lookup("bmp390", False).BooleanValue
+		  If baroType <> "" Then
+		    LabelHw2Value.Text = baroType
+		  ElseIf hasBaro Then
+		    LabelHw2Value.Text = "BMP390"
+		  Else
+		    LabelHw2Value.Text = "Not detected"
+		  End If
+		  LabelHw2Value.TextColor = If(hasBaro Or baroType <> "", &c006600, &cCC0000)
+
+		  LabelHw3Type.Text = "IMU:"
+		  Var imuType As String = inInfo.Lookup("imu_type", "").StringValue
+		  Var hasImu As Boolean = inInfo.Lookup("imu", False).BooleanValue
+		  If imuType <> "" Then
+		    LabelHw3Value.Text = imuType
+		  ElseIf hasImu Then
+		    LabelHw3Value.Text = "LSM6DSOX"
+		  Else
+		    LabelHw3Value.Text = "Not detected"
+		  End If
+		  LabelHw3Value.TextColor = If(hasImu Or imuType <> "", &c006600, &cCC0000)
+
+		  LabelHw4Type.Text = "GPS:"
+		  Var hasGps As Boolean = inInfo.Lookup("gps", False).BooleanValue
+		  LabelHw4Value.Text = If(hasGps, "OK", "Not detected")
+		  LabelHw4Value.TextColor = If(hasGps, &c006600, &cCC0000)
+
+		  LabelHw5Type.Text = "Display:"
+		  Var hasOled As Boolean = inInfo.Lookup("oled", False).BooleanValue
+		  LabelHw5Value.Text = If(hasOled, "OK", "Not detected")
+		  LabelHw5Value.TextColor = If(hasOled, &c006600, &cCC0000)
+
 		  LabelStatusMsg.Text = "Firmware info received"
 		End Sub
 	#tag EndMethod

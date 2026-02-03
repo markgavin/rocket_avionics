@@ -1085,7 +1085,106 @@ void handleCommand(uint8_t cmdId, uint8_t* data, int len) {
                 Serial.printf("  -> Rocket ID: %d\n", rocketId);
             }
             break;
+
+        case 0x07:  // FC_INFO - Request device info
+            Serial.println("  -> Sending device info");
+            sendDeviceInfo();
+            break;
     }
+}
+
+//----------------------------------------------
+// Send Device Info Response
+//----------------------------------------------
+void sendDeviceInfo() {
+    // Build fc_info response packet
+    // Format: magic, type(0x08), versionLen, version[], buildLen, build[],
+    //         flags, state, samples(4), rocketId, nameLen, name[],
+    //         baroTypeLen, baroType[], imuTypeLen, imuType[]
+
+    uint8_t packet[128];
+    int idx = 0;
+
+    // Header
+    packet[idx++] = 0xAA;           // Magic
+    packet[idx++] = 0x08;           // Type: fc_info response
+
+    // Version string
+    const char* version = FIRMWARE_VERSION_STRING;
+    uint8_t versionLen = strlen(version);
+    packet[idx++] = versionLen;
+    memcpy(&packet[idx], version, versionLen);
+    idx += versionLen;
+
+    // Build string
+    char buildStr[32];
+    snprintf(buildStr, sizeof(buildStr), "%s %s", __DATE__, __TIME__);
+    uint8_t buildLen = strlen(buildStr);
+    packet[idx++] = buildLen;
+    memcpy(&packet[idx], buildStr, buildLen);
+    idx += buildLen;
+
+    // Flags: bit0=baro, bit1=lora, bit2=imu, bit4=oled, bit5=gps
+    uint8_t flags = 0;
+    if (baroInitialized) flags |= 0x01;
+    flags |= 0x02;  // LoRa always present
+    if (imuInitialized) flags |= 0x04;
+    flags |= 0x10;  // Display always present
+    flags |= 0x20;  // GPS always present
+    packet[idx++] = flags;
+
+    // Flight state
+    packet[idx++] = (uint8_t)flightState;
+
+    // Sample count (4 bytes, little endian) - not implemented yet
+    packet[idx++] = 0;
+    packet[idx++] = 0;
+    packet[idx++] = 0;
+    packet[idx++] = 0;
+
+    // Rocket ID
+    packet[idx++] = rocketId;
+
+    // Rocket name
+    uint8_t nameLen = strlen(rocketName);
+    packet[idx++] = nameLen;
+    memcpy(&packet[idx], rocketName, nameLen);
+    idx += nameLen;
+
+    // Barometer type string (new field)
+    const char* baroType;
+    switch (detectedBaro) {
+        case BARO_BMP581: baroType = "BMP581"; break;
+        case BARO_BMP390: baroType = "BMP390"; break;
+        default: baroType = "None"; break;
+    }
+    uint8_t baroTypeLen = strlen(baroType);
+    packet[idx++] = baroTypeLen;
+    memcpy(&packet[idx], baroType, baroTypeLen);
+    idx += baroTypeLen;
+
+    // IMU type string (new field)
+    const char* imuType;
+    switch (detectedImu) {
+        case IMU_ICM20649: imuType = "ICM-20649"; break;
+        case IMU_LSM6DSOX: imuType = magInitialized ? "LSM6DSOX+LIS3MDL" : "LSM6DSOX"; break;
+        default: imuType = "None"; break;
+    }
+    uint8_t imuTypeLen = strlen(imuType);
+    packet[idx++] = imuTypeLen;
+    memcpy(&packet[idx], imuType, imuTypeLen);
+    idx += imuTypeLen;
+
+    // Transmit
+    int state = radio.transmit(packet, idx);
+    if (state == RADIOLIB_ERR_NONE) {
+        Serial.printf("  Sent device info (%d bytes)\n", idx);
+    } else {
+        Serial.printf("  Failed to send device info: %d\n", state);
+    }
+
+    // Restart receive mode
+    radio.startReceive();
 }
 
 //----------------------------------------------
