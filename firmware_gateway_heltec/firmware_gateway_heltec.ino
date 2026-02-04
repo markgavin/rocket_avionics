@@ -714,9 +714,16 @@ void initGPS() {
     }
 
     // Configure UC6580/UM600 GPS module
+    Serial.println("Sending GPS configuration commands...");
+
+    // Enable active antenna power (3.3V bias on antenna line)
+    // Required for external amplified antennas
+    // $CFGANT,1 = enable antenna power
+    gpsSerial.println("$CFGANT,1*04");
+    delay(100);
+
     // $CFGSYS - Configure GNSS systems
     // h11 = GPS+BDS+GALILEO+SBAS+QZSS (reported to work by Meshtastic users)
-    Serial.println("Sending GPS configuration commands...");
     gpsSerial.println("$CFGSYS,h11*61");
     delay(100);
 
@@ -1643,6 +1650,60 @@ void handleClientCommand(int clientIdx, const String& command) {
     if (cmd == "gps_debug") {
         // Capture and send raw NMEA sentences for debugging
         sendGpsDebug(clientIdx);
+        return;
+    }
+
+    // Send raw command to GPS and capture response
+    // Format: {"cmd":"gps_cmd","data":"$CFGANT,1*04"}
+    if (cmd == "gps_cmd") {
+        int dataStart = command.indexOf("\"data\":\"");
+        if (dataStart > 0) {
+            dataStart += 8;
+            int dataEnd = command.indexOf("\"", dataStart);
+            if (dataEnd > dataStart) {
+                String gpsCmd = command.substring(dataStart, dataEnd);
+                Serial.printf("Sending GPS command: %s\n", gpsCmd.c_str());
+                gpsSerial.println(gpsCmd);
+
+                // Capture response for 1 second
+                delay(100);
+                String response = "{\"type\":\"gps_cmd_response\",\"sent\":\"" + gpsCmd + "\",\"response\":[";
+                unsigned long start = millis();
+                int count = 0;
+                char nmea[128];
+                int idx = 0;
+
+                while (millis() - start < 1000) {
+                    while (gpsSerial.available()) {
+                        char c = gpsSerial.read();
+                        gps.encode(c);
+
+                        if (c == '$') {
+                            idx = 0;
+                        }
+                        if (idx < 127) {
+                            nmea[idx++] = c;
+                        }
+                        if (c == '\n' && idx > 1) {
+                            nmea[idx-1] = '\0';  // Remove newline
+                            if (nmea[0] == '$') {
+                                if (count > 0) response += ",";
+                                response += "\"";
+                                response += nmea;
+                                response += "\"";
+                                count++;
+                            }
+                            idx = 0;
+                        }
+                    }
+                    delay(1);
+                }
+                response += "]}";
+                clients[clientIdx].println(response);
+                return;
+            }
+        }
+        clients[clientIdx].println("{\"type\":\"error\",\"msg\":\"Invalid gps_cmd format\"}");
         return;
     }
 
