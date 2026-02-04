@@ -20,6 +20,7 @@
 #include "gateway_protocol.h"
 #include "gateway_display.h"
 #include "bmp390.h"
+#include "bmp581.h"
 #include "neopixel.h"
 #if kEnableGps
 #include "gps.h"
@@ -82,10 +83,12 @@
 static LoRa_Radio sLoRaRadio ;
 static GatewayState sGatewayState ;
 static BMP390 sBmp390 ;
+static BMP581 sBmp581 ;
 static bool sLoRaOk = false ;
 static bool sDisplayOk = false ;
 static bool sUsbConnected = false ;
 static bool sBmp390Ok = false ;
+static bool sBmp581Ok = false ;
 static bool sGpsOk = false ;
 
 // Ground barometer data
@@ -170,7 +173,12 @@ int main(void)
   printf("Gateway ready:\n") ;
   printf("  LoRa: %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  Display: %s\n", sDisplayOk ? "OK" : "FAIL") ;
-  printf("  BMP390: %s\n", sBmp390Ok ? "OK" : "FAIL") ;
+  if (sBmp581Ok)
+    printf("  Baro: BMP581 (OK)\n") ;
+  else if (sBmp390Ok)
+    printf("  Baro: BMP390 (OK)\n") ;
+  else
+    printf("  Baro: NONE (FAIL)\n") ;
   printf("  GPS: %s\n", sGpsOk ? "OK" : "FAIL") ;
 #if kEnableWifi
   printf("  WiFi: %s\n", sWifiOk ? "OK" : "FAIL") ;
@@ -205,7 +213,7 @@ int main(void)
     GatewayDisplay_ShowDeviceInfo(
       FIRMWARE_VERSION_STRING,
       sLoRaOk,
-      sBmp390Ok,
+      sBmp581Ok || sBmp390Ok,
       sGpsOk,
       sDisplayOk) ;
     sleep_ms(kSplashDurationMs) ;
@@ -231,7 +239,7 @@ int main(void)
     }
 
     // Read ground barometer
-    if (sBmp390Ok)
+    if (sBmp581Ok || sBmp390Ok)
     {
       ReadGroundBarometer(theCurrentMs) ;
     }
@@ -351,23 +359,40 @@ static void InitializeHardware(void)
     printf("WARNING: NeoPixel initialization failed\n") ;
   }
 
-  // Initialize BMP390 barometric sensor
-  printf("Initializing BMP390...\n") ;
-  if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+  // Initialize barometric sensor (try BMP581 first, then BMP390)
+  printf("Initializing barometer...\n") ;
+
+  // Try BMP581 first (newer, more accurate: ±3.3cm vs ±25cm)
+  if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
   {
-    // Configure for barometric reference
-    BMP390_Configure(
-      &sBmp390,
-      BMP390_OSR_8X,      // Pressure oversampling
-      BMP390_OSR_2X,      // Temperature oversampling
-      BMP390_ODR_50_HZ,   // 50 Hz output rate
-      BMP390_IIR_COEF_3) ; // Light filtering
-    sBmp390Ok = true ;
-    printf("BMP390 initialized\n") ;
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
   }
-  else
+  else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
   {
-    printf("WARNING: BMP390 initialization failed\n") ;
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
+  }
+
+  // Fall back to BMP390 if BMP581 not found
+  if (!sBmp581Ok)
+  {
+    if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+    {
+      // Configure for barometric reference
+      BMP390_Configure(
+        &sBmp390,
+        BMP390_OSR_8X,      // Pressure oversampling
+        BMP390_OSR_2X,      // Temperature oversampling
+        BMP390_ODR_50_HZ,   // 50 Hz output rate
+        BMP390_IIR_COEF_3) ; // Light filtering
+      sBmp390Ok = true ;
+      printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
+    }
+    else
+    {
+      printf("WARNING: No barometer found (BMP581 or BMP390)\n") ;
+    }
   }
 
   // Initialize LoRa radio
@@ -620,11 +645,21 @@ static void ReadGroundBarometer(uint32_t inCurrentMs)
   }
   sLastBmp390ReadMs = inCurrentMs ;
 
-  // Read pressure and temperature
+  // Read pressure and temperature from whichever sensor is available
   float thePressure = 0 ;
   float theTemperature = 0 ;
+  bool theReadOk = false ;
 
-  if (BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature))
+  if (sBmp581Ok)
+  {
+    theReadOk = BMP581_ReadPressureTemperature(&sBmp581, &thePressure, &theTemperature) ;
+  }
+  else if (sBmp390Ok)
+  {
+    theReadOk = BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature) ;
+  }
+
+  if (theReadOk)
   {
     sGroundPressurePa = thePressure ;
     sGroundTemperatureC = theTemperature ;
@@ -633,7 +668,9 @@ static void ReadGroundBarometer(uint32_t inCurrentMs)
     static uint32_t sDebugCount = 0 ;
     if ((++sDebugCount % 10) == 0)
     {
-      DEBUG_PRINT("GND BMP: P=%.0f Pa T=%.1f C\n", sGroundPressurePa, sGroundTemperatureC) ;
+      DEBUG_PRINT("GND %s: P=%.0f Pa T=%.1f C\n",
+        sBmp581Ok ? "BMP581" : "BMP390",
+        sGroundPressurePa, sGroundTemperatureC) ;
     }
   }
   else
@@ -642,7 +679,8 @@ static void ReadGroundBarometer(uint32_t inCurrentMs)
     static uint32_t sFailCount = 0 ;
     if ((++sFailCount % 10) == 0)
     {
-      DEBUG_PRINT("GND BMP: Read failed (%u)\n", sFailCount) ;
+      DEBUG_PRINT("GND %s: Read failed (%u)\n",
+        sBmp581Ok ? "BMP581" : "BMP390", sFailCount) ;
     }
   }
 }
@@ -999,7 +1037,8 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    "\"version\":\"%s\","
                    "\"build\":\"%s %s\","
                    "\"lora\":%s,"
-                   "\"bmp390\":%s,"
+                   "\"baro\":%s,"
+                   "\"baro_type\":\"%s\","
                    "\"gps\":%s,"
                    "\"display\":%s,"
                    "\"connected\":%s,"
@@ -1016,7 +1055,8 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
                    FIRMWARE_VERSION_STRING,
                    kBuildDate, kBuildTime,
                    sLoRaOk ? "true" : "false",
-                   sBmp390Ok ? "true" : "false",
+                   (sBmp581Ok || sBmp390Ok) ? "true" : "false",
+                   sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None"),
                    sGpsOk ? "true" : "false",
                    sDisplayOk ? "true" : "false",
                    sGatewayState.pConnected ? "true" : "false",
@@ -1590,7 +1630,8 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
       "\"version\":\"%s\","
       "\"build\":\"%s %s\","
       "\"lora\":%s,"
-      "\"bmp390\":%s,"
+      "\"baro\":%s,"
+      "\"baro_type\":\"%s\","
       "\"gps\":%s,"
       "\"wifi\":%s,"
       "\"display\":%s,"
@@ -1609,7 +1650,8 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
       FIRMWARE_VERSION_STRING,
       kBuildDate, kBuildTime,
       sLoRaOk ? "true" : "false",
-      sBmp390Ok ? "true" : "false",
+      (sBmp581Ok || sBmp390Ok) ? "true" : "false",
+      sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None"),
       sGpsOk ? "true" : "false",
       sWifiOk ? "true" : "false",
       sDisplayOk ? "true" : "false",

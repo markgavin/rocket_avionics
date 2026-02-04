@@ -20,6 +20,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
+#include <Wire.h>
 #include "version.h"
 
 //----------------------------------------------
@@ -49,6 +50,38 @@
 // #define BATTERY_ADC_PIN     4
 // #define BATTERY_DIVIDER     6.4
 // #define BATTERY_SAMPLES     10
+
+// I2C for external barometer (BMP581 or BMP390)
+#define I2C_SDA     5
+#define I2C_SCL     6
+
+// BMP581 Register Addresses (pre-compensated output)
+#define BMP581_I2C_ADDR         0x47
+#define BMP581_I2C_ADDR_ALT     0x46
+#define BMP581_REG_CHIP_ID      0x01
+#define BMP581_CHIP_ID          0x50
+#define BMP581_REG_TEMP_DATA    0x1D
+#define BMP581_REG_PRESS_DATA   0x20
+#define BMP581_REG_STATUS       0x28
+#define BMP581_REG_OSR_CONFIG   0x36
+#define BMP581_REG_ODR_CONFIG   0x37
+#define BMP581_REG_DSP_CONFIG   0x30
+#define BMP581_REG_DSP_IIR      0x31
+#define BMP581_REG_CMD          0x7E
+#define BMP581_CMD_SOFT_RESET   0xB6
+
+// BMP390 Register Addresses (requires calibration compensation)
+#define BMP390_I2C_ADDR         0x77
+#define BMP390_I2C_ADDR_ALT     0x76
+#define BMP390_REG_CHIP_ID      0x00
+#define BMP390_CHIP_ID          0x60
+#define BMP390_REG_DATA         0x04
+#define BMP390_REG_NVM_PAR      0x31
+#define BMP390_REG_OSR          0x1C
+#define BMP390_REG_ODR          0x1D
+#define BMP390_REG_CONFIG       0x1F
+#define BMP390_REG_PWR_CTRL     0x1B
+#define BMP390_REG_CMD          0x7E
 
 // Display dimensions
 #define TFT_WIDTH   160
@@ -219,6 +252,21 @@ uint8_t currentBacklight = TFT_BL_BRIGHTNESS;  // 0-255
 int8_t currentLoraTxPower = LORA_TX_POWER;     // 2-20 dBm for SX1262
 int8_t currentWifiTxPower = 8;                 // WiFi power level (index into power table)
 
+// Barometer state
+bool baroOk = false;
+bool baroBmp581 = false;          // true = BMP581, false = BMP390
+uint8_t baroI2cAddr = 0;
+float groundPressurePa = 0.0;
+float groundTemperatureC = 0.0;
+uint32_t lastBaroReadMs = 0;
+#define BARO_READ_INTERVAL_MS 100   // 10 Hz
+
+// BMP390 calibration data (only used if BMP390 detected)
+struct {
+    float T1, T2, T3;
+    float P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11;
+} bmp390Cal;
+
 // Battery monitoring disabled - Wireless Tracker ADC pin undocumented
 // float batteryVoltage = 0.0;
 // uint32_t lastBatteryRead = 0;
@@ -272,6 +320,16 @@ void setup() {
     // Initialize GPS (also powers VEXT for GPS)
     initGPS();
 
+    // Initialize barometer (optional external I2C sensor)
+    displayStatus("Baro Init...", COLOR_YELLOW);
+    baroOk = initBarometer();
+    if (baroOk) {
+        displayStatus(baroBmp581 ? "BMP581 OK" : "BMP390 OK", COLOR_GREEN);
+    } else {
+        displayStatus("No Baro (OK)", COLOR_DARK_GRAY);
+    }
+    delay(300);
+
     // Initialize LoRa
     displayStatus("LoRa Init...", COLOR_YELLOW);
     if (!initLoRa()) {
@@ -309,6 +367,11 @@ void setup() {
     Serial.printf("  IP: %s\n", wifiCurrentIP.c_str());
     Serial.printf("  TCP Port: %d\n", TCP_PORT);
     Serial.printf("  LoRa Freq: %.1f MHz\n", LORA_FREQUENCY);
+    if (baroOk) {
+        Serial.printf("  Barometer: %s\n", baroBmp581 ? "BMP581" : "BMP390");
+    } else {
+        Serial.println("  Barometer: None (optional)");
+    }
     Serial.println("========================================\n");
 
     // Initial display update
@@ -331,6 +394,9 @@ void loop() {
     // Read GPS
     readGPS();
     checkGpsHealth();
+
+    // Read barometer
+    readBarometer();
 
     // Update rocket tracking (mark inactive rockets, cycle display)
     updateRocketTracking();
@@ -416,6 +482,215 @@ void displayStatus(const char* message, uint16_t color) {
     int16_t x = (TFT_WIDTH - textWidth) / 2;
     tft.setCursor(x, 65);
     tft.print(message);
+}
+
+//----------------------------------------------
+// Barometer I2C Helper Functions
+//----------------------------------------------
+bool baroReadRegister(uint8_t addr, uint8_t reg, uint8_t* value) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false;
+
+    Wire.requestFrom(addr, (uint8_t)1);
+    if (Wire.available()) {
+        *value = Wire.read();
+        return true;
+    }
+    return false;
+}
+
+bool baroReadRegisters(uint8_t addr, uint8_t reg, uint8_t* data, size_t len) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false;
+
+    Wire.requestFrom(addr, (uint8_t)len);
+    for (size_t i = 0; i < len && Wire.available(); i++) {
+        data[i] = Wire.read();
+    }
+    return true;
+}
+
+bool baroWriteRegister(uint8_t addr, uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(addr);
+    Wire.write(reg);
+    Wire.write(value);
+    return Wire.endTransmission() == 0;
+}
+
+//----------------------------------------------
+// Initialize Barometer (BMP581 or BMP390)
+//----------------------------------------------
+bool initBarometer() {
+    Wire.begin(I2C_SDA, I2C_SCL);
+    Serial.printf("I2C initialized on SDA=%d, SCL=%d\n", I2C_SDA, I2C_SCL);
+
+    // Try BMP581 first (better accuracy)
+    uint8_t chipId = 0;
+
+    // Try BMP581 at default address
+    if (baroReadRegister(BMP581_I2C_ADDR, BMP581_REG_CHIP_ID, &chipId) && chipId == BMP581_CHIP_ID) {
+        baroI2cAddr = BMP581_I2C_ADDR;
+        baroBmp581 = true;
+        Serial.printf("BMP581 found at 0x%02X\n", baroI2cAddr);
+    }
+    // Try BMP581 at alternate address
+    else if (baroReadRegister(BMP581_I2C_ADDR_ALT, BMP581_REG_CHIP_ID, &chipId) && chipId == BMP581_CHIP_ID) {
+        baroI2cAddr = BMP581_I2C_ADDR_ALT;
+        baroBmp581 = true;
+        Serial.printf("BMP581 found at 0x%02X\n", baroI2cAddr);
+    }
+    // Try BMP390 at default address
+    else if (baroReadRegister(BMP390_I2C_ADDR, BMP390_REG_CHIP_ID, &chipId) && chipId == BMP390_CHIP_ID) {
+        baroI2cAddr = BMP390_I2C_ADDR;
+        baroBmp581 = false;
+        Serial.printf("BMP390 found at 0x%02X\n", baroI2cAddr);
+    }
+    // Try BMP390 at alternate address
+    else if (baroReadRegister(BMP390_I2C_ADDR_ALT, BMP390_REG_CHIP_ID, &chipId) && chipId == BMP390_CHIP_ID) {
+        baroI2cAddr = BMP390_I2C_ADDR_ALT;
+        baroBmp581 = false;
+        Serial.printf("BMP390 found at 0x%02X\n", baroI2cAddr);
+    }
+    else {
+        Serial.println("No barometer found (BMP581 or BMP390)");
+        return false;
+    }
+
+    // Configure the sensor
+    if (baroBmp581) {
+        // BMP581 configuration
+        // Soft reset
+        baroWriteRegister(baroI2cAddr, BMP581_REG_CMD, BMP581_CMD_SOFT_RESET);
+        delay(10);
+
+        // Wait for ready
+        for (int i = 0; i < 50; i++) {
+            uint8_t status;
+            if (baroReadRegister(baroI2cAddr, BMP581_REG_STATUS, &status)) {
+                if ((status & 0x01) && !(status & 0x02)) break;
+            }
+            delay(1);
+        }
+
+        // OSR config: pressure 16x, temp 1x
+        baroWriteRegister(baroI2cAddr, BMP581_REG_OSR_CONFIG, (0x00 << 3) | 0x04);
+
+        // ODR config: 50Hz continuous mode
+        baroWriteRegister(baroI2cAddr, BMP581_REG_ODR_CONFIG, 0x0F | (0x03 << 5));
+
+        // DSP IIR: coefficient 3 for both
+        baroWriteRegister(baroI2cAddr, BMP581_REG_DSP_IIR, (0x02 << 3) | 0x02);
+
+        // DSP config: enable IIR
+        baroWriteRegister(baroI2cAddr, BMP581_REG_DSP_CONFIG, 0x01 | (1 << 3) | (1 << 6));
+
+        Serial.println("BMP581 configured");
+    }
+    else {
+        // BMP390 configuration - read calibration data
+        uint8_t calData[21];
+        if (baroReadRegisters(baroI2cAddr, BMP390_REG_NVM_PAR, calData, 21)) {
+            // Parse calibration coefficients (from datasheet)
+            uint16_t T1_u = (uint16_t)calData[1] << 8 | calData[0];
+            uint16_t T2_u = (uint16_t)calData[3] << 8 | calData[2];
+            int8_t T3_s = (int8_t)calData[4];
+
+            bmp390Cal.T1 = (float)T1_u / powf(2, -8);
+            bmp390Cal.T2 = (float)T2_u / powf(2, 30);
+            bmp390Cal.T3 = (float)T3_s / powf(2, 48);
+
+            int16_t P1_s = (int16_t)((uint16_t)calData[6] << 8 | calData[5]);
+            int16_t P2_s = (int16_t)((uint16_t)calData[8] << 8 | calData[7]);
+            int8_t P3_s = (int8_t)calData[9];
+            int8_t P4_s = (int8_t)calData[10];
+            uint16_t P5_u = (uint16_t)calData[12] << 8 | calData[11];
+            uint16_t P6_u = (uint16_t)calData[14] << 8 | calData[13];
+            int8_t P7_s = (int8_t)calData[15];
+            int8_t P8_s = (int8_t)calData[16];
+            int16_t P9_s = (int16_t)((uint16_t)calData[18] << 8 | calData[17]);
+            int8_t P10_s = (int8_t)calData[19];
+            int8_t P11_s = (int8_t)calData[20];
+
+            bmp390Cal.P1 = ((float)P1_s - powf(2, 14)) / powf(2, 20);
+            bmp390Cal.P2 = ((float)P2_s - powf(2, 14)) / powf(2, 29);
+            bmp390Cal.P3 = (float)P3_s / powf(2, 32);
+            bmp390Cal.P4 = (float)P4_s / powf(2, 37);
+            bmp390Cal.P5 = (float)P5_u / powf(2, -3);
+            bmp390Cal.P6 = (float)P6_u / powf(2, 6);
+            bmp390Cal.P7 = (float)P7_s / powf(2, 8);
+            bmp390Cal.P8 = (float)P8_s / powf(2, 15);
+            bmp390Cal.P9 = (float)P9_s / powf(2, 48);
+            bmp390Cal.P10 = (float)P10_s / powf(2, 48);
+            bmp390Cal.P11 = (float)P11_s / powf(2, 65);
+        }
+
+        // Configure OSR: pressure 8x, temp 2x
+        baroWriteRegister(baroI2cAddr, BMP390_REG_OSR, (0x01 << 3) | 0x03);
+
+        // Configure ODR: 50Hz
+        baroWriteRegister(baroI2cAddr, BMP390_REG_ODR, 0x02);
+
+        // Enable pressure and temperature, normal mode
+        baroWriteRegister(baroI2cAddr, BMP390_REG_PWR_CTRL, 0x33);
+
+        Serial.println("BMP390 configured with calibration");
+    }
+
+    return true;
+}
+
+//----------------------------------------------
+// Read Barometer Data
+//----------------------------------------------
+void readBarometer() {
+    if (!baroOk) return;
+
+    if (millis() - lastBaroReadMs < BARO_READ_INTERVAL_MS) return;
+    lastBaroReadMs = millis();
+
+    if (baroBmp581) {
+        // BMP581: pre-compensated output
+        uint8_t tempData[3], pressData[3];
+
+        if (!baroReadRegisters(baroI2cAddr, BMP581_REG_TEMP_DATA, tempData, 3)) return;
+        if (!baroReadRegisters(baroI2cAddr, BMP581_REG_PRESS_DATA, pressData, 3)) return;
+
+        // Parse 24-bit values
+        int32_t rawTemp = (int32_t)tempData[0] | ((int32_t)tempData[1] << 8) | ((int32_t)tempData[2] << 16);
+        if (rawTemp & 0x800000) rawTemp |= 0xFF000000;  // Sign extend
+
+        uint32_t rawPress = (uint32_t)pressData[0] | ((uint32_t)pressData[1] << 8) | ((uint32_t)pressData[2] << 16);
+
+        // BMP581 conversion (1/65536 °C per LSB, 1/64 Pa per LSB)
+        groundTemperatureC = (float)rawTemp / 65536.0f;
+        groundPressurePa = (float)rawPress / 64.0f;
+    }
+    else {
+        // BMP390: requires calibration compensation
+        uint8_t data[6];
+        if (!baroReadRegisters(baroI2cAddr, BMP390_REG_DATA, data, 6)) return;
+
+        uint32_t rawPress = (uint32_t)data[0] | ((uint32_t)data[1] << 8) | ((uint32_t)data[2] << 16);
+        uint32_t rawTemp = (uint32_t)data[3] | ((uint32_t)data[4] << 8) | ((uint32_t)data[5] << 16);
+
+        // Temperature compensation
+        float pd1 = (float)rawTemp - bmp390Cal.T1;
+        float pd2 = pd1 * bmp390Cal.T2;
+        float tempComp = pd2 + (pd1 * pd1) * bmp390Cal.T3;
+
+        // Pressure compensation
+        float pd3 = (float)rawPress;
+        float pd4 = pd3 - bmp390Cal.P5 - bmp390Cal.P6 * tempComp;
+        float po1 = bmp390Cal.P9 * tempComp * tempComp;
+        float po2 = po1 + bmp390Cal.P8 * tempComp + bmp390Cal.P7;
+        float po3 = pd4 * (po2 + bmp390Cal.P4 * tempComp * tempComp * tempComp + tempComp * (bmp390Cal.P3 + tempComp * bmp390Cal.P2) + bmp390Cal.P1);
+        float pressComp = po3 + (bmp390Cal.P10 + bmp390Cal.P11 * tempComp) * pd4 * pd4;
+
+        groundTemperatureC = tempComp;
+        groundPressurePa = pressComp;
+    }
 }
 
 //----------------------------------------------
@@ -2158,7 +2433,12 @@ void sendGatewayInfo(int clientIdx) {
 
     // Hardware status booleans
     response += ",\"lora\":true";           // LoRa is working if we got here
-    response += ",\"bmp390\":false";        // Heltec doesn't have BMP390
+    response += ",\"baro\":" + String(baroOk ? "true" : "false");
+    if (baroOk) {
+        response += ",\"baro_type\":\"" + String(baroBmp581 ? "BMP581" : "BMP390") + "\"";
+    } else {
+        response += ",\"baro_type\":\"None\"";
+    }
     response += ",\"ota\":true";            // OTA updates supported
     // GPS present if we've received any data from it
     response += ",\"gps\":" + String(gps.charsProcessed() > 0 ? "true" : "false");
@@ -2171,9 +2451,9 @@ void sendGatewayInfo(int clientIdx) {
     response += ",\"rssi\":" + String((int)lastRssi);
     response += ",\"snr\":" + String((int)lastSnr);
 
-    // Ground reference (not applicable for Heltec gateway)
-    response += ",\"ground_pres\":0";
-    response += ",\"ground_temp\":0";
+    // Ground reference from barometer
+    response += ",\"ground_pres\":" + String((int)groundPressurePa);
+    response += ",\"ground_temp\":" + String(groundTemperatureC, 1);
 
     // GPS data
     response += ",\"gps_fix\":" + String(gps.location.isValid() ? "true" : "false");

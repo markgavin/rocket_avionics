@@ -20,6 +20,7 @@
 #include "flight_storage.h"
 #include "storage.h"
 #include "bmp390.h"
+#include "bmp581.h"
 #include "lora_radio.h"
 #include "ssd1306.h"
 #include "status_display.h"
@@ -67,11 +68,13 @@ static TelemetrySample sSampleBuffer[kMaxSamples] ;
 //----------------------------------------------
 static FlightController sFlightController ;
 static BMP390 sBmp390 ;
+static BMP581 sBmp581 ;
 static LoRa_Radio sLoRaRadio ;
 static Imu sImu ;
 
 // Hardware status
 static bool sBmp390Ok = false ;
+static bool sBmp581Ok = false ;
 static bool sLoRaOk = false ;
 static bool sImuOk = false ;
 static bool sOledOk = false ;
@@ -153,7 +156,7 @@ int main(void)
     // Show device info briefly
     StatusDisplay_ShowDeviceInfo(
       FIRMWARE_VERSION_STRING,
-      sBmp390Ok,
+      sBmp581Ok || sBmp390Ok,
       sLoRaOk,
       sImuOk,
       sGpsOk) ;
@@ -162,7 +165,12 @@ int main(void)
 
   // Print startup summary
   printf("\nStartup complete:\n") ;
-  printf("  BMP390:  %s\n", sBmp390Ok ? "OK" : "FAIL") ;
+  if (sBmp581Ok)
+    printf("  Baro:    BMP581 (OK)\n") ;
+  else if (sBmp390Ok)
+    printf("  Baro:    BMP390 (OK)\n") ;
+  else
+    printf("  Baro:    NONE (FAIL)\n") ;
   printf("  LoRa:    %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  IMU:     %s\n", sImuOk ? "OK" : "FAIL") ;
   printf("  OLED:    %s\n", sOledOk ? "OK" : "FAIL") ;
@@ -190,15 +198,26 @@ int main(void)
     {
       sLastSensorReadMs = theCurrentMs ;
 
-      if (sBmp390Ok)
+      // Read barometer (BMP581 or BMP390)
+      if (sBmp581Ok || sBmp390Ok)
       {
         float thePressure = 0 ;
         float theTemperature = 0 ;
+        bool theDataReady = false ;
+        bool theReadOk = false ;
 
-        // Check data ready before reading
-        bool theDataReady = BMP390_DataReady(&sBmp390) ;
+        if (sBmp581Ok)
+        {
+          theDataReady = BMP581_DataReady(&sBmp581) ;
+          theReadOk = BMP581_ReadPressureTemperature(&sBmp581, &thePressure, &theTemperature) ;
+        }
+        else if (sBmp390Ok)
+        {
+          theDataReady = BMP390_DataReady(&sBmp390) ;
+          theReadOk = BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature) ;
+        }
 
-        if (BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature))
+        if (theReadOk)
         {
           // Debug: show pressure reading every 100 samples (1 second)
           static uint32_t sDebugCount = 0 ;
@@ -206,7 +225,8 @@ int main(void)
           if ((++sDebugCount % 100) == 0)
           {
             float theDelta = thePressure - sLastPressure ;
-            DEBUG_PRINT("BMP: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
+            DEBUG_PRINT("%s: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
+              sBmp581Ok ? "BMP581" : "BMP390",
               thePressure, theDelta, theTemperature,
               sFlightController.pCurrentAltitudeM, theDataReady) ;
             sLastPressure = thePressure ;
@@ -225,7 +245,9 @@ int main(void)
           static uint32_t sFailCount = 0 ;
           if ((++sFailCount % 100) == 0)
           {
-            DEBUG_PRINT("BMP: Read failed (%lu) rdy=%d\n", (unsigned long)sFailCount, theDataReady) ;
+            DEBUG_PRINT("%s: Read failed (%lu) rdy=%d\n",
+              sBmp581Ok ? "BMP581" : "BMP390",
+              (unsigned long)sFailCount, theDataReady) ;
           }
         }
       }
@@ -465,23 +487,40 @@ static void InitializeHardware(void)
     printf("WARNING: NeoPixel LED initialization failed\n") ;
   }
 
-  // Initialize BMP390 barometric sensor
-  printf("Initializing BMP390...\n") ;
-  if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+  // Initialize barometric sensor (try BMP581 first, then BMP390)
+  printf("Initializing barometer...\n") ;
+
+  // Try BMP581 first (newer, more accurate: ±3.3cm vs ±25cm)
+  if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
   {
-    // Configure for high-rate altitude measurement
-    BMP390_Configure(
-      &sBmp390,
-      BMP390_OSR_8X,      // Pressure oversampling
-      BMP390_OSR_2X,      // Temperature oversampling
-      BMP390_ODR_50_HZ,   // 50 Hz output rate
-      BMP390_IIR_COEF_3)  ; // Light filtering
-    sBmp390Ok = true ;
-    printf("BMP390 initialized\n") ;
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
   }
-  else
+  else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
   {
-    printf("WARNING: BMP390 initialization failed\n") ;
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
+  }
+
+  // Fall back to BMP390 if BMP581 not found
+  if (!sBmp581Ok)
+  {
+    if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+    {
+      // Configure for high-rate altitude measurement
+      BMP390_Configure(
+        &sBmp390,
+        BMP390_OSR_8X,      // Pressure oversampling
+        BMP390_OSR_2X,      // Temperature oversampling
+        BMP390_ODR_50_HZ,   // 50 Hz output rate
+        BMP390_IIR_COEF_3)  ; // Light filtering
+      sBmp390Ok = true ;
+      printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
+    }
+    else
+    {
+      printf("WARNING: No barometer found (BMP581 or BMP390)\n") ;
+    }
   }
 
   // Initialize OLED display
@@ -797,7 +836,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     case kDisplayModeDeviceInfo:
       StatusDisplay_ShowDeviceInfo(
         FIRMWARE_VERSION_STRING,
-        sBmp390Ok,
+        sBmp581Ok || sBmp390Ok,
         sLoRaOk,
         sImuOk,
         sGpsOk) ;
@@ -984,7 +1023,7 @@ static void SendDeviceInfo(void)
 
   // Hardware status flags
   uint8_t theFlags = 0 ;
-  if (sBmp390Ok) theFlags |= 0x01 ;
+  if (sBmp581Ok || sBmp390Ok) theFlags |= 0x01 ;
   if (sLoRaOk) theFlags |= 0x02 ;
   if (sImuOk) theFlags |= 0x04 ;
   if (sOledOk) theFlags |= 0x10 ;
@@ -1013,7 +1052,7 @@ static void SendDeviceInfo(void)
   }
 
   // Barometer type string (for Heltec compatibility)
-  const char * theBaroType = sBmp390Ok ? "BMP390" : "None" ;
+  const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
   uint8_t theBaroTypeLen = strlen(theBaroType) ;
   thePacket[theOffset++] = theBaroTypeLen ;
   memcpy(&thePacket[theOffset], theBaroType, theBaroTypeLen) ;

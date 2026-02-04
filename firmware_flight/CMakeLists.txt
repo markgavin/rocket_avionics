@@ -38,6 +38,7 @@ add_executable(rocket_avionics_flight
     src/flight_control.c
     src/lora_radio.c
     src/bmp390.c
+    src/bmp581.c
     src/imu.c
     src/ssd1306.c
     src/status_display.c

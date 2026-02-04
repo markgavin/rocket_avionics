@@ -37,6 +37,7 @@ add_executable(rocket_gateway
   src/ssd1306.c
   src/gateway_display.c
   src/bmp390.c
+  src/bmp581.c
   src/gps.c
   src/wifi_nina.c
   src/wifi_config.c
