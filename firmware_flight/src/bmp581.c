@@ -72,7 +72,7 @@ bool BMP581_IsConnected(uint8_t inI2cAddr)
   {
     return false ;
   }
-  return theChipId == BMP581_CHIP_ID ;
+  return (theChipId == BMP581_CHIP_ID_580 || theChipId == BMP581_CHIP_ID_581) ;
 }
 
 //----------------------------------------------
@@ -113,12 +113,25 @@ bool BMP581_Init(BMP581 * outSensor, uint8_t inI2cAddr)
     sleep_ms(1) ;
   }
 
-  // Configure for high-resolution altitude measurement
+  // Enable data-ready interrupt (matches Adafruit initialization)
+  // INT_SOURCE: bit 0 = drdy_data_reg_en
+  if (!WriteRegister(inI2cAddr, BMP581_REG_INT_SOURCE, 0x01))
+  {
+    return false ;
+  }
+
+  // INT_CONFIG: latched, active-high, push-pull, enabled
+  if (!WriteRegister(inI2cAddr, BMP581_REG_INT_CONFIG, 0x0B))
+  {
+    return false ;
+  }
+
+  // Configure to match Adafruit defaults:
   // Pressure: 16x oversampling
-  // Temperature: 1x oversampling
+  // Temperature: 2x oversampling (Adafruit default)
   // ODR: 50 Hz
-  // IIR: coefficient 3
-  if (!BMP581_Configure(outSensor, BMP581_OSR_16X, BMP581_OSR_1X, BMP581_ODR_50_HZ, BMP581_IIR_COEF_3))
+  // IIR: coefficient 1 (Adafruit default)
+  if (!BMP581_Configure(outSensor, BMP581_OSR_16X, BMP581_OSR_2X, BMP581_ODR_50_HZ, BMP581_IIR_COEF_1))
   {
     return false ;
   }
@@ -127,6 +140,45 @@ bool BMP581_Init(BMP581 * outSensor, uint8_t inI2cAddr)
   if (!BMP581_SetMode(outSensor, true))
   {
     return false ;
+  }
+
+  // Diagnostic: verify configuration registers
+  {
+    uint8_t theRegVal = 0 ;
+    ReadRegister(inI2cAddr, BMP581_REG_OSR_CONFIG, &theRegVal) ;
+    printf("BMP581 cfg: OSR=0x%02X", theRegVal) ;
+    ReadRegister(inI2cAddr, BMP581_REG_ODR_CONFIG, &theRegVal) ;
+    printf(" ODR=0x%02X", theRegVal) ;
+    ReadRegister(inI2cAddr, BMP581_REG_DSP_CONFIG, &theRegVal) ;
+    printf(" DSP=0x%02X", theRegVal) ;
+    ReadRegister(inI2cAddr, BMP581_REG_DSP_IIR, &theRegVal) ;
+    printf(" IIR=0x%02X", theRegVal) ;
+    ReadRegister(inI2cAddr, BMP581_REG_OSR_EFF, &theRegVal) ;
+    printf(" EFF=0x%02X\n", theRegVal) ;
+  }
+
+  // Read first data sample for diagnostic
+  sleep_ms(100) ;
+  {
+    uint8_t theDiagData[6] ;
+    if (ReadRegisters(inI2cAddr, BMP581_REG_TEMP_DATA_XLSB, theDiagData, 6))
+    {
+      int32_t theRawT = (int32_t)theDiagData[0] |
+                        ((int32_t)theDiagData[1] << 8) |
+                        ((int32_t)theDiagData[2] << 16) ;
+      if (theRawT & 0x800000) theRawT |= 0xFF000000 ;
+      uint32_t theRawP = (uint32_t)theDiagData[3] |
+                         ((uint32_t)theDiagData[4] << 8) |
+                         ((uint32_t)theDiagData[5] << 16) ;
+      printf("BMP581 raw: [%02X %02X %02X | %02X %02X %02X]\n",
+        theDiagData[0], theDiagData[1], theDiagData[2],
+        theDiagData[3], theDiagData[4], theDiagData[5]) ;
+      printf("BMP581 data: T=%ld  P=%lu\n", (long)theRawT, (unsigned long)theRawP) ;
+      printf("BMP581 Bosch:     T=%.2fC  P=%.1fPa\n",
+        (float)theRawT / 65536.0f, (float)theRawP / 64.0f) ;
+      printf("BMP581 Empirical: T=%.2fC  P=%.1fPa\n",
+        (float)theRawT / 4096.0f, (float)theRawP / 5.0f) ;
+    }
   }
 
   outSensor->pInitialized = true ;
@@ -144,36 +196,38 @@ bool BMP581_Configure(
   BMP581_IIRFilter inFilter)
 {
   // Set oversampling (OSR_CONFIG register)
-  // Bits 5:3 = osr_t (temperature), Bits 2:0 = osr_p (pressure)
-  uint8_t theOsr = (inTempOsr << 3) | inPressOsr ;
+  // Bit 6 = press_en (MUST be 1 to enable pressure measurement!)
+  // Bits 5:3 = osr_p (pressure oversampling)
+  // Bits 2:0 = osr_t (temperature oversampling)
+  uint8_t theOsr = 0x40 | (inPressOsr << 3) | inTempOsr ;  // 0x40 = PRESS_EN
   if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_OSR_CONFIG, theOsr))
   {
     return false ;
   }
 
   // Set ODR (ODR_CONFIG register)
-  // Bits 6:5 = pwr_mode (set later), Bits 4:0 = odr_sel
-  // For now, set ODR in standby mode (pwr_mode = 0)
-  uint8_t theOdrConfig = inOdr & 0x1F ;
+  // Bit 7: DEEP_DISABLE, Bits 6:2 = odr_sel, Bits 1:0 = pwr_mode
+  // Set ODR in standby mode (pwr_mode = 0), enable deep disable
+  uint8_t theOdrConfig = 0x80 | ((inOdr & 0x1F) << 2) ;  // DEEP_DISABLE + ODR shifted to bits 6:2
   if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_ODR_CONFIG, theOdrConfig))
   {
     return false ;
   }
 
-  // Set IIR filter (DSP_IIR register)
-  // Bits 5:3 = set_iir_t, Bits 2:0 = set_iir_p
-  uint8_t theIir = (inFilter << 3) | inFilter ;
-  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_DSP_IIR, theIir))
+  // Enable IIR filter (matching Adafruit config)
+  // DSP_IIR register: Bits 5:3 = set_iir_t, Bits 2:0 = set_iir_p
+  // Values: 0=bypass, 1=coef1, 2=coef3, 3=coef7, 4=coef15, 5=coef31, 6=coef63, 7=coef127
+  // Adafruit uses coef_1 (value 1)
+  uint8_t theIirConfig = (inFilter << 3) | inFilter ;  // Same coefficient for both temp and pressure
+  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_DSP_IIR, theIirConfig))
   {
     return false ;
   }
 
-  // Enable IIR filter in DSP_CONFIG register
-  // Bit 0 = comp_pt_en (enable pressure temp compensation)
-  // Bit 1 = iir_flush_forced_en
-  // Bits 5:3 = shdw_sel_iir_t, Bits 6 = shdw_sel_iir_p
-  // Enable pressure and temperature IIR filtering to shadow registers
-  uint8_t theDspConfig = 0x01 | (1 << 3) | (1 << 6) ;
+  // DSP_CONFIG register - enable IIR shadow registers (like Adafruit)
+  // Bit 5: SHDW_SET_IIR_PRESS (1 = select IIR pressure output)
+  // Bit 3: SHDW_SET_IIR_TEMP (1 = select IIR temperature output)
+  uint8_t theDspConfig = (1 << 5) | (1 << 3) | (1 << 2) ;  // shdw_iir_p + shdw_iir_t + IIR_FLUSH
   if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_DSP_CONFIG, theDspConfig))
   {
     return false ;
@@ -194,16 +248,22 @@ bool BMP581_SetMode(BMP581 * ioSensor, bool inContinuousMode)
     return false ;
   }
 
-  // Clear power mode bits (6:5) and set new mode
-  theOdrConfig &= 0x1F ;  // Keep ODR selection
+  // ODR_CONFIG register layout:
+  // Bit 7: DEEP_DISABLE (set to 1 to disable deep standby)
+  // Bits 6:2: ODR selection
+  // Bits 1:0: POWERMODE (0=standby, 1=normal, 2=forced, 3=continuous)
+
+  // Clear power mode bits (1:0) and set new mode
+  theOdrConfig &= 0xFC ;  // Keep bits 7:2 (deep disable and ODR)
+  theOdrConfig |= 0x80 ;  // Set DEEP_DISABLE bit to prevent deep standby
 
   if (inContinuousMode)
   {
-    theOdrConfig |= (BMP581_PWR_MODE_CONTINUOUS << 5) ;
+    theOdrConfig |= BMP581_PWR_MODE_NORMAL ;  // Normal mode for continuous sampling
   }
   else
   {
-    theOdrConfig |= (BMP581_PWR_MODE_STANDBY << 5) ;
+    theOdrConfig |= BMP581_PWR_MODE_STANDBY ;
   }
 
   return WriteRegister(ioSensor->pI2cAddr, BMP581_REG_ODR_CONFIG, theOdrConfig) ;
@@ -222,49 +282,36 @@ bool BMP581_ReadPressureTemperature(
     return false ;
   }
 
-  // Read temperature data (3 bytes at 0x1D)
-  uint8_t theTempData[3] ;
-  if (!ReadRegisters(inSensor->pI2cAddr, BMP581_REG_TEMP_DATA_XLSB, theTempData, 3))
+  // Read all 6 bytes (temp + pressure) in one I2C transaction for atomic data
+  // Registers 0x1D-0x22: TEMP_XLSB, TEMP_LSB, TEMP_MSB, PRESS_XLSB, PRESS_LSB, PRESS_MSB
+  uint8_t theData[6] ;
+  if (!ReadRegisters(inSensor->pI2cAddr, BMP581_REG_TEMP_DATA_XLSB, theData, 6))
   {
     return false ;
   }
 
-  // Read pressure data (3 bytes at 0x20)
-  uint8_t thePressData[3] ;
-  if (!ReadRegisters(inSensor->pI2cAddr, BMP581_REG_PRESS_DATA_XLSB, thePressData, 3))
-  {
-    return false ;
-  }
-
-  // Parse raw temperature (24-bit signed)
-  int32_t theRawTemp = (int32_t)theTempData[0] |
-                       ((int32_t)theTempData[1] << 8) |
-                       ((int32_t)theTempData[2] << 16) ;
+  // Parse raw temperature (24-bit signed) - LSB first per Bosch datasheet
+  int32_t theRawTemp = (int32_t)theData[0] |
+                       ((int32_t)theData[1] << 8) |
+                       ((int32_t)theData[2] << 16) ;
   // Sign extend 24-bit to 32-bit
   if (theRawTemp & 0x800000)
   {
     theRawTemp |= 0xFF000000 ;
   }
 
-  // Parse raw pressure (24-bit unsigned)
-  uint32_t theRawPress = (uint32_t)thePressData[0] |
-                         ((uint32_t)thePressData[1] << 8) |
-                         ((uint32_t)thePressData[2] << 16) ;
+  // Parse raw pressure (24-bit unsigned) - LSB first per Bosch datasheet
+  uint32_t theRawPress = (uint32_t)theData[3] |
+                         ((uint32_t)theData[4] << 8) |
+                         ((uint32_t)theData[5] << 16) ;
 
   // BMP581 outputs pre-compensated data
-  // Temperature: 1/65536 °C per LSB
-  // Pressure: 1/64 Pa per LSB
-  float theTemperature = (float)theRawTemp / 65536.0f ;
-  float thePressure = (float)theRawPress / 64.0f ;
-
-  // Debug: print raw values occasionally
-  static uint32_t sDebugCounter = 0 ;
-  if ((++sDebugCounter % 100) == 1)
-  {
-    printf("BMP581 RAW: P=%lu (%.1f Pa) T=%ld (%.2f C)\n",
-      (unsigned long)theRawPress, thePressure,
-      (long)theRawTemp, theTemperature) ;
-  }
+  // Bosch docs say raw/65536 (temp) and raw/64 (pressure), but our BMP581
+  // consistently gives values ~16x and ~12.8x too low with those divisors.
+  // Empirical testing shows raw/4096 and raw/5.0 give correct readings.
+  // This may be a BMP580 vs BMP581 data format difference.
+  float theTemperature = (float)theRawTemp / 4096.0f ;
+  float thePressure = (float)theRawPress / 5.0f ;
 
   if (outTemperatureC != NULL)
   {

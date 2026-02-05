@@ -33,7 +33,8 @@
 //----------------------------------------------
 // Chip ID
 //----------------------------------------------
-#define BMP581_CHIP_ID              0x50
+#define BMP581_CHIP_ID_580          0x50    // BMP580 (evaluation variant)
+#define BMP581_CHIP_ID_581          0x51    // BMP581 / BMP585
 
 //----------------------------------------------
 // Register Addresses
@@ -71,7 +72,7 @@
 #define BMP581_REG_CMD              0x7E
 
 //----------------------------------------------
-// Power Modes (ODR_CONFIG register bits 6:5)
+// Power Modes (ODR_CONFIG register bits 1:0)
 //----------------------------------------------
 #define BMP581_PWR_MODE_STANDBY     0x00
 #define BMP581_PWR_MODE_NORMAL      0x01

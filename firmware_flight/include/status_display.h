@@ -140,14 +140,16 @@ DisplayMode StatusDisplay_PrevMode(void) ;
 // Purpose: Show device information screen
 // Parameters:
 //   inFirmwareVersion - Firmware version string
-//   inBmp390Ok - BMP390 sensor status
+//   inBaroType - Barometer type string ("BMP581", "BMP390", or "None")
+//   inBaroOk - Barometer sensor status
 //   inLoRaOk - LoRa radio status
 //   inImuOk - IMU sensor status
 //   inGpsOk - GPS status
 //----------------------------------------------
 void StatusDisplay_ShowDeviceInfo(
   const char * inFirmwareVersion,
-  bool inBmp390Ok,
+  const char * inBaroType,
+  bool inBaroOk,
   bool inLoRaOk,
   bool inImuOk,
   bool inGpsOk) ;
@@ -283,7 +285,8 @@ void StatusDisplay_ShowCompass(
 // Function: StatusDisplay_ShowRates
 // Purpose: Show sensor sampling rates screen
 // Parameters:
-//   inBmp390Hz - BMP390 sampling rate in Hz
+//   inBaroType - Barometer type string ("BMP581", "BMP390", etc.)
+//   inBaroHz - Barometer sampling rate in Hz
 //   inImuAccelHz - IMU accelerometer ODR in Hz
 //   inImuGyroHz - IMU gyroscope ODR in Hz
 //   inGpsHz - GPS update rate in Hz
@@ -291,7 +294,8 @@ void StatusDisplay_ShowCompass(
 //   inDisplayHz - Display update rate in Hz
 //----------------------------------------------
 void StatusDisplay_ShowRates(
-  uint16_t inBmp390Hz,
+  const char * inBaroType,
+  uint16_t inBaroHz,
   uint16_t inImuAccelHz,
   uint16_t inImuGyroHz,
   uint8_t inGpsHz,

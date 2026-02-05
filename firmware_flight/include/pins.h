@@ -38,6 +38,7 @@
 #define kI2cAddrBMP390      0x77  // Barometric sensor (or 0x76 if SDO to GND)
 #define kI2cAddrSSD1306     0x3C  // OLED display (or 0x3D)
 #define kI2cAddrLSM6DSOX    0x6A  // IMU accel/gyro (or 0x6B if SDO to VDD)
+#define kI2cAddrICM20649    0x68  // ICM-20649 accel/gyro (or 0x69 if AD0 HIGH)
 #define kI2cAddrLIS3MDL     0x1E  // IMU magnetometer (or 0x1C if SDO to GND)
 
 //----------------------------------------------

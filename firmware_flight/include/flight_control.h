@@ -206,6 +206,16 @@ typedef struct
   uint32_t pApogeeTimeMs ;        // Time of apogee
   uint8_t pDescendingCount ;      // Consecutive descending samples
 
+  // Altitude smoothing (for barometric display)
+  float pSmoothedAltitudeM ;      // EMA-filtered altitude
+
+  // Complementary filter state (IMU + baro fusion)
+  bool pImuAvailable ;            // true when IMU data is being provided
+  float pCfAltitudeM ;            // Filter altitude estimate
+  float pCfVelocityMps ;          // Filter velocity estimate
+  float pCfAccelBiasMps2 ;        // Learned accelerometer bias (m/s^2)
+  uint32_t pLastImuTimeMs ;       // Last IMU update timestamp
+
   // Landing detection
   float pPreviousAltitudeM ;      // Previous altitude for velocity
   uint8_t pStationaryCount ;      // Consecutive stationary samples
@@ -254,6 +264,20 @@ void FlightControl_UpdateSensors(
   FlightController * ioController,
   float inPressurePa,
   float inTemperatureC,
+  uint32_t inCurrentTimeMs) ;
+
+//----------------------------------------------
+// Function: FlightControl_UpdateImu
+// Purpose: Update velocity estimate with IMU data
+//   (complementary filter prediction step)
+// Parameters:
+//   ioController - Controller
+//   inImuData - Current IMU data
+//   inCurrentTimeMs - Current time
+//----------------------------------------------
+void FlightControl_UpdateImu(
+  FlightController * ioController,
+  const ImuData * inImuData,
   uint32_t inCurrentTimeMs) ;
 
 //----------------------------------------------

@@ -25,8 +25,18 @@
 #define kMolarMass              0.0289644f  // Molar mass of air (kg/mol)
 #define kGravity                9.80665f    // Gravitational acceleration (m/s^2)
 
-// Velocity smoothing
-#define kVelocitySmoothingAlpha 0.3f        // EMA smoothing factor
+// Altitude smoothing (applied before velocity differentiation to reduce noise)
+#define kAltitudeSmoothingAlpha 0.1f        // ~2 Hz cutoff at 100 Hz sample rate
+
+// Velocity smoothing (fallback when no IMU)
+#define kVelocitySmoothingAlpha 0.15f       // EMA smoothing factor
+
+// Complementary filter gains (critically-damped, ~0.5 Hz crossover)
+#define kCfGainAltitude         6.0f        // Altitude correction gain
+#define kCfGainVelocity         10.0f       // Velocity correction gain
+#define kCfGainBias             1.0f        // Accel bias learning rate (slow)
+#define kGravityMps2            9.80665f    // Gravitational acceleration
+#define kCfMaxDtS               0.05f       // Max integration dt (50ms clamp)
 
 // Detection thresholds
 #define kApogeeDescendCount     3           // Consecutive descending samples for apogee
@@ -172,23 +182,51 @@ void FlightControl_UpdateSensors(
   // Calculate altitude relative to ground
   if (theReferencePressure > 0.0f)
   {
-    float thePreviousAltitude = ioController->pCurrentAltitudeM ;
     ioController->pCurrentAltitudeM = FlightControl_CalculateAltitude(
       inPressurePa, theReferencePressure) ;
 
-    // Calculate velocity
-    uint32_t theDeltaMs = inCurrentTimeMs - ioController->pLastSampleTimeMs ;
-    if (theDeltaMs > 0 && ioController->pLastSampleTimeMs > 0)
+    // Smooth barometric altitude with EMA
+    float thePreviousSmoothed = ioController->pSmoothedAltitudeM ;
+    if (ioController->pLastSampleTimeMs == 0)
     {
-      float theDeltaS = (float)theDeltaMs / 1000.0f ;
-      ioController->pCurrentVelocityMps = CalculateVelocity(
-        ioController->pCurrentAltitudeM,
-        thePreviousAltitude,
-        ioController->pCurrentVelocityMps,
-        theDeltaS) ;
+      ioController->pSmoothedAltitudeM = ioController->pCurrentAltitudeM ;
+    }
+    else
+    {
+      ioController->pSmoothedAltitudeM =
+        kAltitudeSmoothingAlpha * ioController->pCurrentAltitudeM +
+        (1.0f - kAltitudeSmoothingAlpha) * thePreviousSmoothed ;
     }
 
-    ioController->pPreviousAltitudeM = thePreviousAltitude ;
+    if (ioController->pImuAvailable)
+    {
+      // Complementary filter: barometric correction step
+      // Pull filter estimates toward barometric truth
+      float theBaroDtS = (float)kSensorSampleIntervalMs / 1000.0f ;
+      float theAltError = ioController->pSmoothedAltitudeM - ioController->pCfAltitudeM ;
+
+      ioController->pCfVelocityMps += kCfGainVelocity * theAltError * theBaroDtS ;
+      ioController->pCfAltitudeM += kCfGainAltitude * theAltError * theBaroDtS ;
+      ioController->pCfAccelBiasMps2 -= kCfGainBias * theAltError * theBaroDtS ;
+
+      ioController->pCurrentVelocityMps = ioController->pCfVelocityMps ;
+    }
+    else
+    {
+      // Fallback: barometric-only velocity (no IMU available)
+      uint32_t theDeltaMs = inCurrentTimeMs - ioController->pLastSampleTimeMs ;
+      if (theDeltaMs > 0 && ioController->pLastSampleTimeMs > 0)
+      {
+        float theDeltaS = (float)theDeltaMs / 1000.0f ;
+        ioController->pCurrentVelocityMps = CalculateVelocity(
+          ioController->pSmoothedAltitudeM,
+          thePreviousSmoothed,
+          ioController->pCurrentVelocityMps,
+          theDeltaS) ;
+      }
+    }
+
+    ioController->pPreviousAltitudeM = ioController->pCurrentAltitudeM ;
   }
   else
   {
@@ -197,6 +235,50 @@ void FlightControl_UpdateSensors(
   }
 
   ioController->pLastSampleTimeMs = inCurrentTimeMs ;
+}
+
+//----------------------------------------------
+// Function: FlightControl_UpdateImu
+//----------------------------------------------
+void FlightControl_UpdateImu(
+  FlightController * ioController,
+  const ImuData * inImuData,
+  uint32_t inCurrentTimeMs)
+{
+  if (inImuData == NULL) return ;
+
+  // Mark IMU as available for complementary filter
+  ioController->pImuAvailable = true ;
+
+  // Compute delta time
+  float theDtS = 0.0f ;
+  if (ioController->pLastImuTimeMs > 0)
+  {
+    uint32_t theDeltaMs = inCurrentTimeMs - ioController->pLastImuTimeMs ;
+    theDtS = (float)theDeltaMs / 1000.0f ;
+
+    // Clamp dt to avoid large jumps on first call or after pause
+    if (theDtS > kCfMaxDtS)
+    {
+      theDtS = kCfMaxDtS ;
+    }
+  }
+  ioController->pLastImuTimeMs = inCurrentTimeMs ;
+
+  if (theDtS <= 0.0f) return ;
+
+  // Vertical acceleration: remove gravity (Z axis when upright on pad)
+  // accelZ reads ~1.0g at rest, so subtract 1g and convert to m/s^2
+  // Then subtract learned bias to cancel sensor offset
+  float theVerticalAccelMps2 = (inImuData->pAccelZ - 1.0f) * kGravityMps2
+                               - ioController->pCfAccelBiasMps2 ;
+
+  // Integrate: velocity += accel * dt, altitude += velocity * dt
+  ioController->pCfVelocityMps += theVerticalAccelMps2 * theDtS ;
+  ioController->pCfAltitudeM += ioController->pCfVelocityMps * theDtS ;
+
+  // Write fused velocity to current velocity
+  ioController->pCurrentVelocityMps = ioController->pCfVelocityMps ;
 }
 
 //----------------------------------------------
@@ -363,6 +445,9 @@ FlightError FlightControl_Arm(FlightController * ioController)
   ioController->pCurrentAltitudeM = 0.0f ;
   ioController->pCurrentVelocityMps = 0.0f ;
   ioController->pTelemetrySequence = 0 ;
+  ioController->pCfAltitudeM = 0.0f ;
+  ioController->pCfVelocityMps = 0.0f ;
+  // Keep pCfAccelBiasMps2 — it has already converged on pad
 
   // Clear results
   memset(&ioController->pResults, 0, sizeof(FlightResults)) ;

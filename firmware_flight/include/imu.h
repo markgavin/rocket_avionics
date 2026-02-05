@@ -1,15 +1,16 @@
 //----------------------------------------------
 // Module: imu.h
-// Description: LSM6DSOX + LIS3MDL 9-DoF IMU driver
+// Description: IMU driver (LSM6DSOX or ICM-20649, + LIS3MDL)
 //   for Rocket Avionics Flight Computer
 // Author: Mark Gavin
 // Created: 2026-01-12
 // Copyright: (c) 2025-2026 by Mark Gavin
 // License: Proprietary - All Rights Reserved
 //
-// Hardware: Adafruit LSM6DSOX + LIS3MDL FeatherWing (4565)
-//   - LSM6DSOX: 3-axis accelerometer + 3-axis gyroscope
-//   - LIS3MDL: 3-axis magnetometer
+// Hardware:
+//   - Adafruit LSM6DSOX + LIS3MDL FeatherWing (4565)
+//   - OR Adafruit ICM-20649 Wide Range 6-DoF (4464)
+//   Auto-detects which IMU is connected.
 //----------------------------------------------
 
 #pragma once
@@ -130,6 +131,88 @@
 #define LIS3MDL_MODE_POWERDOWN      0x03
 
 //----------------------------------------------
+// ICM-20649 Register Definitions
+// Wide-range 6-DoF: ±4-30g accel, ±500-4000 dps gyro
+// Uses banked registers (4 banks), bank select at 0x7F
+//----------------------------------------------
+#define ICM20649_WHO_AM_I           0x00
+#define ICM20649_WHO_AM_I_VALUE     0xE1
+
+// Bank 0 registers
+#define ICM20649_USER_CTRL          0x03
+#define ICM20649_PWR_MGMT_1         0x06
+#define ICM20649_PWR_MGMT_2         0x07
+#define ICM20649_INT_PIN_CFG        0x0F
+#define ICM20649_INT_ENABLE         0x10
+#define ICM20649_INT_STATUS         0x19
+#define ICM20649_ACCEL_XOUT_H       0x2D
+#define ICM20649_ACCEL_XOUT_L       0x2E
+#define ICM20649_ACCEL_YOUT_H       0x2F
+#define ICM20649_ACCEL_YOUT_L       0x30
+#define ICM20649_ACCEL_ZOUT_H       0x31
+#define ICM20649_ACCEL_ZOUT_L       0x32
+#define ICM20649_GYRO_XOUT_H        0x33
+#define ICM20649_GYRO_XOUT_L        0x34
+#define ICM20649_GYRO_YOUT_H        0x35
+#define ICM20649_GYRO_YOUT_L        0x36
+#define ICM20649_GYRO_ZOUT_H        0x37
+#define ICM20649_GYRO_ZOUT_L        0x38
+#define ICM20649_REG_BANK_SEL       0x7F
+
+// Bank 2 registers (configuration)
+#define ICM20649_GYRO_SMPLRT_DIV    0x00
+#define ICM20649_GYRO_CONFIG_1      0x01
+#define ICM20649_ACCEL_SMPLRT_DIV_1 0x10
+#define ICM20649_ACCEL_SMPLRT_DIV_2 0x11
+#define ICM20649_ACCEL_CONFIG_1     0x14
+
+// Bank select values
+#define ICM20649_BANK_0             0x00
+#define ICM20649_BANK_1             0x10
+#define ICM20649_BANK_2             0x20
+#define ICM20649_BANK_3             0x30
+
+// PWR_MGMT_1 bits
+#define ICM20649_RESET              0x80
+#define ICM20649_SLEEP              0x40
+#define ICM20649_CLKSEL_AUTO        0x01  // Auto-select best clock
+
+// Accel full-scale settings for ACCEL_CONFIG_1[2:1]
+#define ICM20649_FS_A_4G            0x00  // ±4g
+#define ICM20649_FS_A_8G            0x02  // ±8g
+#define ICM20649_FS_A_16G           0x04  // ±16g
+#define ICM20649_FS_A_30G           0x06  // ±30g
+
+// Gyro full-scale settings for GYRO_CONFIG_1[2:1]
+#define ICM20649_FS_G_500DPS        0x00  // ±500 dps
+#define ICM20649_FS_G_1000DPS       0x02  // ±1000 dps
+#define ICM20649_FS_G_2000DPS       0x04  // ±2000 dps
+#define ICM20649_FS_G_4000DPS       0x06  // ±4000 dps
+
+// DLPF enable bit (bit 0 of CONFIG_1 registers)
+#define ICM20649_DLPF_ENABLE        0x01
+
+// DLPF bandwidth settings for CONFIG_1[5:3]
+#define ICM20649_DLPF_BW_0         (0x00 << 3)  // Widest bandwidth
+#define ICM20649_DLPF_BW_1         (0x01 << 3)
+#define ICM20649_DLPF_BW_2         (0x02 << 3)
+#define ICM20649_DLPF_BW_3         (0x03 << 3)
+#define ICM20649_DLPF_BW_4         (0x04 << 3)
+#define ICM20649_DLPF_BW_5         (0x05 << 3)
+#define ICM20649_DLPF_BW_6         (0x06 << 3)
+#define ICM20649_DLPF_BW_7         (0x07 << 3)  // Narrowest bandwidth
+
+//----------------------------------------------
+// IMU Type (auto-detected)
+//----------------------------------------------
+typedef enum
+{
+  kImuTypeNone = 0 ,
+  kImuTypeLSM6DSOX ,
+  kImuTypeICM20649
+} ImuType ;
+
+//----------------------------------------------
 // IMU Data Structure
 //----------------------------------------------
 typedef struct
@@ -177,7 +260,8 @@ typedef struct
 //----------------------------------------------
 typedef struct
 {
-  uint8_t pAccelGyroAddr ;    // LSM6DSOX I2C address
+  ImuType pImuType ;          // Detected IMU type
+  uint8_t pAccelGyroAddr ;    // Accel/Gyro I2C address
   uint8_t pMagAddr ;          // LIS3MDL I2C address
   bool pAccelGyroOk ;         // Accel/Gyro initialized
   bool pMagOk ;               // Magnetometer initialized
@@ -264,4 +348,13 @@ const ImuData * IMU_GetData(const Imu * inImu) ;
 // Returns: true if new data ready
 //----------------------------------------------
 bool IMU_DataReady(const Imu * inImu) ;
+
+//----------------------------------------------
+// Function: IMU_GetTypeName
+// Purpose: Get string name of detected IMU type
+// Parameters:
+//   inImu - IMU structure
+// Returns: String like "LSM6DSOX+LIS3MDL" or "ICM-20649+LIS3MDL"
+//----------------------------------------------
+const char * IMU_GetTypeName(const Imu * inImu) ;
 

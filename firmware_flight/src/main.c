@@ -154,8 +154,10 @@ int main(void)
     sleep_ms(kSplashDisplayMs) ;
 
     // Show device info briefly
+    const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
     StatusDisplay_ShowDeviceInfo(
       FIRMWARE_VERSION_STRING,
+      theBaroType,
       sBmp581Ok || sBmp390Ok,
       sLoRaOk,
       sImuOk,
@@ -267,8 +269,8 @@ int main(void)
       sLastImuReadMs = theCurrentMs ;
       IMU_Read(&sImu) ;
 
-      // Update flight controller with IMU data (for future use)
-      // FlightControl_UpdateImu(&sFlightController, &sImu.pData) ;
+      // Update flight controller with IMU data (complementary filter)
+      FlightControl_UpdateImu(&sFlightController, &sImu.pData, theCurrentMs) ;
     }
 
     //------------------------------------------
@@ -490,36 +492,38 @@ static void InitializeHardware(void)
   // Initialize barometric sensor (try BMP581 first, then BMP390)
   printf("Initializing barometer...\n") ;
 
-  // Try BMP581 first (newer, more accurate: ±3.3cm vs ±25cm)
-  if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
+  // Try BMP390 first (proven stable with factory calibration)
+  if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
   {
-    sBmp581Ok = true ;
-    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
-  }
-  else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
-  {
-    sBmp581Ok = true ;
-    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
+    // Configure for high-rate altitude measurement
+    BMP390_Configure(
+      &sBmp390,
+      BMP390_OSR_8X,      // Pressure oversampling
+      BMP390_OSR_2X,      // Temperature oversampling
+      BMP390_ODR_50_HZ,   // 50 Hz output rate
+      BMP390_IIR_COEF_3)  ; // Light filtering
+    sBmp390Ok = true ;
+    printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
   }
 
-  // Fall back to BMP390 if BMP581 not found
-  if (!sBmp581Ok)
+  // Fall back to BMP581 if BMP390 not found
+  // NOTE: BMP581 conversion divisors are empirical and may drift.
+  //       BMP390 is preferred when available.
+  if (!sBmp390Ok)
   {
-    if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+    if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
     {
-      // Configure for high-rate altitude measurement
-      BMP390_Configure(
-        &sBmp390,
-        BMP390_OSR_8X,      // Pressure oversampling
-        BMP390_OSR_2X,      // Temperature oversampling
-        BMP390_ODR_50_HZ,   // 50 Hz output rate
-        BMP390_IIR_COEF_3)  ; // Light filtering
-      sBmp390Ok = true ;
-      printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
+      sBmp581Ok = true ;
+      printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
+    }
+    else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
+    {
+      sBmp581Ok = true ;
+      printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
     }
     else
     {
-      printf("WARNING: No barometer found (BMP581 or BMP390)\n") ;
+      printf("WARNING: No barometer found (BMP390 or BMP581)\n") ;
     }
   }
 
@@ -834,12 +838,16 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       break ;
 
     case kDisplayModeDeviceInfo:
-      StatusDisplay_ShowDeviceInfo(
-        FIRMWARE_VERSION_STRING,
-        sBmp581Ok || sBmp390Ok,
-        sLoRaOk,
-        sImuOk,
-        sGpsOk) ;
+      {
+        const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+        StatusDisplay_ShowDeviceInfo(
+          FIRMWARE_VERSION_STRING,
+          theBaroType,
+          sBmp581Ok || sBmp390Ok,
+          sLoRaOk,
+          sImuOk,
+          sGpsOk) ;
+      }
       break ;
 
     case kDisplayModeFlightStats:
@@ -937,13 +945,17 @@ static void UpdateDisplay(uint32_t inCurrentMs)
     case kDisplayModeRates:
       // Show sensor sampling rates
       // Rates derived from pins.h timing constants
-      StatusDisplay_ShowRates(
-        1000 / kSensorSampleIntervalMs,     // BMP390: 100 Hz
-        kImuAccelOdr,                        // Accel: 416 Hz
-        kImuGyroOdr,                         // Gyro: 416 Hz
-        1,                                   // GPS: 1 Hz (NMEA default)
-        1000 / kTelemetryIntervalMs,         // Telemetry: 10 Hz
-        1000 / kDisplayUpdateIntervalMs) ;   // Display: 5 Hz
+      {
+        const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+        StatusDisplay_ShowRates(
+          theBaroType,
+          1000 / kSensorSampleIntervalMs,     // Baro: 100 Hz
+          kImuAccelOdr,                        // Accel: 416 Hz
+          kImuGyroOdr,                         // Gyro: 416 Hz
+          1,                                   // GPS: 1 Hz (NMEA default)
+          1000 / kTelemetryIntervalMs,         // Telemetry: 10 Hz
+          1000 / kDisplayUpdateIntervalMs) ;   // Display: 5 Hz
+      }
       break ;
 
     case kDisplayModeRocketId:
@@ -1059,7 +1071,7 @@ static void SendDeviceInfo(void)
   theOffset += theBaroTypeLen ;
 
   // IMU type string (for Heltec compatibility)
-  const char * theImuType = sImuOk ? "LSM6DSOX+LIS3MDL" : "None" ;
+  const char * theImuType = sImuOk ? IMU_GetTypeName(&sImu) : "None" ;
   uint8_t theImuTypeLen = strlen(theImuType) ;
   thePacket[theOffset++] = theImuTypeLen ;
   memcpy(&thePacket[theOffset], theImuType, theImuTypeLen) ;

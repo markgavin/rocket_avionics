@@ -264,7 +264,8 @@ DisplayMode StatusDisplay_PrevMode(void)
 //----------------------------------------------
 void StatusDisplay_ShowDeviceInfo(
   const char * inFirmwareVersion,
-  bool inBmp390Ok,
+  const char * inBaroType,
+  bool inBaroOk,
   bool inLoRaOk,
   bool inImuOk,
   bool inGpsOk)
@@ -280,7 +281,7 @@ void StatusDisplay_ShowDeviceInfo(
   snprintf(theBuffer, sizeof(theBuffer), "FW: %s", inFirmwareVersion) ;
   SSD1306_DrawString(0, 14, theBuffer, 1) ;
 
-  snprintf(theBuffer, sizeof(theBuffer), "BMP390: %s", inBmp390Ok ? "OK" : "FAIL") ;
+  snprintf(theBuffer, sizeof(theBuffer), "%s: %s", inBaroType, inBaroOk ? "OK" : "FAIL") ;
   SSD1306_DrawString(0, 24, theBuffer, 1) ;
 
   snprintf(theBuffer, sizeof(theBuffer), "LoRa:   %s", inLoRaOk ? "OK" : "FAIL") ;
@@ -800,7 +801,8 @@ void StatusDisplay_ShowCompass(
 // Purpose: Show sensor sampling rates screen
 //----------------------------------------------
 void StatusDisplay_ShowRates(
-  uint16_t inBmp390Hz,
+  const char * inBaroType,
+  uint16_t inBaroHz,
   uint16_t inImuAccelHz,
   uint16_t inImuGyroHz,
   uint8_t inGpsHz,
@@ -817,8 +819,8 @@ void StatusDisplay_ShowRates(
 
   char theBuffer[32] ;
 
-  // BMP390 barometer
-  snprintf(theBuffer, sizeof(theBuffer), "BMP390:  %3u Hz", inBmp390Hz) ;
+  // Barometer (BMP581 or BMP390)
+  snprintf(theBuffer, sizeof(theBuffer), "%s: %3u Hz", inBaroType, inBaroHz) ;
   SSD1306_DrawString(0, 14, theBuffer, 1) ;
 
   // IMU Accelerometer
