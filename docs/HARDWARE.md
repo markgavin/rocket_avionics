@@ -16,19 +16,27 @@ Both use the same base board (Adafruit Feather RP2040 with RFM95 LoRa) for simpl
 | Component | Product ID | Quantity | Purpose |
 |-----------|------------|----------|---------|
 | Feather RP2040 + RFM95 LoRa 915MHz | 5714 | 1 | Main MCU + LoRa radio |
-| BMP390 Barometric Sensor | 4816 | 1 | Altitude measurement |
+| BMP390 Barometric Sensor | 4816 | 1 | Altitude measurement (primary) |
+| BMP581 Barometric Sensor | 5857 | 1 | Altitude measurement (secondary, higher accuracy) |
+| LSM6DSOX + LIS3MDL 9-DoF IMU FeatherWing | 4565 | 1 | Accelerometer, gyroscope, magnetometer |
 | GPS Module (UART, 9600 baud) | varies | 1 | Position tracking |
-| Adalogger FeatherWing | 2922 | 1 | RTC + SD card logging |
 | FeatherWing OLED 128x64 | 4650 | 1 | Status display |
 | Quad Side-By-Side FeatherWing Kit | 4254 | 1 | Mounting all boards |
 | LiPo Battery 3.7V 500mAh+ | varies | 1 | Power |
 
-### Optional (Future)
+### Sensors
 
-| Component | Product ID | Quantity | Purpose |
-|-----------|------------|----------|---------|
-| LSM6DS3 IMU | 4503 | 1 | Accelerometer + Gyroscope |
-| MOSFET Breakout | varies | 2 | Pyro channel control |
+The flight computer supports two barometric pressure sensors and two IMU variants:
+
+**Barometers** (either or both may be installed):
+- **BMP390** (I2C 0x77/0x76) -- Requires host-side compensation using 14 NVM calibration coefficients. Accuracy +/-3 Pa.
+- **BMP581** (I2C 0x47/0x46) -- Pre-compensated output, no calibration needed. Accuracy +/-0.4 Pa. Chip may report ID 0x50 (BMP580 variant) or 0x51 (BMP581).
+
+**IMUs** (one installed):
+- **LSM6DSOX + LIS3MDL** -- 6-axis accel/gyro + 3-axis mag. +/-8g accel, +/-1000 dps gyro.
+- **ICM-20649** -- 6-axis accel/gyro. +/-30g accel, +/-4000 dps gyro. Higher range for high-G flights.
+
+The barometer and IMU data are fused using a complementary filter to produce altitude and velocity estimates. See [SENSORS.md](SENSORS.md) for details on the sensor fusion algorithm.
 
 ---
 
@@ -70,7 +78,10 @@ The RFM95 LoRa radio is built into the Feather and uses dedicated pins.
 
 I2C Devices:
 - BMP390 Barometer: 0x77 (or 0x76)
-- PCF8523 RTC: 0x68
+- BMP581 Barometer: 0x47 (or 0x46)
+- LSM6DSOX Accel/Gyro: 0x6A (or 0x6B)
+- LIS3MDL Magnetometer: 0x1C (or 0x1E)
+- ICM-20649 Accel/Gyro: 0x68 (or 0x69)
 - SSD1306 OLED: 0x3C
 
 #### GPS Module (UART1) - Flight Computer Only
@@ -188,9 +199,11 @@ Both flight computer and ground gateway use 915 MHz antennas.
 | RFM95 LoRa TX | - | 120 mA |
 | RFM95 LoRa RX | 12 mA | - |
 | BMP390 | 0.7 mA | 3.4 mA |
+| BMP581 | 0.5 mA | 2.5 mA |
+| LSM6DSOX + LIS3MDL | 1.5 mA | 3.0 mA |
 | OLED Display | 10 mA | 20 mA |
-| SD Card Write | - | 100 mA |
-| **Total** | ~50 mA | ~350 mA |
+| GPS | 25 mA | 50 mA |
+| **Total** | ~75 mA | ~300 mA |
 
 With a 500 mAh battery, expect 6-8 hours of operation in idle mode, or several hours of active flight operations.
 
@@ -204,19 +217,21 @@ Powered via USB from computer - no battery required.
 
 ### Flight Computer
 
-Expected devices on I2C bus:
+Expected devices on I2C bus (full sensor configuration):
 
 ```
    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
 00:          -- -- -- -- -- -- -- -- -- -- -- -- --
-10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+10: -- -- -- -- -- -- -- -- -- -- -- -- 1C -- -- --  <- LIS3MDL Mag
 20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 30: -- -- -- -- -- -- -- -- -- -- -- -- 3C -- -- --  <- OLED
-40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+40: -- -- -- -- -- -- -- 47 -- -- -- -- -- -- -- --  <- BMP581
 50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-60: -- -- -- -- -- -- -- -- 68 -- -- -- -- -- -- --  <- RTC
+60: -- -- -- -- -- -- -- -- -- -- 6A -- -- -- -- --  <- LSM6DSOX
 70: -- -- -- -- -- -- -- 77 -- -- -- -- -- -- -- --  <- BMP390
 ```
+
+Note: Not all devices may be present. The firmware auto-detects available sensors at startup and uses whatever is installed.
 
 ### Ground Gateway
 
@@ -241,30 +256,28 @@ Expected devices on I2C bus:
 ### Flight Computer
 
 ```
-                    ┌─────────────────────┐
-                    │  Quad FeatherWing   │
-                    │                     │
-  ┌─────────────────┼─────────────────────┼─────────────────┐
-  │                 │                     │                 │
-  │   ┌─────────┐   │   ┌─────────┐       │   ┌─────────┐   │
-  │   │ Feather │   │   │  OLED   │       │   │Adalogger│   │
-  │   │ RP2040  │   │   │FeatherW │       │   │FeatherW │   │
-  │   │ + RFM95 │   │   │         │       │   │ (RTC+SD)│   │
-  │   │         │   │   │         │       │   │         │   │
-  │   │ [LoRa]  │   │   │[Display]│       │   │ [uSD]   │   │
-  │   │         │   │   │ A B C   │       │   │         │   │
-  │   └────┬────┘   │   └─────────┘       │   └─────────┘   │
-  │        │        │                     │                 │
-  │        │ STEMMA │                     │                 │
-  │        │ QT     │    ┌─────────┐      │                 │
-  │        │        │    │   GPS   │──────┼── UART1        │
-  │   ┌────┴────┐   │    │ Module  │      │   GP4/GP5      │
-  │   │ BMP390  │   │    │         │      │                 │
-  │   │Baromet. │   │    └─────────┘      │                 │
-  │   │ Sensor  │   │                     │                 │
-  │   └─────────┘   │                     │                 │
-  │                 │                     │                 │
-  └─────────────────┴─────────────────────┴─────────────────┘
+                    ┌──────────────────────────────┐
+                    │      Quad FeatherWing        │
+  ┌─────────────────┼──────────────────────────────┼──────────┐
+  │                 │                              │          │
+  │  ┌──────────┐   │  ┌──────────┐  ┌──────────┐  │          │
+  │  │ Feather  │   │  │   OLED   │  │  9-DoF   │  │          │
+  │  │  RP2040  │   │  │FeatherW  │  │   IMU    │  │          │
+  │  │ + RFM95  │   │  │          │  │FeatherW  │  │          │
+  │  │          │   │  │[Display] │  │ LSM6DSOX │  │          │
+  │  │  [LoRa]  │   │  │  A  B    │  │ LIS3MDL  │  │          │
+  │  └────┬─────┘   │  └──────────┘  └──────────┘  │          │
+  │       │         │                              │          │
+  │       │ STEMMA QT (I2C daisy chain)            │          │
+  │       │         │                              │          │
+  │  ┌────┴─────┐   │  ┌──────────┐  ┌──────────┐  │          │
+  │  │  BMP390  │   │  │  BMP581  │  │   GPS    │──┼─ UART1  │
+  │  │ Baromet  │   │  │ Baromet  │  │  Module  │  │  GP4/5  │
+  │  │  0x77    │   │  │  0x47    │  │          │  │          │
+  │  └──────────┘   │  └──────────┘  └──────────┘  │          │
+  └─────────────────┴──────────────────────────────┴──────────┘
+
+  All I2C sensors connect via STEMMA QT daisy-chain on GP2 (SDA) / GP3 (SCL)
 ```
 
 ### Ground Gateway

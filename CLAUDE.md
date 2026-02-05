@@ -24,9 +24,11 @@ rocket_avionics/
 
 ### Flight Computer
 - **MCU:** Adafruit Feather RP2040 with RFM95 LoRa Radio (915MHz)
-- **Sensors:** BMP390 barometer, LSM6DSOX+LIS3MDL 9-DoF IMU
+- **Barometers:** BMP390 (0x77) and/or BMP581 (0x47) -- auto-detected at startup
+- **IMU:** LSM6DSOX+LIS3MDL 9-DoF (or ICM-20649 for high-G flights)
 - **Display:** SSD1306 128x64 OLED FeatherWing
 - **Features:** Dual pyro channels, GPS, flash storage for flight data
+- **Sensor Fusion:** Complementary filter fuses barometer + IMU for altitude/velocity (see `docs/SENSORS.md`)
 
 ### Ground Gateway (RP2040)
 - **MCU:** Adafruit Feather RP2040 with RFM95 LoRa Radio (915MHz)
@@ -140,6 +142,10 @@ tools/usb_console.sh
 
 ## Documentation
 
+- `docs/SENSORS.md` - Sensor fusion: altitude and velocity calculation (barometer + IMU complementary filter)
+- `docs/HARDWARE.md` - Hardware guide, BOM, pin assignments, wiring
+- `docs/PROTOCOL.md` - Communication protocol (LoRa packets, JSON, commands)
+- `docs/TESTING.md` - Testing procedures
 - `docs/software_versioning.md` - Version management system
 - `docs/flight_computer_carrier_board_design.md` - Custom PCB design
 - `docs/conversation_archive_*.md` - Development session archives

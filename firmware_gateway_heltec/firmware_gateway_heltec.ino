@@ -1011,6 +1011,10 @@ void handleLoRa() {
                     forwardDeviceInfoAsJson();
                     break;
 
+                case 0x09:  // kLoRaPacketBaroCompare (sensor comparison)
+                    forwardBaroCompareAsJson();
+                    break;
+
                 default:
                     // Unknown packet type - forward as hex for debugging
                     forwardAsHex();
@@ -1223,6 +1227,74 @@ void forwardTelemetryAsJson() {
     }
 
     Serial.println("TX JSON: " + json.substring(0, 80) + "...");
+}
+
+//----------------------------------------------
+// Forward Baro Comparison as JSON
+//----------------------------------------------
+void forwardBaroCompareAsJson() {
+    // Packet: magic(1), type(1), p390(4), t390(2), p581(4), t581(2) = 14 bytes
+    if (lastLoraPacketLen < 14) {
+        forwardAsHex();
+        return;
+    }
+
+    uint32_t p390 = (uint32_t)lastLoraPacketBinary[2] |
+                    ((uint32_t)lastLoraPacketBinary[3] << 8) |
+                    ((uint32_t)lastLoraPacketBinary[4] << 16) |
+                    ((uint32_t)lastLoraPacketBinary[5] << 24);
+
+    // Check for diagnostic packet (p390 == 0xFFFFFFFF)
+    if (p390 == 0xFFFFFFFF) {
+        // Diagnostic: bytes 6=bmp390ok, 7=bmp581ok, 8=lastError, 9=i2cAddr, 10=chipId
+        String json = "{\"type\":\"baro_diag\"";
+        json += ",\"bmp390\":" + String(lastLoraPacketBinary[6]);
+        json += ",\"bmp581\":" + String(lastLoraPacketBinary[7]);
+        json += ",\"err\":" + String(lastLoraPacketBinary[8]);
+        json += ",\"addr\":\"0x" + String(lastLoraPacketBinary[9], HEX) + "\"";
+        json += ",\"chipId\":\"0x" + String(lastLoraPacketBinary[10], HEX) + "\"";
+        json += ",\"errMsg\":\"";
+        switch (lastLoraPacketBinary[8]) {
+            case 0: json += "OK"; break;
+            case 1: json += "I2C read failed"; break;
+            case 2: json += "Wrong chip ID"; break;
+            case 3: json += "Reset failed"; break;
+            case 4: json += "Configure failed"; break;
+            case 5: json += "SetMode failed"; break;
+            case 6: json += "INT_SOURCE write failed"; break;
+            case 7: json += "INT_CONFIG write failed"; break;
+            default: json += "Unknown"; break;
+        }
+        json += "\"";
+        json += ",\"rssi\":" + String(lastRssi, 1);
+        json += ",\"snr\":" + String(lastSnr, 1) + "}";
+        forwardToClients(json);
+        return;
+    }
+
+    int16_t t390 = (int16_t)(lastLoraPacketBinary[6] | (lastLoraPacketBinary[7] << 8));
+
+    uint32_t p581 = (uint32_t)lastLoraPacketBinary[8] |
+                    ((uint32_t)lastLoraPacketBinary[9] << 8) |
+                    ((uint32_t)lastLoraPacketBinary[10] << 16) |
+                    ((uint32_t)lastLoraPacketBinary[11] << 24);
+    int16_t t581 = (int16_t)(lastLoraPacketBinary[12] | (lastLoraPacketBinary[13] << 8));
+
+    float dP = (float)p581 / 10.0 - (float)p390 / 10.0;
+    float dT = (float)t581 / 100.0 - (float)t390 / 100.0;
+
+    String json = "{\"type\":\"baro\"";
+    json += ",\"p390\":" + String(p390 / 10.0, 1);
+    json += ",\"t390\":" + String(t390 / 100.0, 2);
+    json += ",\"p581\":" + String(p581 / 10.0, 1);
+    json += ",\"t581\":" + String(t581 / 100.0, 2);
+    json += ",\"dP\":" + String(dP, 1);
+    json += ",\"dT\":" + String(dT, 2);
+    json += ",\"rssi\":" + String(lastRssi, 1);
+    json += ",\"snr\":" + String(lastSnr, 1);
+    json += "}";
+
+    forwardToClients(json);
 }
 
 //----------------------------------------------
@@ -1782,6 +1854,10 @@ void handleClientCommand(int clientIdx, const String& command) {
         memcpy(&loraPacket[4], name.c_str(), nameLen);
         loraPacket[4 + nameLen] = '\0';  // Null terminate
         packetLen = 5 + nameLen;  // magic + type + target + cmd + name + null
+    }
+    else if (cmd == "baro_compare") {
+        loraPacket[3] = 0x0A;  // kCmdBaroCompare (toggle on/off)
+        packetLen = 4;
     }
     else if (cmd == "flash_list") {
         loraPacket[3] = 0x20;  // kCmdFlashList

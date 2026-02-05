@@ -109,6 +109,10 @@ static uint32_t sCurrentFlightId = 0 ;
 // Rocket ID and name (loaded from flash, can be edited via display)
 static uint8_t sRocketId = 0 ;
 static bool sRocketIdEditing = false ;  // True when editing rocket ID
+
+// Baro comparison streaming
+static bool sBaroCompareEnabled = false ;
+static uint32_t sLastBaroCompareMs = 0 ;
 static char sRocketName[kRocketNameMaxLen] = "" ;  // Custom rocket name
 
 //----------------------------------------------
@@ -121,6 +125,7 @@ static void InitializeButtons(void) ;
 static void ProcessButtons(uint32_t inCurrentMs) ;
 static void UpdateDisplay(uint32_t inCurrentMs) ;
 static void SendTelemetry(uint32_t inCurrentMs) ;
+static void SendBaroCompare(void) ;
 static void ProcessLoRaCommands(void) ;
 
 //----------------------------------------------
@@ -200,58 +205,66 @@ int main(void)
     {
       sLastSensorReadMs = theCurrentMs ;
 
-      // Read barometer (BMP581 or BMP390)
-      if (sBmp581Ok || sBmp390Ok)
+      // Read barometers
+      // Primary sensor feeds flight controller; both read for comparison
+      float thePressure = 0 ;
+      float theTemperature = 0 ;
+      bool theReadOk = false ;
+
+      // Read BMP390 (primary when available)
+      float the390Pressure = 0 ;
+      float the390Temperature = 0 ;
+      bool the390Ok = false ;
+      if (sBmp390Ok)
       {
-        float thePressure = 0 ;
-        float theTemperature = 0 ;
-        bool theDataReady = false ;
-        bool theReadOk = false ;
+        the390Ok = BMP390_ReadPressureTemperature(&sBmp390, &the390Pressure, &the390Temperature) ;
+      }
 
-        if (sBmp581Ok)
-        {
-          theDataReady = BMP581_DataReady(&sBmp581) ;
-          theReadOk = BMP581_ReadPressureTemperature(&sBmp581, &thePressure, &theTemperature) ;
-        }
-        else if (sBmp390Ok)
-        {
-          theDataReady = BMP390_DataReady(&sBmp390) ;
-          theReadOk = BMP390_ReadPressureTemperature(&sBmp390, &thePressure, &theTemperature) ;
-        }
+      // Read BMP581
+      float the581Pressure = 0 ;
+      float the581Temperature = 0 ;
+      bool the581Ok = false ;
+      if (sBmp581Ok)
+      {
+        the581Ok = BMP581_ReadPressureTemperature(&sBmp581, &the581Pressure, &the581Temperature) ;
+      }
 
-        if (theReadOk)
-        {
-          // Debug: show pressure reading every 100 samples (1 second)
-          static uint32_t sDebugCount = 0 ;
-          static float sLastPressure = 0 ;
-          if ((++sDebugCount % 100) == 0)
-          {
-            float theDelta = thePressure - sLastPressure ;
-            DEBUG_PRINT("%s: P=%.0f Pa (d=%.1f) T=%.1f C Alt=%.2f m rdy=%d\n",
-              sBmp581Ok ? "BMP581" : "BMP390",
-              thePressure, theDelta, theTemperature,
-              sFlightController.pCurrentAltitudeM, theDataReady) ;
-            sLastPressure = thePressure ;
-          }
+      // Use BMP390 as primary if available, else BMP581
+      if (the390Ok)
+      {
+        thePressure = the390Pressure ;
+        theTemperature = the390Temperature ;
+        theReadOk = true ;
+      }
+      else if (the581Ok)
+      {
+        thePressure = the581Pressure ;
+        theTemperature = the581Temperature ;
+        theReadOk = true ;
+      }
 
-          // Update flight controller with new sensor data
-          FlightControl_UpdateSensors(
-            &sFlightController,
-            thePressure,
-            theTemperature,
-            theCurrentMs) ;
-        }
-        else
+      // Print comparison every second when both sensors present
+      {
+        static uint32_t sCompareCount = 0 ;
+        if ((++sCompareCount % 100) == 0 && the390Ok && the581Ok)
         {
-          // Debug: show read failure
-          static uint32_t sFailCount = 0 ;
-          if ((++sFailCount % 100) == 0)
-          {
-            DEBUG_PRINT("%s: Read failed (%lu) rdy=%d\n",
-              sBmp581Ok ? "BMP581" : "BMP390",
-              (unsigned long)sFailCount, theDataReady) ;
-          }
+          float thePressErr = the581Pressure - the390Pressure ;
+          float theTempErr = the581Temperature - the390Temperature ;
+          printf("COMPARE: BMP390 P=%.1f T=%.2f | BMP581 P=%.1f T=%.2f | dP=%.1f dT=%.2f\n",
+            the390Pressure, the390Temperature,
+            the581Pressure, the581Temperature,
+            thePressErr, theTempErr) ;
         }
+      }
+
+      if (theReadOk)
+      {
+        // Update flight controller with primary sensor data
+        FlightControl_UpdateSensors(
+          &sFlightController,
+          thePressure,
+          theTemperature,
+          theCurrentMs) ;
       }
 
       // Update GPS (reads UART and parses NMEA sentences)
@@ -421,6 +434,16 @@ int main(void)
     }
 
     //------------------------------------------
+    // 5. Send baro comparison (1 Hz when enabled)
+    //------------------------------------------
+    if (sLoRaOk && sBaroCompareEnabled && sBmp390Ok && sBmp581Ok &&
+        (theCurrentMs - sLastBaroCompareMs) >= 1000)
+    {
+      sLastBaroCompareMs = theCurrentMs ;
+      SendBaroCompare() ;
+    }
+
+    //------------------------------------------
     // 6. Process incoming LoRa commands
     //------------------------------------------
     if (sLoRaOk)
@@ -489,13 +512,12 @@ static void InitializeHardware(void)
     printf("WARNING: NeoPixel LED initialization failed\n") ;
   }
 
-  // Initialize barometric sensor (try BMP581 first, then BMP390)
-  printf("Initializing barometer...\n") ;
+  // Initialize barometric sensors (try both for comparison)
+  printf("Initializing barometers...\n") ;
 
-  // Try BMP390 first (proven stable with factory calibration)
+  // Try BMP390
   if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
   {
-    // Configure for high-rate altitude measurement
     BMP390_Configure(
       &sBmp390,
       BMP390_OSR_8X,      // Pressure oversampling
@@ -506,25 +528,21 @@ static void InitializeHardware(void)
     printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
   }
 
-  // Fall back to BMP581 if BMP390 not found
-  // NOTE: BMP581 conversion divisors are empirical and may drift.
-  //       BMP390 is preferred when available.
-  if (!sBmp390Ok)
+  // Try BMP581 (always, for comparison when both present)
+  if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
   {
-    if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
-    {
-      sBmp581Ok = true ;
-      printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
-    }
-    else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
-    {
-      sBmp581Ok = true ;
-      printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
-    }
-    else
-    {
-      printf("WARNING: No barometer found (BMP390 or BMP581)\n") ;
-    }
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
+  }
+  else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
+  {
+    sBmp581Ok = true ;
+    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
+  }
+
+  if (!sBmp390Ok && !sBmp581Ok)
+  {
+    printf("WARNING: No barometer found (BMP390 or BMP581)\n") ;
   }
 
   // Initialize OLED display
@@ -1005,6 +1023,47 @@ static void SendTelemetry(uint32_t inCurrentMs)
 }
 
 //----------------------------------------------
+// Function: SendBaroCompare
+// Purpose: Send BMP390 vs BMP581 comparison via LoRa
+//----------------------------------------------
+static void SendBaroCompare(void)
+{
+  float the390P = 0, the390T = 0 ;
+  float the581P = 0, the581T = 0 ;
+  bool the390Ok = BMP390_ReadPressureTemperature(&sBmp390, &the390P, &the390T) ;
+  bool the581Ok = BMP581_ReadPressureTemperature(&sBmp581, &the581P, &the581T) ;
+
+  if (!the390Ok || !the581Ok) return ;
+
+  // Packet: magic(1), type(1), p390(4), t390(2), p581(4), t581(2) = 14 bytes
+  // Pressures in Pa*10 as uint32, temperatures in C*100 as int16
+  uint8_t thePacket[14] ;
+  thePacket[0] = kLoRaMagic ;
+  thePacket[1] = kLoRaPacketBaroCompare ;
+
+  uint32_t theP390 = (uint32_t)(the390P * 10.0f) ;
+  int16_t theT390 = (int16_t)(the390T * 100.0f) ;
+  uint32_t theP581 = (uint32_t)(the581P * 10.0f) ;
+  int16_t theT581 = (int16_t)(the581T * 100.0f) ;
+
+  thePacket[2] = theP390 & 0xFF ;
+  thePacket[3] = (theP390 >> 8) & 0xFF ;
+  thePacket[4] = (theP390 >> 16) & 0xFF ;
+  thePacket[5] = (theP390 >> 24) & 0xFF ;
+  thePacket[6] = theT390 & 0xFF ;
+  thePacket[7] = (theT390 >> 8) & 0xFF ;
+  thePacket[8] = theP581 & 0xFF ;
+  thePacket[9] = (theP581 >> 8) & 0xFF ;
+  thePacket[10] = (theP581 >> 16) & 0xFF ;
+  thePacket[11] = (theP581 >> 24) & 0xFF ;
+  thePacket[12] = theT581 & 0xFF ;
+  thePacket[13] = (theT581 >> 8) & 0xFF ;
+
+  LoRa_SendBlocking(&sLoRaRadio, thePacket, 14, 200) ;
+  LoRa_StartReceive(&sLoRaRadio) ;
+}
+
+//----------------------------------------------
 // Function: SendDeviceInfo
 // Purpose: Send device information over LoRa
 //----------------------------------------------
@@ -1348,6 +1407,51 @@ static void ProcessLoRaCommands(void)
           bool theEnabled = (theLen > 4) ? (theBuffer[4] != 0) : false ;
           DEBUG_PRINT("LoRa: Orientation mode %s\n", theEnabled ? "enabled" : "disabled") ;
           FlightControl_SetOrientationMode(&sFlightController, theEnabled) ;
+        }
+        break ;
+
+      case kCmdBaroCompare:
+        sBaroCompareEnabled = !sBaroCompareEnabled ;
+        printf("Baro compare streaming %s\n", sBaroCompareEnabled ? "ON" : "OFF") ;
+        if (sBaroCompareEnabled)
+        {
+          if (sBmp390Ok && sBmp581Ok)
+          {
+            SendBaroCompare() ;
+          }
+          else
+          {
+            // Send diagnostic packet: why comparison unavailable
+            // Reuse baro compare packet type with error flag
+            uint8_t theDiag[14] ;
+            theDiag[0] = kLoRaMagic ;
+            theDiag[1] = kLoRaPacketBaroCompare ;
+            // Error marker: p390 = 0xFFFFFFFF means diagnostic mode
+            theDiag[2] = 0xFF ; theDiag[3] = 0xFF ;
+            theDiag[4] = 0xFF ; theDiag[5] = 0xFF ;
+            theDiag[6] = sBmp390Ok ? 1 : 0 ;
+            theDiag[7] = sBmp581Ok ? 1 : 0 ;
+            theDiag[8] = sBmp581.pLastError ;
+            theDiag[9] = sBmp581.pI2cAddr ;
+            // Try reading chip ID right now for live diagnostic
+            uint8_t theChipId = 0 ;
+            uint8_t theReg = BMP581_REG_CHIP_ID ;
+            absolute_time_t theTimeout = make_timeout_time_ms(50) ;
+            int theResult = i2c_write_blocking_until(kI2cPort, BMP581_I2C_ADDR_DEFAULT, &theReg, 1, true, theTimeout) ;
+            if (theResult == 1)
+            {
+              theTimeout = make_timeout_time_ms(50) ;
+              i2c_read_blocking_until(kI2cPort, BMP581_I2C_ADDR_DEFAULT, &theChipId, 1, false, theTimeout) ;
+            }
+            theDiag[10] = theChipId ;
+            theDiag[11] = 0 ;
+            theDiag[12] = 0 ;
+            theDiag[13] = 0 ;
+            printf("Baro diag: 390ok=%d 581ok=%d err=%d addr=0x%02X chipId=0x%02X\n",
+              sBmp390Ok, sBmp581Ok, sBmp581.pLastError, sBmp581.pI2cAddr, theChipId) ;
+            LoRa_SendBlocking(&sLoRaRadio, theDiag, 14, 200) ;
+            LoRa_StartReceive(&sLoRaRadio) ;
+          }
         }
         break ;
 

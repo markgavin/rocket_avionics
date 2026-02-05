@@ -51,6 +51,10 @@ struct LoRaPacketHeader {
 | Command | 0x03 | Ground → Flight | Control commands |
 | Ack | 0x04 | Flight → Ground | Command acknowledgment |
 | Data | 0x05 | Flight → Ground | Bulk data transfer |
+| Info | 0x06 | Flight → Ground | Device info response |
+| Flash List | 0x07 | Flight → Ground | Stored flight list |
+| Flash Data | 0x08 | Flight → Ground | Flight data download |
+| Baro Compare | 0x09 | Flight → Ground | Dual barometer comparison (debug) |
 
 ### Telemetry Packet (42 bytes)
 
@@ -126,9 +130,18 @@ struct LoRaCommandPacket {
 | 0x02 | DISARM | - | Disarm flight computer |
 | 0x03 | STATUS | - | Request status |
 | 0x04 | RESET | - | Reset to idle |
-| 0x10 | DOWNLOAD | chunk | Request flight data |
-| 0x20 | FIRE_PYRO1 | - | Fire pyro channel 1 (future) |
-| 0x21 | FIRE_PYRO2 | - | Fire pyro channel 2 (future) |
+| 0x05 | DOWNLOAD | - | Request data download |
+| 0x06 | PING | - | Ping for connectivity check |
+| 0x07 | INFO | - | Request device info (version, sensors, state) |
+| 0x08 | ORIENT_MODE | 1 byte | Enable/disable orientation test mode |
+| 0x09 | SET_NAME | string | Set rocket name (null-terminated) |
+| 0x0A | BARO_COMPARE | - | Toggle baro comparison stream (debug) |
+| 0x10 | SD_LIST | - | List SD card flights |
+| 0x11 | SD_READ | - | Read SD card flight |
+| 0x12 | SD_DELETE | - | Delete SD card flight |
+| 0x20 | FLASH_LIST | - | List flash-stored flights |
+| 0x21 | FLASH_READ | flight# | Read flash flight data |
+| 0x22 | FLASH_DELETE | flight# | Delete flash flight |
 
 ---
 

@@ -63,6 +63,22 @@ static bool WriteRegister(uint8_t inAddr, uint8_t inReg, uint8_t inValue)
 }
 
 //----------------------------------------------
+// Internal: Write Multiple Registers (atomic)
+//----------------------------------------------
+static bool WriteRegisters(uint8_t inAddr, uint8_t inReg, const uint8_t * inData, size_t inLen)
+{
+  uint8_t theBuffer[8] ;
+  if (inLen > 7) return false ;
+
+  theBuffer[0] = inReg ;
+  memcpy(&theBuffer[1], inData, inLen) ;
+
+  absolute_time_t theTimeout = make_timeout_time_ms(100) ;
+  int theResult = i2c_write_blocking_until(kI2cPort, inAddr, theBuffer, inLen + 1, false, theTimeout) ;
+  return theResult == (int)(inLen + 1) ;
+}
+
+//----------------------------------------------
 // Function: BMP581_IsConnected
 //----------------------------------------------
 bool BMP581_IsConnected(uint8_t inI2cAddr)
@@ -83,22 +99,34 @@ bool BMP581_Init(BMP581 * outSensor, uint8_t inI2cAddr)
   memset(outSensor, 0, sizeof(BMP581)) ;
   outSensor->pI2cAddr = inI2cAddr ;
   outSensor->pInitialized = false ;
+  outSensor->pLastError = 0 ;
 
-  // Check chip ID
-  if (!BMP581_IsConnected(inI2cAddr))
+  // Check chip ID and print for diagnostics
+  uint8_t theChipId = 0 ;
+  if (!ReadRegister(inI2cAddr, BMP581_REG_CHIP_ID, &theChipId))
   {
+    outSensor->pLastError = 1 ;  // I2C read failed
     return false ;
   }
+  if (theChipId != BMP581_CHIP_ID_580 && theChipId != BMP581_CHIP_ID_581)
+  {
+    outSensor->pLastError = 2 ;  // Wrong chip ID
+    printf("BMP581: Bad chip ID 0x%02X\n", theChipId) ;
+    return false ;
+  }
+  printf("BMP581: Chip ID = 0x%02X (%s)\n", theChipId,
+    theChipId == BMP581_CHIP_ID_581 ? "BMP581" : "BMP580") ;
 
-  // Soft reset
+  // Soft reset (includes POR completion check and INT_STATUS clear)
   if (!BMP581_SoftReset(outSensor))
   {
+    outSensor->pLastError = 3 ;  // Reset failed
+    printf("BMP581: Soft reset failed\n") ;
     return false ;
   }
 
-  sleep_ms(10) ;
-
-  // Wait for device ready
+  // Power-up check: verify NVM status (non-fatal, for diagnostics)
+  bool theNvmOk = false ;
   for (int i = 0 ; i < 50 ; i++)
   {
     uint8_t theStatus = 0 ;
@@ -107,38 +135,50 @@ bool BMP581_Init(BMP581 * outSensor, uint8_t inI2cAddr)
       // Bit 0 = status_nvm_rdy, bit 1 = status_nvm_err
       if ((theStatus & 0x01) && !(theStatus & 0x02))
       {
+        theNvmOk = true ;
         break ;
       }
     }
     sleep_ms(1) ;
   }
+  printf("BMP581: NVM check %s\n", theNvmOk ? "OK" : "FAILED (continuing anyway)") ;
 
-  // Enable data-ready interrupt (matches Adafruit initialization)
-  // INT_SOURCE: bit 0 = drdy_data_reg_en
+  // Read INT_STATUS for diagnostics (clears latched flags)
+  {
+    uint8_t theIntStatus = 0 ;
+    if (ReadRegister(inI2cAddr, BMP581_REG_INT_STATUS, &theIntStatus))
+    {
+      printf("BMP581: INT_STATUS after powerup = 0x%02X\n", theIntStatus) ;
+    }
+  }
+
+  // Configure sensor (OSR, ODR, IIR)
+  if (!BMP581_Configure(outSensor, BMP581_OSR_16X, BMP581_OSR_2X, BMP581_ODR_50_HZ, BMP581_IIR_COEF_1))
+  {
+    outSensor->pLastError = 4 ;  // Configure failed
+    printf("BMP581: Configuration failed\n") ;
+    return false ;
+  }
+
+  // Enable continuous mode (Normal power mode)
+  if (!BMP581_SetMode(outSensor, true))
+  {
+    outSensor->pLastError = 5 ;  // SetMode failed
+    printf("BMP581: Failed to set normal mode\n") ;
+    return false ;
+  }
+
+  // Enable data-ready interrupt
   if (!WriteRegister(inI2cAddr, BMP581_REG_INT_SOURCE, 0x01))
   {
+    outSensor->pLastError = 6 ;  // INT_SOURCE write failed
     return false ;
   }
 
   // INT_CONFIG: latched, active-high, push-pull, enabled
   if (!WriteRegister(inI2cAddr, BMP581_REG_INT_CONFIG, 0x0B))
   {
-    return false ;
-  }
-
-  // Configure to match Adafruit defaults:
-  // Pressure: 16x oversampling
-  // Temperature: 2x oversampling (Adafruit default)
-  // ODR: 50 Hz
-  // IIR: coefficient 1 (Adafruit default)
-  if (!BMP581_Configure(outSensor, BMP581_OSR_16X, BMP581_OSR_2X, BMP581_ODR_50_HZ, BMP581_IIR_COEF_1))
-  {
-    return false ;
-  }
-
-  // Enable continuous mode
-  if (!BMP581_SetMode(outSensor, true))
-  {
+    outSensor->pLastError = 7 ;  // INT_CONFIG write failed
     return false ;
   }
 
@@ -157,7 +197,7 @@ bool BMP581_Init(BMP581 * outSensor, uint8_t inI2cAddr)
     printf(" EFF=0x%02X\n", theRegVal) ;
   }
 
-  // Read first data sample for diagnostic
+  // Read first data sample for diagnostic comparison
   sleep_ms(100) ;
   {
     uint8_t theDiagData[6] ;
@@ -195,40 +235,55 @@ bool BMP581_Configure(
   BMP581_OutputDataRate inOdr,
   BMP581_IIRFilter inFilter)
 {
-  // Set oversampling (OSR_CONFIG register)
-  // Bit 6 = press_en (MUST be 1 to enable pressure measurement!)
-  // Bits 5:3 = osr_p (pressure oversampling)
-  // Bits 2:0 = osr_t (temperature oversampling)
-  uint8_t theOsr = 0x40 | (inPressOsr << 3) | inTempOsr ;  // 0x40 = PRESS_EN
-  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_OSR_CONFIG, theOsr))
+  // --- OSR_CONFIG + ODR_CONFIG (atomic 2-byte write at 0x36-0x37) ---
+  // Matches Bosch bmp5_set_osr_odr_press_config() read-modify-write pattern
+  uint8_t theOsrOdr[2] = { 0, 0 } ;
+  if (!ReadRegisters(ioSensor->pI2cAddr, BMP581_REG_OSR_CONFIG, theOsrOdr, 2))
   {
     return false ;
   }
 
-  // Set ODR (ODR_CONFIG register)
-  // Bit 7: DEEP_DISABLE, Bits 6:2 = odr_sel, Bits 1:0 = pwr_mode
-  // Set ODR in standby mode (pwr_mode = 0), enable deep disable
-  uint8_t theOdrConfig = 0x80 | ((inOdr & 0x1F) << 2) ;  // DEEP_DISABLE + ODR shifted to bits 6:2
-  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_ODR_CONFIG, theOdrConfig))
+  // OSR_CONFIG (0x36):
+  //   Bits 2:0 = osr_t (temperature oversampling)
+  //   Bits 5:3 = osr_p (pressure oversampling)
+  //   Bit 6    = press_en (MUST be 1 to enable pressure measurement)
+  theOsrOdr[0] = (theOsrOdr[0] & 0x80) ;  // Preserve bit 7 (reserved)
+  theOsrOdr[0] |= 0x40 | (inPressOsr << 3) | inTempOsr ;  // PRESS_EN + OSR
+
+  // ODR_CONFIG (0x37):
+  //   Bits 1:0 = pwr_mode (set to standby during config)
+  //   Bits 6:2 = odr_sel
+  //   Bit 7    = deep_disable
+  theOsrOdr[1] = 0x80 | ((inOdr & 0x1F) << 2) ;  // DEEP_DISABLE + ODR, standby mode
+
+  if (!WriteRegisters(ioSensor->pI2cAddr, BMP581_REG_OSR_CONFIG, theOsrOdr, 2))
   {
     return false ;
   }
 
-  // Enable IIR filter (matching Adafruit config)
-  // DSP_IIR register: Bits 5:3 = set_iir_t, Bits 2:0 = set_iir_p
-  // Values: 0=bypass, 1=coef1, 2=coef3, 3=coef7, 4=coef15, 5=coef31, 6=coef63, 7=coef127
-  // Adafruit uses coef_1 (value 1)
-  uint8_t theIirConfig = (inFilter << 3) | inFilter ;  // Same coefficient for both temp and pressure
-  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_DSP_IIR, theIirConfig))
+  // --- DSP_CONFIG + DSP_IIR (atomic 2-byte write at 0x30-0x31) ---
+  // Matches Bosch set_iir_config() read-modify-write pattern
+  uint8_t theDsp[2] = { 0, 0 } ;
+  if (!ReadRegisters(ioSensor->pI2cAddr, BMP581_REG_DSP_CONFIG, theDsp, 2))
   {
     return false ;
   }
 
-  // DSP_CONFIG register - enable IIR shadow registers (like Adafruit)
-  // Bit 5: SHDW_SET_IIR_PRESS (1 = select IIR pressure output)
-  // Bit 3: SHDW_SET_IIR_TEMP (1 = select IIR temperature output)
-  uint8_t theDspConfig = (1 << 5) | (1 << 3) | (1 << 2) ;  // shdw_iir_p + shdw_iir_t + IIR_FLUSH
-  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_DSP_CONFIG, theDspConfig))
+  // DSP_CONFIG (0x30):
+  //   Bit 2 = IIR_FLUSH_FORCED_EN
+  //   Bit 3 = SHDW_SET_IIR_TEMP (select IIR filtered temp output)
+  //   Bit 4 = SET_FIFO_IIR_TEMP
+  //   Bit 5 = SHDW_SET_IIR_PRESS (select IIR filtered press output)
+  //   Bit 6 = SET_FIFO_IIR_PRESS
+  theDsp[0] = (theDsp[0] & 0x03) ;  // Preserve bits 0-1 (reserved/unknown)
+  theDsp[0] |= (1 << 5) | (1 << 3) | (1 << 2) ;  // SHDW_IIR_P + SHDW_IIR_T + IIR_FLUSH
+
+  // DSP_IIR (0x31):
+  //   Bits 2:0 = set_iir_t (temp IIR coefficient)
+  //   Bits 5:3 = set_iir_p (press IIR coefficient)
+  theDsp[1] = (inFilter & 0x07) | ((inFilter & 0x07) << 3) ;  // Same for both
+
+  if (!WriteRegisters(ioSensor->pI2cAddr, BMP581_REG_DSP_CONFIG, theDsp, 2))
   {
     return false ;
   }
@@ -305,13 +360,11 @@ bool BMP581_ReadPressureTemperature(
                          ((uint32_t)theData[4] << 8) |
                          ((uint32_t)theData[5] << 16) ;
 
-  // BMP581 outputs pre-compensated data
-  // Bosch docs say raw/65536 (temp) and raw/64 (pressure), but our BMP581
-  // consistently gives values ~16x and ~12.8x too low with those divisors.
-  // Empirical testing shows raw/4096 and raw/5.0 give correct readings.
-  // This may be a BMP580 vs BMP581 data format difference.
-  float theTemperature = (float)theRawTemp / 4096.0f ;
-  float thePressure = (float)theRawPress / 5.0f ;
+  // BMP581 outputs pre-compensated data (per Bosch BMP5 API)
+  // Temperature in degrees C = raw / 65536
+  // Pressure in Pa = raw / 64
+  float theTemperature = (float)theRawTemp / 65536.0f ;
+  float thePressure = (float)theRawPress / 64.0f ;
 
   if (outTemperatureC != NULL)
   {
@@ -331,7 +384,36 @@ bool BMP581_ReadPressureTemperature(
 //----------------------------------------------
 bool BMP581_SoftReset(BMP581 * ioSensor)
 {
-  return WriteRegister(ioSensor->pI2cAddr, BMP581_REG_CMD, BMP581_CMD_SOFT_RESET) ;
+  // Write soft reset command
+  if (!WriteRegister(ioSensor->pI2cAddr, BMP581_REG_CMD, BMP581_CMD_SOFT_RESET))
+  {
+    return false ;
+  }
+
+  // Wait for reset, then poll INT_STATUS for POR complete
+  // Bit 4 (0x10) = POR/soft-reset complete (per Bosch BMP5 API)
+  // Retry with increasing delays — some chips are slower
+  bool thePorOk = false ;
+  uint8_t theIntStatus = 0 ;
+  for (int i = 0 ; i < 10 ; i++)
+  {
+    sleep_ms(2 + i * 2) ;  // 2, 4, 6, 8, ... 20ms
+    if (ReadRegister(ioSensor->pI2cAddr, BMP581_REG_INT_STATUS, &theIntStatus))
+    {
+      if (theIntStatus & 0x10)
+      {
+        thePorOk = true ;
+        break ;
+      }
+    }
+  }
+
+  printf("BMP581: POR check INT_STATUS=0x%02X %s\n",
+    theIntStatus, thePorOk ? "OK" : "(not set, continuing anyway)") ;
+
+  // Continue even if POR bit not set — the sensor may still work
+  // Reading INT_STATUS clears latched flags regardless
+  return true ;
 }
 
 //----------------------------------------------

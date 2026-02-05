@@ -160,6 +160,7 @@ typedef struct
 {
   uint8_t pI2cAddr ;
   bool pInitialized ;
+  uint8_t pLastError ;   // 0=OK, 1=chipId read, 2=chipId mismatch, 3=reset, 4=configure, 5=setMode, 6=intSource, 7=intConfig
 } BMP581 ;
 
 //----------------------------------------------

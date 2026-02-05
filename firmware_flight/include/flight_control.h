@@ -137,6 +137,7 @@ typedef struct __attribute__((packed))
 #define kLoRaPacketStorageList  0x06  // Storage list response
 #define kLoRaPacketStorageData  0x07  // Storage data chunk
 #define kLoRaPacketInfo         0x08  // Device info response
+#define kLoRaPacketBaroCompare  0x09  // Baro sensor comparison (debug)
 
 // Command IDs (sent in kLoRaPacketCommand)
 #define kCmdArm             0x01
@@ -150,6 +151,9 @@ typedef struct __attribute__((packed))
 // Mode commands
 #define kCmdOrientationMode 0x08  // Enable/disable high-rate orientation testing
 #define kCmdSetRocketName   0x09  // Set rocket name (followed by null-terminated string)
+
+// Debug commands
+#define kCmdBaroCompare     0x0A  // Start/stop baro comparison stream
 
 // Storage commands
 #define kCmdSdList          0x10

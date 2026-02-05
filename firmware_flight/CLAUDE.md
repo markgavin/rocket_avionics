@@ -7,8 +7,9 @@ Rocket flight computer firmware for Adafruit Feather RP2040 with RFM95 LoRa Radi
 ## Hardware
 
 - **Board:** Adafruit Feather RP2040 with RFM95 LoRa Radio - 915MHz (Product ID: 5714)
-- **Barometer:** Adafruit BMP390 (Product ID: 4816) - altitude measurement
-- **IMU:** Adafruit LSM6DSOX + LIS3MDL 9-DoF IMU FeatherWing (Product ID: 4565)
+- **Barometers:** BMP390 (Product ID: 4816) and/or BMP581 (Product ID: 5857) - auto-detected
+- **IMU:** LSM6DSOX + LIS3MDL 9-DoF (Product ID: 4565) or ICM-20649
+- **Sensor Fusion:** Complementary filter fuses baro + IMU for altitude/velocity (see `docs/SENSORS.md`)
 - **Display:** Adafruit FeatherWing OLED 128x64 (Product ID: 4650)
 - **GPS:** Optional GPS module on UART0
 
@@ -21,8 +22,9 @@ firmware_flight/
 │   ├── version.h           # Version declarations
 │   ├── flight_control.h    # Flight state machine
 │   ├── lora_radio.h        # RFM95 LoRa driver
-│   ├── bmp390.h            # Barometric sensor driver
-│   ├── imu.h               # LSM6DSOX + LIS3MDL driver
+│   ├── bmp390.h            # BMP390 barometric sensor driver
+│   ├── bmp581.h            # BMP581 barometric sensor driver
+│   ├── imu.h               # LSM6DSOX + LIS3MDL / ICM-20649 driver
 │   ├── storage.h           # Flash storage low-level
 │   ├── flight_storage.h    # Flight data management
 │   ├── status_display.h    # OLED display
@@ -34,8 +36,9 @@ firmware_flight/
 │   ├── version.c           # Build timestamp (force-rebuilt)
 │   ├── flight_control.c    # State machine logic
 │   ├── lora_radio.c        # LoRa communication
-│   ├── bmp390.c            # Barometer I2C driver
-│   ├── imu.c               # IMU I2C driver
+│   ├── bmp390.c            # BMP390 barometer I2C driver
+│   ├── bmp581.c            # BMP581 barometer I2C driver
+│   ├── imu.c               # IMU I2C driver (LSM6DSOX + LIS3MDL / ICM-20649)
 │   ├── storage.c           # Flash read/write
 │   ├── flight_storage.c    # Flight log management
 │   ├── status_display.c    # Display screens
