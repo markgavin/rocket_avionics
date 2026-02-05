@@ -39,24 +39,24 @@ bool IMU_Init(Imu * ioImu)
   ioImu->pImuType = kImuTypeNone ;
   ioImu->pMagAddr = kI2cAddrLIS3MDL ;
 
-  // Try LSM6DSOX first (more precise for low-range applications)
-  ioImu->pAccelGyroAddr = kI2cAddrLSM6DSOX ;
-  if (InitAccelGyro(ioImu))
+  // Try ICM-20649 first (wide-range, preferred for flight)
+  if (InitICM20649(ioImu))
   {
-    ioImu->pImuType = kImuTypeLSM6DSOX ;
+    ioImu->pImuType = kImuTypeICM20649 ;
     ioImu->pAccelGyroOk = true ;
-    printf("LSM6DSOX initialized at 0x%02X\n", ioImu->pAccelGyroAddr) ;
+    printf("ICM-20649 initialized at 0x%02X\n", ioImu->pAccelGyroAddr) ;
   }
   else
   {
-    printf("LSM6DSOX not found, trying ICM-20649...\n") ;
+    printf("ICM-20649 not found, trying LSM6DSOX...\n") ;
 
-    // Fall back to ICM-20649 (wide-range 6-DoF)
-    if (InitICM20649(ioImu))
+    // Fall back to LSM6DSOX (lower range, higher precision)
+    ioImu->pAccelGyroAddr = kI2cAddrLSM6DSOX ;
+    if (InitAccelGyro(ioImu))
     {
-      ioImu->pImuType = kImuTypeICM20649 ;
+      ioImu->pImuType = kImuTypeLSM6DSOX ;
       ioImu->pAccelGyroOk = true ;
-      printf("ICM-20649 initialized at 0x%02X\n", ioImu->pAccelGyroAddr) ;
+      printf("LSM6DSOX initialized at 0x%02X\n", ioImu->pAccelGyroAddr) ;
     }
     else
     {

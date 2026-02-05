@@ -159,7 +159,7 @@ int main(void)
     sleep_ms(kSplashDisplayMs) ;
 
     // Show device info briefly
-    const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+    const char * theBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
     StatusDisplay_ShowDeviceInfo(
       FIRMWARE_VERSION_STRING,
       theBaroType,
@@ -172,11 +172,11 @@ int main(void)
 
   // Print startup summary
   printf("\nStartup complete:\n") ;
+  if (sBmp390Ok)
+    printf("  Baro:    BMP390 (primary)\n") ;
   if (sBmp581Ok)
-    printf("  Baro:    BMP581 (OK)\n") ;
-  else if (sBmp390Ok)
-    printf("  Baro:    BMP390 (OK)\n") ;
-  else
+    printf("  Baro:    BMP581 (%s)\n", sBmp390Ok ? "secondary" : "primary") ;
+  if (!sBmp390Ok && !sBmp581Ok)
     printf("  Baro:    NONE (FAIL)\n") ;
   printf("  LoRa:    %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  IMU:     %s\n", sImuOk ? "OK" : "FAIL") ;
@@ -857,7 +857,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
 
     case kDisplayModeDeviceInfo:
       {
-        const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+        const char * theBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
         StatusDisplay_ShowDeviceInfo(
           FIRMWARE_VERSION_STRING,
           theBaroType,
@@ -964,7 +964,7 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       // Show sensor sampling rates
       // Rates derived from pins.h timing constants
       {
-        const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+        const char * theBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
         StatusDisplay_ShowRates(
           theBaroType,
           1000 / kSensorSampleIntervalMs,     // Baro: 100 Hz
@@ -1123,7 +1123,7 @@ static void SendDeviceInfo(void)
   }
 
   // Barometer type string (for Heltec compatibility)
-  const char * theBaroType = sBmp581Ok ? "BMP581" : (sBmp390Ok ? "BMP390" : "None") ;
+  const char * theBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
   uint8_t theBaroTypeLen = strlen(theBaroType) ;
   thePacket[theOffset++] = theBaroTypeLen ;
   memcpy(&thePacket[theOffset], theBaroType, theBaroTypeLen) ;
