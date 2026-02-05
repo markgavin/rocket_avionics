@@ -142,14 +142,27 @@ tools/usb_console.sh
 
 ## Documentation
 
+### System Documentation
 - `docs/SENSORS.md` - Sensor fusion: altitude and velocity calculation (barometer + IMU complementary filter)
+- `docs/SPECIFICATIONS.md` - Complete system specifications (sensors, timing, storage, communication)
+- `docs/FLIGHT_STATES.md` - Flight state machine: states, transitions, thresholds, safety
+- `docs/COMPLEMENTARY_FILTER.md` - Complementary filter tuning guide (gains, crossover, tips)
+- `docs/FLASH_STORAGE.md` - Flash storage format: memory layout, structs, read/write/delete
+- `docs/GPS.md` - GPS integration: NMEA parsing, coordinates, fix quality, timeout
+- `docs/FIELD_OPERATIONS.md` - Field operations: pre-flight checklist, arming, recovery, troubleshooting
+
+### Hardware and Protocol
 - `docs/HARDWARE.md` - Hardware guide, BOM, pin assignments, wiring
 - `docs/PROTOCOL.md` - Communication protocol (LoRa packets, JSON, commands)
 - `docs/TESTING.md` - Testing procedures
 - `docs/software_versioning.md` - Version management system
 - `docs/flight_computer_carrier_board_design.md` - Custom PCB design
-- `docs/conversation_archive_*.md` - Development session archives
+
+### Component READMEs
 - `firmware_gateway_heltec/CLAUDE.md` - Heltec gateway details (OTA, mDNS, GPS)
 - `firmware_flight/CLAUDE.md` - Flight computer firmware details
 - `desktop_app/CLAUDE.md` - Desktop application details
 - `ios_app/CLAUDE.md` - iOS app details (recovery, multi-rocket)
+
+### Archives
+- `docs/conversation_archive_*.md` - Development session archives
