@@ -415,6 +415,8 @@ void StatusDisplay_UpdateCompact(
   uint8_t inRocketId,
   float inAltitudeM,
   float inVelocityMps,
+  float inAccelG,
+  const FlightResults * inResults,
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
@@ -422,6 +424,8 @@ void StatusDisplay_UpdateCompact(
   int16_t inRssi,
   int8_t inSnr)
 {
+  (void)inAccelG ;
+  (void)inResults ;
   if (!sInitialized) return ;
 
   SSD1306_Clear() ;
@@ -627,6 +631,34 @@ void StatusDisplay_ShowImu(
   SSD1306_DrawString(theTextX, 58, theBuffer, 1) ;
 
   SSD1306_Update() ;
+}
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowPyro
+// Purpose: Show pyro channel continuity
+//----------------------------------------------
+void StatusDisplay_ShowPyro(
+  float inPyro1Voltage,
+  float inPyro2Voltage)
+{
+  if (!sInitialized) return ;
+
+  SSD1306_Clear() ;
+  SSD1306_DrawString(0, 0, "PYRO STATUS", 1) ;
+  SSD1306_DrawLine(0, 10, 127, 10, true) ;
+
+  char theBuffer[32] ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Drogue: %.2fV %s",
+    inPyro1Voltage, inPyro1Voltage >= 0.5f ? "OK" : "OPEN") ;
+  SSD1306_DrawString(0, 14, theBuffer, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "Main:   %.2fV %s",
+    inPyro2Voltage, inPyro2Voltage >= 0.5f ? "OK" : "OPEN") ;
+  SSD1306_DrawString(0, 26, theBuffer, 1) ;
+
+  SSD1306_Display() ;
+  sCurrentMode = kDisplayModePyro ;
 }
 
 //----------------------------------------------

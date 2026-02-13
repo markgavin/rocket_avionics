@@ -168,11 +168,14 @@ Key fields:
 
 | Mode | Content |
 |------|---------|
-| Live | Flight state, altitude, velocity (home screen) |
-| Sensors | Barometer, IMU readings |
-| Pyro | Continuity status, arm state |
-| Storage | Flight count, storage used |
-| Rocket ID | Rocket name/ID (editable) |
+| Live | 3-column: altitude/velocity/accel + max alt/max vel/gateway |
+| Flight Stats | Max altitude, max velocity, flight time |
+| LoRa Status | Link quality, RSSI, packet counts |
+| Sensors | Barometer pressure, temperature, altitude |
+| Pyro | Drogue/Main continuity voltage and status |
+| GPS | Fix, satellites, coordinates, speed |
+| Rocket ID | Rocket name/ID (editable via Button B) |
+| Device Info | Firmware version, sensor status |
 | About | Version and build info |
 
 ## Button Navigation
@@ -196,6 +199,28 @@ Each flight computer has a unique rocket ID (0-15) for multi-rocket support:
 - **Display:** Shows on Rocket ID screen and in telemetry packets
 
 The rocket ID is included in all telemetry packets, allowing the gateway and apps to track multiple rockets simultaneously.
+
+## I2C Bus Safety
+
+A bad StemmaQT/QWIIC cable (shorted SDA-SCL, broken wire, or intermittent connection) can hang the entire RP2040 when the I2C peripheral is initialized. The firmware includes two layers of protection:
+
+### Startup Bus Test (`TestI2CBus()` in main.c)
+Runs before `i2c_init()` using raw GPIO to detect cable faults:
+1. **Idle level check** — verifies both SDA and SCL are high (pull-ups working)
+2. **Bus recovery** — if SDA is stuck low (slave lockup from MCU reset mid-transaction), clocks SCL up to 9 times to release the bus
+3. **Short detection** — drives SCL low and verifies SDA stays high, then vice versa. Detects SDA-SCL shorts from damaged cables
+
+If any test fails, the I2C peripheral is NOT initialized. Barometers and IMU are skipped, but LoRa, display, GPS, and flash continue working. The device info screen shows "I2C FAIL" as the barometer type.
+
+### Hardware Watchdog (8 second timeout)
+Enabled before the main loop. If any subsystem hangs the main loop (I2C lockup, SPI stall, etc.), the watchdog resets the MCU. On reboot, the bus test runs again and will catch the fault.
+
+### Discovery Notes
+This was discovered when a faulty StemmaQT I2C cable caused the flight computer to hang after exactly 2 LoRa packets. The hang was deterministic: plugging in any I2C device with the bad cable caused the hang, replacing the cable fixed it. The root cause was the bad cable interfering with the I2C bus at the hardware level — software-only I2C disabling (commenting out init and reads) was insufficient because the physical bus state affected the RP2040.
+
+## Printf Suppression
+
+All printf calls are eliminated at compile time via `#define printf(...) ((void)0)` placed after includes in each source file. USB stdio remains enabled (`pico_enable_stdio_usb 1`) for potential future debug use, but no printf code executes at runtime — no mutex acquisition, no string formatting, no USB CDC overhead. `snprintf`/`sprintf` are NOT affected and continue to work for display text formatting.
 
 ## Coding Conventions
 

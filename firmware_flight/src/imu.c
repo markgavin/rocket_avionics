@@ -17,6 +17,8 @@
 #include <math.h>
 #include <stdio.h>
 
+#define printf(...) ((void)0)
+
 //----------------------------------------------
 // Local Function Declarations
 //----------------------------------------------

@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define printf(...) ((void)0)
+
 //----------------------------------------------
 // Module Constants
 //----------------------------------------------

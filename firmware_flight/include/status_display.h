@@ -31,6 +31,7 @@ typedef enum
   kDisplayModeSpin ,          // Spin rate display
   kDisplayModeCompass ,       // Compass heading display
   kDisplayModeRates ,         // Sensor sampling rates
+  kDisplayModePyro ,          // Pyro continuity status
   kDisplayModeRocketId ,      // Rocket ID setting
   kDisplayModeDeviceInfo ,    // Board, version, sensors
   kDisplayModeAbout ,         // About screen with version/copyright
@@ -224,12 +225,25 @@ void StatusDisplay_UpdateCompact(
   uint8_t inRocketId,
   float inAltitudeM,
   float inVelocityMps,
+  float inAccelG,
+  const FlightResults * inResults,
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
   bool inLoRaConnected,
   int16_t inRssi,
   int8_t inSnr) ;
+
+//----------------------------------------------
+// Function: StatusDisplay_ShowPyro
+// Purpose: Show pyro channel continuity status
+// Parameters:
+//   inPyro1Voltage - Drogue channel ADC voltage (0-3.3V)
+//   inPyro2Voltage - Main channel ADC voltage (0-3.3V)
+//----------------------------------------------
+void StatusDisplay_ShowPyro(
+  float inPyro1Voltage,
+  float inPyro2Voltage) ;
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowImu

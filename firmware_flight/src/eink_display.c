@@ -55,10 +55,16 @@
 // Unit positions (scale 1)
 #define kAltUnitX         (kCol1X + 72)
 #define kVelUnitX         (kCol2X + 72)
+#define kAccelUnitX       (kCol3X + 60)
+#define kMaxAltUnitX      (kCol1X + 72)
+#define kMaxVelUnitX      (kCol2X + 72)
 #define kTempUnitX        (kCol3X + 60)
 #define kPressUnitX       (kCol1X + 80)
 #define kUnitRow1Y        (kValue1Y + 6)
 #define kUnitRow2Y        (kValue2Y + 6)
+
+// Pyro continuity threshold (volts)
+#define kPyroContinuityThresholdV  0.5f
 
 // Content area for area-based partial refresh
 #define kContentY         16
@@ -82,6 +88,7 @@
 #define kScreenAbout          9
 #define kScreenFlightStats    10
 #define kScreenError          11
+#define kScreenPyro           12
 
 //----------------------------------------------
 // eInk-compatible display modes
@@ -91,6 +98,7 @@ static const DisplayMode sEinkModes[] = {
   kDisplayModeFlightStats,
   kDisplayModeLoRaStatus,
   kDisplayModeSensors,
+  kDisplayModePyro,
   kDisplayModeGpsStatus,
   kDisplayModeRocketId,
   kDisplayModeDeviceInfo,
@@ -405,6 +413,7 @@ void StatusDisplay_Update(
   StatusDisplay_UpdateCompact(
     inState, false, 0,
     inAltitudeM, inVelocityMps,
+    0.0f, NULL,
     false, false, 0,
     inLoRaConnected, 0, 0) ;
 }
@@ -412,6 +421,7 @@ void StatusDisplay_Update(
 //----------------------------------------------
 // Public: StatusDisplay_UpdateCompact
 // Main live screen with per-digit partial refresh
+// 3-column layout: alt/vel/accel + maxAlt/maxVel/gateway
 //----------------------------------------------
 void StatusDisplay_UpdateCompact(
   FlightState inState,
@@ -419,6 +429,8 @@ void StatusDisplay_UpdateCompact(
   uint8_t inRocketId,
   float inAltitudeM,
   float inVelocityMps,
+  float inAccelG,
+  const FlightResults * inResults,
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
@@ -433,19 +445,23 @@ void StatusDisplay_UpdateCompact(
   // Round to display precision to prevent flicker
   float theDispAlt = roundf(inAltitudeM * 10.0f) / 10.0f ;
   float theDispVel = roundf(inVelocityMps * 10.0f) / 10.0f ;
+  float theDispAccel = roundf(inAccelG * 10.0f) / 10.0f ;
+  float theDispMaxAlt = inResults ? roundf(inResults->pMaxAltitudeM * 10.0f) / 10.0f : 0.0f ;
+  float theDispMaxVel = inResults ? roundf(inResults->pMaxVelocityMps * 10.0f) / 10.0f : 0.0f ;
 
   // Format value strings
   char theAltStr[16] ;
   char theVelStr[16] ;
-  char theTempStr[16] ;  // Placeholder — no temp in this API
-  char thePressStr[16] ; // Placeholder — no pressure in this API
+  char theAccelStr[16] ;
+  char theMaxAltStr[16] ;
+  char theMaxVelStr[16] ;
   char theGwStr[16] ;
-  char theGpsStr[16] ;
 
   FormatFloat(theAltStr, sizeof(theAltStr), theDispAlt, 1) ;
   FormatFloat(theVelStr, sizeof(theVelStr), theDispVel, 1) ;
-  snprintf(theTempStr, sizeof(theTempStr), "--") ;
-  snprintf(thePressStr, sizeof(thePressStr), "--") ;
+  FormatFloat(theAccelStr, sizeof(theAccelStr), theDispAccel, 1) ;
+  FormatFloat(theMaxAltStr, sizeof(theMaxAltStr), theDispMaxAlt, 1) ;
+  FormatFloat(theMaxVelStr, sizeof(theMaxVelStr), theDispMaxVel, 1) ;
 
   // Gateway status
   if (!inLoRaConnected)
@@ -458,14 +474,6 @@ void StatusDisplay_UpdateCompact(
     snprintf(theGwStr, sizeof(theGwStr), "Ok") ;
   else
     snprintf(theGwStr, sizeof(theGwStr), "Poor") ;
-
-  // GPS status
-  if (!inGpsOk)
-    snprintf(theGpsStr, sizeof(theGpsStr), "--") ;
-  else if (!inGpsFix)
-    snprintf(theGpsStr, sizeof(theGpsStr), "NoFix") ;
-  else
-    snprintf(theGpsStr, sizeof(theGpsStr), "Fix %u", inGpsSatellites) ;
 
   // Determine if full refresh needed
   bool theNeedsFull = (sLastDrawnScreen != kScreenLive) ||
@@ -493,29 +501,35 @@ void StatusDisplay_UpdateCompact(
 
     DrawHeader(theHeaderLeft, theHeaderRight) ;
 
-    // Row 1 labels
+    // Row 1: ALTITUDE | VELOCITY | ACCEL
     FB_DrawString(sFrameBuffer, kCol1X, kLabel1Y, "ALTITUDE", kColorBlack, 1) ;
     FB_DrawString(sFrameBuffer, kCol2X, kLabel1Y, "VELOCITY", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kLabel1Y, "ACCEL", kColorBlack, 1) ;
 
-    // Row 1 values
     FB_DrawString(sFrameBuffer, kCol1X, kValue1Y, theAltStr, kColorBlack, kValueScale) ;
     FB_DrawString(sFrameBuffer, kAltUnitX, kUnitRow1Y, "m", kColorBlack, 1) ;
 
     FB_DrawString(sFrameBuffer, kCol2X, kValue1Y, theVelStr, kColorBlack, kValueScale) ;
     FB_DrawString(sFrameBuffer, kVelUnitX, kUnitRow1Y, "m/s", kColorBlack, 1) ;
 
-    // Separator
+    FB_DrawString(sFrameBuffer, kCol3X, kValue1Y, theAccelStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kAccelUnitX, kUnitRow1Y, "g", kColorBlack, 1) ;
+
     FB_DrawHLine(sFrameBuffer, 4, kSep1Y, 288, kColorBlack) ;
 
-    // Row 2 labels
-    FB_DrawString(sFrameBuffer, kCol1X, kLabel2Y, "GATEWAY", kColorBlack, 1) ;
-    FB_DrawString(sFrameBuffer, kCol2X, kLabel2Y, "GPS", kColorBlack, 1) ;
+    // Row 2: MAX ALT | MAX VEL | GATEWAY
+    FB_DrawString(sFrameBuffer, kCol1X, kLabel2Y, "MAX ALT", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kLabel2Y, "MAX VEL", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kLabel2Y, "GATEWAY", kColorBlack, 1) ;
 
-    // Row 2 values
-    FB_DrawString(sFrameBuffer, kCol1X, kValue2Y, theGwStr, kColorBlack, kValueScale) ;
-    FB_DrawString(sFrameBuffer, kCol2X, kValue2Y, theGpsStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol1X, kValue2Y, theMaxAltStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kMaxAltUnitX, kUnitRow2Y, "m", kColorBlack, 1) ;
 
-    // Separator
+    FB_DrawString(sFrameBuffer, kCol2X, kValue2Y, theMaxVelStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kMaxVelUnitX, kUnitRow2Y, "m/s", kColorBlack, 1) ;
+
+    FB_DrawString(sFrameBuffer, kCol3X, kValue2Y, theGwStr, kColorBlack, kValueScale) ;
+
     FB_DrawHLine(sFrameBuffer, 4, kSep2Y, 288, kColorBlack) ;
 
     DrawFooter() ;
@@ -531,11 +545,17 @@ void StatusDisplay_UpdateCompact(
     RefreshValue(sPrevVal2, theVelStr, kCol2X, kValue1Y,
                  kCol2BoxX, kCol2BoxW, "m/s", kVelUnitX, kUnitRow1Y) ;
 
-    RefreshValue(sPrevVal4, theGwStr, kCol1X, kValue2Y,
-                 kCol1BoxX, kCol1BoxW, NULL, 0, 0) ;
+    RefreshValue(sPrevVal3, theAccelStr, kCol3X, kValue1Y,
+                 kCol3BoxX, kCol3BoxW, "g", kAccelUnitX, kUnitRow1Y) ;
 
-    RefreshValue(sPrevVal5, theGpsStr, kCol2X, kValue2Y,
-                 kCol2BoxX, kCol2BoxW, NULL, 0, 0) ;
+    RefreshValue(sPrevVal4, theMaxAltStr, kCol1X, kValue2Y,
+                 kCol1BoxX, kCol1BoxW, "m", kMaxAltUnitX, kUnitRow2Y) ;
+
+    RefreshValue(sPrevVal5, theMaxVelStr, kCol2X, kValue2Y,
+                 kCol2BoxX, kCol2BoxW, "m/s", kMaxVelUnitX, kUnitRow2Y) ;
+
+    RefreshValue(sPrevVal6, theGwStr, kCol3X, kValue2Y,
+                 kCol3BoxX, kCol3BoxW, NULL, 0, 0) ;
 
     // Sync sPrevBuffer after all partial refreshes
     memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
@@ -544,8 +564,10 @@ void StatusDisplay_UpdateCompact(
   // Save current strings
   strcpy(sPrevVal1, theAltStr) ;
   strcpy(sPrevVal2, theVelStr) ;
-  strcpy(sPrevVal4, theGwStr) ;
-  strcpy(sPrevVal5, theGpsStr) ;
+  strcpy(sPrevVal3, theAccelStr) ;
+  strcpy(sPrevVal4, theMaxAltStr) ;
+  strcpy(sPrevVal5, theMaxVelStr) ;
+  strcpy(sPrevVal6, theGwStr) ;
 }
 
 //----------------------------------------------
@@ -973,6 +995,67 @@ void StatusDisplay_ShowRocketId(
     ContentAreaRefresh() ;
   }
   sLastDrawnScreen = kScreenRocketId ;
+}
+
+//----------------------------------------------
+// Public: StatusDisplay_ShowPyro
+// Pyro channel continuity status
+//----------------------------------------------
+void StatusDisplay_ShowPyro(
+  float inPyro1Voltage,
+  float inPyro2Voltage)
+{
+  if (!sInitialized) return ;
+
+  bool theNeedsFull = (sLastDrawnScreen != kScreenPyro) ;
+
+  if (theNeedsFull)
+  {
+    FB_Clear(sFrameBuffer, kColorWhite) ;
+    DrawHeader("PYRO STATUS", NULL) ;
+    DrawFooter() ;
+  }
+  else
+  {
+    FB_FillRect(sFrameBuffer, 0, kContentY, 296, kContentH, kColorWhite) ;
+  }
+
+  char theBuffer[32] ;
+
+  // Row 1: Voltage readings
+  FB_DrawString(sFrameBuffer, kCol1X, kLabel1Y, "DROGUE (CH1)", kColorBlack, 1) ;
+  snprintf(theBuffer, sizeof(theBuffer), "%.2f", inPyro1Voltage) ;
+  FB_DrawString(sFrameBuffer, kCol1X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
+  FB_DrawString(sFrameBuffer, kCol1X + 72, kUnitRow1Y, "V", kColorBlack, 1) ;
+
+  FB_DrawString(sFrameBuffer, kCol2X, kLabel1Y, "MAIN (CH2)", kColorBlack, 1) ;
+  snprintf(theBuffer, sizeof(theBuffer), "%.2f", inPyro2Voltage) ;
+  FB_DrawString(sFrameBuffer, kCol2X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
+  FB_DrawString(sFrameBuffer, kCol2X + 72, kUnitRow1Y, "V", kColorBlack, 1) ;
+
+  FB_DrawHLine(sFrameBuffer, 4, kSep1Y, 288, kColorBlack) ;
+
+  // Row 2: Continuity status
+  const char * theDrogueStatus = (inPyro1Voltage >= kPyroContinuityThresholdV) ? "CONNECTED" : "OPEN" ;
+  const char * theMainStatus = (inPyro2Voltage >= kPyroContinuityThresholdV) ? "CONNECTED" : "OPEN" ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "DROGUE: %s", theDrogueStatus) ;
+  FB_DrawString(sFrameBuffer, kCol1X, kValue2Y, theBuffer, kColorBlack, 1) ;
+
+  snprintf(theBuffer, sizeof(theBuffer), "MAIN: %s", theMainStatus) ;
+  FB_DrawString(sFrameBuffer, kCol2X, kValue2Y, theBuffer, kColorBlack, 1) ;
+
+  FB_DrawHLine(sFrameBuffer, 4, kSep2Y, 288, kColorBlack) ;
+
+  if (theNeedsFull)
+  {
+    FullRefreshScreen() ;
+  }
+  else
+  {
+    ContentAreaRefresh() ;
+  }
+  sLastDrawnScreen = kScreenPyro ;
 }
 
 //----------------------------------------------

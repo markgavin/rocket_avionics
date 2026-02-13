@@ -39,9 +39,16 @@
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
+#include "hardware/adc.h"
 
 #include <stdio.h>
 #include <string.h>
+
+// Eliminate printf at compile time. Both USB and UART stdio are
+// disabled in CMakeLists.txt, but printf still acquires internal
+// mutexes and runs formatting code. This macro removes all overhead.
+// snprintf/sprintf are NOT affected (used for display formatting).
+#define printf(...) ((void)0)
 
 //----------------------------------------------
 // Module Constants
@@ -79,6 +86,7 @@ static LoRa_Radio sLoRaRadio ;
 static Imu sImu ;
 
 // Hardware status
+static bool sI2cBusOk = false ;
 static bool sBmp390Ok = false ;
 static bool sBmp581Ok = false ;
 static bool sLoRaOk = false ;
@@ -157,8 +165,13 @@ typedef struct {
   // Telemetry values
   float pAltitudeM ;
   float pVelocityMps ;
+  float pAccelMagnitude ;
   float pPressurePa ;
   float pTemperatureC ;
+
+  // Pyro continuity (ADC voltage 0-3.3V)
+  float pPyro1Voltage ;
+  float pPyro2Voltage ;
 
   // GPS
   bool pGpsOk ;
@@ -244,7 +257,8 @@ int main(void)
     sleep_ms(kSplashDisplayMs) ;
 
     // Show device info briefly
-    const char * theBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
+    const char * theBaroType = sBmp390Ok ? "BMP390" :
+      (sBmp581Ok ? "BMP581" : (sI2cBusOk ? "None" : "I2C FAIL")) ;
     StatusDisplay_ShowDeviceInfo(
       FIRMWARE_VERSION_STRING,
       theBaroType,
@@ -279,7 +293,8 @@ int main(void)
   if (sDisplayOk)
   {
     memset(&sDisplayShared, 0, sizeof(sDisplayShared)) ;
-    sDisplayShared.pBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
+    sDisplayShared.pBaroType = sBmp390Ok ? "BMP390" :
+      (sBmp581Ok ? "BMP581" : (sI2cBusOk ? "None" : "I2C FAIL")) ;
     sDisplayShared.pBaroOk = sBmp390Ok || sBmp581Ok ;
     sDisplayShared.pLoRaOk = sLoRaOk ;
     sDisplayShared.pImuOk = sImuOk ;
@@ -298,6 +313,12 @@ int main(void)
     LoRa_StartReceive(&sLoRaRadio) ;
   }
 
+  // Enable hardware watchdog (8 second timeout).
+  // If the main loop hangs (bad cable, SPI lockup, etc.),
+  // the watchdog resets the MCU and the I2C bus test will
+  // detect the fault on the next boot.
+  watchdog_enable(8000, true) ;
+
   // Main loop
   uint32_t theLastLoopUs = time_us_32() ;
 
@@ -313,7 +334,6 @@ int main(void)
       sLastSensorReadMs = theCurrentMs ;
 
       // Read barometers
-      // Primary sensor feeds flight controller; both read for comparison
       float thePressure = 0 ;
       float theTemperature = 0 ;
       bool theReadOk = false ;
@@ -350,23 +370,8 @@ int main(void)
         theReadOk = true ;
       }
 
-      // Print comparison every second when both sensors present
-      {
-        static uint32_t sCompareCount = 0 ;
-        if ((++sCompareCount % 100) == 0 && the390Ok && the581Ok)
-        {
-          float thePressErr = the581Pressure - the390Pressure ;
-          float theTempErr = the581Temperature - the390Temperature ;
-          printf("COMPARE: BMP390 P=%.1f T=%.2f | BMP581 P=%.1f T=%.2f | dP=%.1f dT=%.2f\n",
-            the390Pressure, the390Temperature,
-            the581Pressure, the581Temperature,
-            thePressErr, theTempErr) ;
-        }
-      }
-
       if (theReadOk)
       {
-        // Update flight controller with primary sensor data
         FlightControl_UpdateSensors(
           &sFlightController,
           thePressure,
@@ -586,6 +591,16 @@ int main(void)
       sDisplayShared.pGroundPressurePa = sFlightController.pGroundPressurePa ;
       sDisplayShared.pResults = sFlightController.pResults ;
 
+      // IMU acceleration magnitude
+      const ImuData * theImuForDisplay = sImuOk ? IMU_GetData(&sImu) : NULL ;
+      sDisplayShared.pAccelMagnitude = theImuForDisplay ? theImuForDisplay->pAccelMagnitude : 0.0f ;
+
+      // Pyro continuity ADC (GP26=ADC0, GP27=ADC1)
+      adc_select_input(0) ;
+      sDisplayShared.pPyro1Voltage = adc_read() * 3.3f / 4095.0f ;
+      adc_select_input(1) ;
+      sDisplayShared.pPyro2Voltage = adc_read() * 3.3f / 4095.0f ;
+
       sDisplayShared.pGpsOk = sGpsOk ;
       sDisplayShared.pGpsFix = (theGps != NULL) && theGps->pValid ;
       sDisplayShared.pGpsSatellites = (theGps != NULL) ? theGps->pSatellites : 0 ;
@@ -597,6 +612,7 @@ int main(void)
       sDisplayShared.pLoRaOk = sLoRaOk ;
       sDisplayShared.pLoRaConnected = sLoRaOk && (sLastLoRaTxMs > 0) &&
         ((theCurrentMs - sLastLoRaTxMs) < kLoRaTimeoutMs) ;
+
       sDisplayShared.pRssi = sGatewayRssi ;
       sDisplayShared.pSnr = sGatewaySnr ;
       sDisplayShared.pLastRssi = sLoRaRadio.pLastRssi ;
@@ -632,8 +648,10 @@ int main(void)
     ProcessButtons(theCurrentMs) ;
 
     //------------------------------------------
-    // 10. Maintain loop timing
+    // 10. Feed watchdog and maintain loop timing
     //------------------------------------------
+    watchdog_update() ;
+
     uint32_t theLoopTimeUs = time_us_32() - theLastLoopUs ;
     if (theLoopTimeUs < kMainLoopIntervalUs)
     {
@@ -661,47 +679,38 @@ static void InitializeHardware(void)
   // Initialize buttons
   InitializeButtons() ;
 
+  // Initialize ADC for pyro continuity readings (GP26=ADC0, GP27=ADC1)
+  adc_init() ;
+  adc_gpio_init(kPinPyro1Continuity) ;  // GP26 → ADC0
+  adc_gpio_init(kPinPyro2Continuity) ;  // GP27 → ADC1
+
   // Initialize NeoPixel LED
-  if (HeartbeatLED_Init(kPinNeoPixel))
-  {
-    printf("NeoPixel LED initialized\n") ;
-  }
-  else
-  {
-    printf("WARNING: NeoPixel LED initialization failed\n") ;
-  }
+  HeartbeatLED_Init(kPinNeoPixel) ;
 
-  // Initialize barometric sensors (try both for comparison)
-  printf("Initializing barometers...\n") ;
+  // Initialize I2C sensors (only if bus test passed)
+  if (sI2cBusOk)
+  {
+    // Initialize barometric sensors (try both for comparison)
+    if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
+    {
+      BMP390_Configure(
+        &sBmp390,
+        BMP390_OSR_8X,      // Pressure oversampling
+        BMP390_OSR_2X,      // Temperature oversampling
+        BMP390_ODR_50_HZ,   // 50 Hz output rate
+        BMP390_IIR_COEF_3)  ; // Light filtering
+      sBmp390Ok = true ;
+    }
 
-  // Try BMP390
-  if (BMP390_Init(&sBmp390, kI2cAddrBMP390))
-  {
-    BMP390_Configure(
-      &sBmp390,
-      BMP390_OSR_8X,      // Pressure oversampling
-      BMP390_OSR_2X,      // Temperature oversampling
-      BMP390_ODR_50_HZ,   // 50 Hz output rate
-      BMP390_IIR_COEF_3)  ; // Light filtering
-    sBmp390Ok = true ;
-    printf("BMP390 initialized at 0x%02X\n", kI2cAddrBMP390) ;
-  }
-
-  // Try BMP581 (always, for comparison when both present)
-  if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
-  {
-    sBmp581Ok = true ;
-    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_DEFAULT) ;
-  }
-  else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
-  {
-    sBmp581Ok = true ;
-    printf("BMP581 initialized at 0x%02X\n", BMP581_I2C_ADDR_ALT) ;
-  }
-
-  if (!sBmp390Ok && !sBmp581Ok)
-  {
-    printf("WARNING: No barometer found (BMP390 or BMP581)\n") ;
+    // Try BMP581 (always, for comparison when both present)
+    if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_DEFAULT))
+    {
+      sBmp581Ok = true ;
+    }
+    else if (BMP581_Init(&sBmp581, BMP581_I2C_ADDR_ALT))
+    {
+      sBmp581Ok = true ;
+    }
   }
 
   // Initialize display
@@ -729,18 +738,11 @@ static void InitializeHardware(void)
   }
 #endif
 
-  // Initialize IMU (LSM6DSOX + LIS3MDL)
-  printf("Initializing IMU...\n") ;
-  if (IMU_Init(&sImu))
+  // Initialize IMU (only if I2C bus is healthy)
+  if (sI2cBusOk && IMU_Init(&sImu))
   {
-    // Configure IMU with desired ranges
     IMU_Configure(&sImu, kImuAccelRange, kImuGyroRange, kImuMagRange) ;
     sImuOk = true ;
-    printf("IMU initialized\n") ;
-  }
-  else
-  {
-    printf("WARNING: IMU initialization failed\n") ;
   }
 
   // Initialize LoRa radio
@@ -763,30 +765,15 @@ static void InitializeHardware(void)
   }
 
   // Initialize GPS
-  printf("Initializing GPS...\n") ;
   if (GPS_Init())
   {
     sGpsOk = true ;
-    printf("GPS initialized\n") ;
-  }
-  else
-  {
-    printf("WARNING: GPS initialization failed\n") ;
   }
 
   // Initialize flash storage for flight data
-  printf("Initializing flash storage...\n") ;
   if (FlightStorage_Init())
   {
     sFlashOk = true ;
-    uint8_t theFlightCount = FlightStorage_GetFlightCount() ;
-    uint8_t theFreeSlots = FlightStorage_GetFreeSlots() ;
-    printf("Flash storage initialized (%u flights stored, %u slots free)\n",
-      theFlightCount, theFreeSlots) ;
-  }
-  else
-  {
-    printf("WARNING: Flash storage initialization failed\n") ;
   }
 
   // Load rocket ID and name from settings storage
@@ -799,19 +786,118 @@ static void InitializeHardware(void)
 }
 
 //----------------------------------------------
+// Function: TestI2CBus
+// Purpose: Test I2C cable/bus health before init.
+//   Detects: SDA/SCL stuck low, SDA-SCL short,
+//   missing pull-ups (broken/disconnected cable).
+//   Uses raw GPIO — must be called BEFORE i2c_init().
+// Returns: true if bus is healthy.
+//----------------------------------------------
+static bool TestI2CBus(void)
+{
+  // Configure both pins as GPIO inputs with internal pull-ups
+  gpio_init(kPinI2cSda) ;
+  gpio_set_dir(kPinI2cSda, GPIO_IN) ;
+  gpio_pull_up(kPinI2cSda) ;
+
+  gpio_init(kPinI2cScl) ;
+  gpio_set_dir(kPinI2cScl, GPIO_IN) ;
+  gpio_pull_up(kPinI2cScl) ;
+
+  busy_wait_us_32(50) ;
+
+  // Test 1: Both lines should idle high (pull-ups working)
+  bool theSdaHigh = gpio_get(kPinI2cSda) ;
+  bool theSclHigh = gpio_get(kPinI2cScl) ;
+
+  if (!theSdaHigh || !theSclHigh)
+  {
+    // A line is stuck low — bad cable or slave lockup.
+    // Attempt bus recovery: clock SCL up to 9 times.
+    gpio_set_dir(kPinI2cScl, GPIO_OUT) ;
+    gpio_put(kPinI2cScl, 1) ;
+
+    for (int i = 0 ; i < 9 ; i++)
+    {
+      gpio_put(kPinI2cScl, 0) ;
+      busy_wait_us_32(5) ;
+      gpio_put(kPinI2cScl, 1) ;
+      busy_wait_us_32(5) ;
+
+      if (gpio_get(kPinI2cSda))
+        break ;
+    }
+
+    // Generate STOP condition (SDA low→high while SCL high)
+    gpio_set_dir(kPinI2cSda, GPIO_OUT) ;
+    gpio_put(kPinI2cSda, 0) ;
+    busy_wait_us_32(5) ;
+    gpio_put(kPinI2cScl, 1) ;
+    busy_wait_us_32(5) ;
+    gpio_put(kPinI2cSda, 1) ;
+    busy_wait_us_32(5) ;
+
+    // Re-check after recovery
+    gpio_set_dir(kPinI2cSda, GPIO_IN) ;
+    gpio_set_dir(kPinI2cScl, GPIO_IN) ;
+    busy_wait_us_32(50) ;
+
+    theSdaHigh = gpio_get(kPinI2cSda) ;
+    theSclHigh = gpio_get(kPinI2cScl) ;
+
+    if (!theSdaHigh || !theSclHigh)
+      return false ;  // Still stuck after recovery — bad cable
+  }
+
+  // Test 2: Drive SCL low, verify SDA stays high (not shorted together)
+  gpio_set_dir(kPinI2cScl, GPIO_OUT) ;
+  gpio_put(kPinI2cScl, 0) ;
+  busy_wait_us_32(10) ;
+  bool theSdaIndependent = gpio_get(kPinI2cSda) ;
+  gpio_put(kPinI2cScl, 1) ;
+  gpio_set_dir(kPinI2cScl, GPIO_IN) ;
+  busy_wait_us_32(10) ;
+
+  if (!theSdaIndependent)
+    return false ;  // SDA followed SCL — lines are shorted
+
+  // Test 3: Drive SDA low, verify SCL stays high
+  gpio_set_dir(kPinI2cSda, GPIO_OUT) ;
+  gpio_put(kPinI2cSda, 0) ;
+  busy_wait_us_32(10) ;
+  bool theSclIndependent = gpio_get(kPinI2cScl) ;
+  gpio_put(kPinI2cSda, 1) ;
+  gpio_set_dir(kPinI2cSda, GPIO_IN) ;
+  busy_wait_us_32(10) ;
+
+  if (!theSclIndependent)
+    return false ;  // SCL followed SDA — lines are shorted
+
+  return true ;
+}
+
+//----------------------------------------------
 // Function: InitializeI2C
 //----------------------------------------------
 static void InitializeI2C(void)
 {
-  printf("Initializing I2C bus...\n") ;
+  // Test cable/bus health before initializing the I2C peripheral.
+  // A bad cable (shorted, broken) can hang the entire system.
+  sI2cBusOk = TestI2CBus() ;
+
+  if (!sI2cBusOk)
+  {
+    // Bus failed — do NOT initialize I2C peripheral.
+    // Leave pins as GPIO inputs so a bad cable can't hang
+    // the I2C hardware. Sensor init will be skipped.
+    return ;
+  }
 
   i2c_init(kI2cPort, kI2cBaudrate) ;
   gpio_set_function(kPinI2cSda, GPIO_FUNC_I2C) ;
   gpio_set_function(kPinI2cScl, GPIO_FUNC_I2C) ;
   gpio_pull_up(kPinI2cSda) ;
   gpio_pull_up(kPinI2cScl) ;
-
-  printf("I2C initialized at %d Hz\n", kI2cBaudrate) ;
 }
 
 //----------------------------------------------
@@ -1066,18 +1152,23 @@ static void UpdateDisplay(uint32_t inCurrentMs)
 
         // Pass actual RSSI/SNR from ACK packets (0/0 means no ACK data yet)
         // Display code will show "GW: Active" when RSSI=0/SNR=0 but link is active
-        StatusDisplay_UpdateCompact(
-          theState,
-          sFlightController.pOrientationMode,
-          sRocketId,
-          sFlightController.pCurrentAltitudeM,
-          sFlightController.pCurrentVelocityMps,
-          sGpsOk,
-          theGpsFix,
-          theGpsSatellites,
-          theLinkActive,
-          sGatewayRssi,
-          sGatewaySnr) ;
+        {
+          const ImuData * theOledImu = sImuOk ? IMU_GetData(&sImu) : NULL ;
+          StatusDisplay_UpdateCompact(
+            theState,
+            sFlightController.pOrientationMode,
+            sRocketId,
+            sFlightController.pCurrentAltitudeM,
+            sFlightController.pCurrentVelocityMps,
+            theOledImu ? theOledImu->pAccelMagnitude : 0.0f,
+            &sFlightController.pResults,
+            sGpsOk,
+            theGpsFix,
+            theGpsSatellites,
+            theLinkActive,
+            sGatewayRssi,
+            sGatewaySnr) ;
+        }
       }
       break ;
 
@@ -1208,6 +1299,16 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       sRocketIdEditing = false ;
       break ;
 
+    case kDisplayModePyro:
+      {
+        adc_select_input(0) ;
+        float thePyro1V = adc_read() * 3.3f / 4095.0f ;
+        adc_select_input(1) ;
+        float thePyro2V = adc_read() * 3.3f / 4095.0f ;
+        StatusDisplay_ShowPyro(thePyro1V, thePyro2V) ;
+      }
+      break ;
+
     case kDisplayModeAbout:
       StatusDisplay_ShowAbout(
         FIRMWARE_VERSION_STRING,
@@ -1239,11 +1340,6 @@ static void SendTelemetry(uint32_t inCurrentMs)
     // Mark telemetry as sent (updates timestamp and sequence number)
     FlightControl_MarkTelemetrySent(&sFlightController, inCurrentMs) ;
     sLastLoRaTxMs = inCurrentMs ;  // Track successful TX for link status
-    DEBUG_PRINT("TX: seq=%u len=%u\n", thePacket.pSequence, theLen) ;
-  }
-  else
-  {
-    DEBUG_PRINT("TX FAIL: len=%u\n", theLen) ;
   }
 
   // Return to receive mode for commands
@@ -1756,8 +1852,7 @@ static void ProcessLoRaCommands(void)
             if (theSlot == 0xFF)
             {
               // Delete all flights
-              uint8_t theDeleted = FlightStorage_DeleteAllFlights() ;
-              DEBUG_PRINT("Flash: Deleted %u flights\n", theDeleted) ;
+              FlightStorage_DeleteAllFlights() ;
             }
             else
             {
@@ -1858,19 +1953,18 @@ static void Core1_DisplayLoop(void)
         }
         else
         {
-          bool theLinkActive = theData.pLoRaOk && (theData.pLastLoRaTxMs > 0) &&
-            ((theData.pCurrentMs - theData.pLastLoRaTxMs) < kLoRaTimeoutMs) ;
-
           StatusDisplay_UpdateCompact(
             theData.pState,
             theData.pOrientationMode,
             theData.pRocketId,
             theData.pAltitudeM,
             theData.pVelocityMps,
+            theData.pAccelMagnitude,
+            &theData.pResults,
             theData.pGpsOk,
             theData.pGpsFix,
             theData.pGpsSatellites,
-            theLinkActive,
+            theData.pLoRaConnected,
             theData.pRssi,
             theData.pSnr) ;
         }
@@ -1924,6 +2018,12 @@ static void Core1_DisplayLoop(void)
           theData.pRocketId,
           theData.pRocketName,
           theData.pRocketIdEditing) ;
+        break ;
+
+      case kDisplayModePyro:
+        StatusDisplay_ShowPyro(
+          theData.pPyro1Voltage,
+          theData.pPyro2Voltage) ;
         break ;
 
       case kDisplayModeAbout:
