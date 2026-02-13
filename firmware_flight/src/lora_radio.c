@@ -381,8 +381,10 @@ bool LoRa_Send(LoRa_Radio * ioRadio, const uint8_t * inData, uint8_t inLen)
   }
 
   // Drain stale RX FIFO data (noise from eInk bit-bang
-  // can inject phantom bytes into SPI1 RX FIFO)
-  while (spi_is_readable(kSpiPort))
+  // can inject phantom bytes into SPI1 RX FIFO).
+  // Bounded to 16 iterations (FIFO is 8 deep) to prevent
+  // infinite loop if SPI peripheral is stuck readable.
+  for (int i = 0 ; i < 16 && spi_is_readable(kSpiPort) ; i++)
     (void)spi_get_hw(kSpiPort)->dr ;
 
   // Go to standby mode
@@ -461,8 +463,8 @@ bool LoRa_StartReceive(LoRa_Radio * ioRadio)
     return false ;
   }
 
-  // Drain stale RX FIFO data
-  while (spi_is_readable(kSpiPort))
+  // Drain stale RX FIFO data (bounded, see LoRa_Send comment)
+  for (int i = 0 ; i < 16 && spi_is_readable(kSpiPort) ; i++)
     (void)spi_get_hw(kSpiPort)->dr ;
 
   // Configure DIO0 for RxDone

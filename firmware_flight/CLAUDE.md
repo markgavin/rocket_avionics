@@ -213,10 +213,20 @@ Runs before `i2c_init()` using raw GPIO to detect cable faults:
 If any test fails, the I2C peripheral is NOT initialized. Barometers and IMU are skipped, but LoRa, display, GPS, and flash continue working. The device info screen shows "I2C FAIL" as the barometer type.
 
 ### Hardware Watchdog (8 second timeout)
-Enabled before the main loop. If any subsystem hangs the main loop (I2C lockup, SPI stall, etc.), the watchdog resets the MCU. On reboot, the bus test runs again and will catch the fault.
+Enabled before the main loop. If any subsystem hangs the main loop (I2C lockup, SPI stall, etc.), the watchdog resets the MCU. On reboot, the bus test runs again and will catch the fault. The watchdog is also fed during flash write operations (`FlightStorage_EndFlight`) which disable interrupts for extended periods.
 
 ### Discovery Notes
 This was discovered when a faulty StemmaQT I2C cable caused the flight computer to hang after exactly 2 LoRa packets. The hang was deterministic: plugging in any I2C device with the bad cable caused the hang, replacing the cable fixed it. The root cause was the bad cable interfering with the I2C bus at the hardware level — software-only I2C disabling (commenting out init and reads) was insufficient because the physical bus state affected the RP2040.
+
+## Reliability Hardening
+
+The firmware eliminates all known infinite-loop risks and unchecked return values:
+
+- **SPI FIFO drain loops** (lora_radio.c): Bounded to 16 iterations — the RP2040 SPI FIFO is only 8 deep. Prevents infinite loop if eInk bit-bang noise leaves the SPI peripheral in a stuck-readable state.
+- **IMU read check** (main.c): `IMU_Read()` return value is checked before feeding data to the complementary filter. On I2C failure, the update is skipped to avoid stale data corruption.
+- **Non-blocking PIO write** (heartbeat_led.c): `SendColor()` checks FIFO space before writing instead of using `pio_sm_put_blocking()`. The startup test sequence still uses blocking calls (acceptable during init).
+- **Watchdog during flash write** (flight_storage.c): `watchdog_update()` called after sector erase and between page writes in `FlightStorage_EndFlight()`, which disables interrupts for extended periods.
+- **TX timestamp always updated** (main.c): `sLastLoRaTxMs` updates regardless of TX_DONE status — packets reach the gateway even when TX_DONE polling times out. Prevents false "No Link" display status.
 
 ## Printf Suppression
 

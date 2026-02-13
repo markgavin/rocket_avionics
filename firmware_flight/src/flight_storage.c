@@ -11,6 +11,7 @@
 #include "pico/stdlib.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "hardware/watchdog.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -169,6 +170,7 @@ static bool WriteFlightToFlash(uint8_t inSlot)
 
   // Erase required sectors
   flash_range_erase(theSlotOffset, theSectorsNeeded * FLASH_SECTOR_SIZE) ;
+  watchdog_update() ;  // Feed watchdog after long erase
 
   // Write header (first page)
   uint8_t thePageBuffer[FLASH_PAGE_SIZE] ;
@@ -190,6 +192,7 @@ static bool WriteFlightToFlash(uint8_t inSlot)
     memcpy(thePageBuffer, theSamplePtr, theBytesToWrite) ;
 
     flash_range_program(theSampleOffset, thePageBuffer, FLASH_PAGE_SIZE) ;
+    watchdog_update() ;  // Feed watchdog between page writes
 
     theSampleOffset += FLASH_PAGE_SIZE ;
     theSamplePtr += theBytesToWrite ;

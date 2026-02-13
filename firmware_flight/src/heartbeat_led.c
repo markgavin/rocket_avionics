@@ -49,7 +49,13 @@ static void SendColor(uint32_t inColor)
   // WS2812 expects GRB order, MSB first
   // Shift left by 8 to align 24 bits for PIO
   uint32_t theData = inColor << 8 ;
-  pio_sm_put_blocking(sPio, sStateMachine, theData) ;
+
+  // Non-blocking: skip if FIFO is full (avoids infinite hang).
+  // Rate-limited by blink period, so FIFO is always empty in practice.
+  if (!pio_sm_is_tx_fifo_full(sPio, sStateMachine))
+  {
+    pio_sm_put(sPio, sStateMachine, theData) ;
+  }
 
   // Small delay to ensure PIO processes the data
   busy_wait_us_32(100) ;

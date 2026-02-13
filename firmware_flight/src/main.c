@@ -393,10 +393,13 @@ int main(void)
     if (sImuOk && (theCurrentMs - sLastImuReadMs) >= kImuSampleIntervalMs)
     {
       sLastImuReadMs = theCurrentMs ;
-      IMU_Read(&sImu) ;
 
-      // Update flight controller with IMU data (complementary filter)
-      FlightControl_UpdateImu(&sFlightController, &sImu.pData, theCurrentMs) ;
+      // Only feed complementary filter when IMU read succeeds.
+      // On I2C failure, skip update to avoid stale data corruption.
+      if (IMU_Read(&sImu))
+      {
+        FlightControl_UpdateImu(&sFlightController, &sImu.pData, theCurrentMs) ;
+      }
     }
 
 
@@ -1339,8 +1342,10 @@ static void SendTelemetry(uint32_t inCurrentMs)
   {
     // Mark telemetry as sent (updates timestamp and sequence number)
     FlightControl_MarkTelemetrySent(&sFlightController, inCurrentMs) ;
-    sLastLoRaTxMs = inCurrentMs ;  // Track successful TX for link status
   }
+  // Always update TX timestamp — packets transmit even when TX_DONE
+  // doesn't fire (200ms timeout expires but gateway receives packet).
+  sLastLoRaTxMs = inCurrentMs ;
 
   // Return to receive mode for commands
   LoRa_StartReceive(&sLoRaRadio) ;
