@@ -74,16 +74,21 @@
 #define kPinNeoPixel        4   // GP4 - Built-in NeoPixel
 
 //----------------------------------------------
-// GPS (Adafruit Ultimate GPS FeatherWing - PA1616D)
+// GPS (Adafruit Ultimate GPS)
+// Supported modules:
+//   - Ultimate GPS FeatherWing (PID 3133) - PA1616D / MT3339
+//   - Ultimate GPS Breakout (PID 5440) - PA1616D / MTK3333
 // Uses UART0 on Feather serial pins (bottom of board)
+// MTK3333 outputs $GN prefix (multi-GNSS); parser handles both $GP and $GN
 //----------------------------------------------
 #define kPinGpsTx           0   // GP0 - UART0 TX (GPS RX)
 #define kPinGpsRx           1   // GP1 - UART0 RX (GPS TX)
 #define kGpsUartPort        uart0
 #define kGpsUartBaudrate    9600  // GPS default baud rate
-// Note: GPS Enable pin is directly connected to GND on FeatherWing (always enabled)
-// If using external enable, uncomment and set pin:
-// #define kPinGpsEnable    11  // Optional GPS enable pin (active low)
+// Note: FeatherWing has EN wired always-on. Breakout has EN pin with
+// internal pull-up (HIGH = enabled). Leave unconnected or drive HIGH.
+// If using carrier board with GPIO-controlled enable, uncomment:
+// #define kPinGpsEnable    11  // Optional GPS enable pin (active high)
 
 //----------------------------------------------
 // Future: Pyro Channels (for ejection charges)

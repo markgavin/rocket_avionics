@@ -1,6 +1,8 @@
 //----------------------------------------------
 // Module: gps.c
-// Description: GPS Driver for PA1616D (Ultimate GPS)
+// Description: GPS Driver for Adafruit Ultimate GPS
+//   Supports PA1616D / MT3339 (FeatherWing) and
+//   PA1616D / MTK3333 (Breakout, PID 5440).
 //   NMEA sentence parsing over UART
 // Author: Mark Gavin
 // Created: 2026-01-10
@@ -278,7 +280,7 @@ bool GPS_Init(void)
   #ifdef kPinGpsEnable
   gpio_init(kPinGpsEnable) ;
   gpio_set_dir(kPinGpsEnable, GPIO_OUT) ;
-  gpio_put(kPinGpsEnable, 0) ;  // Low = enabled
+  gpio_put(kPinGpsEnable, 1) ;  // High = enabled (PA1616D EN is active high)
   #endif
 
   sInitialized = true ;
@@ -303,7 +305,7 @@ bool GPS_Init(void)
 void GPS_Enable(bool inEnable)
 {
   #ifdef kPinGpsEnable
-  gpio_put(kPinGpsEnable, inEnable ? 0 : 1) ;  // Active low
+  gpio_put(kPinGpsEnable, inEnable ? 1 : 0) ;  // Active high (EN pin)
   #else
   (void)inEnable ;
   #endif

@@ -2,24 +2,75 @@
 
 ## Overview
 
-The flight computer uses an Adafruit Ultimate GPS FeatherWing (PA1616D module) connected via UART for position tracking, ground speed, heading, and UTC time. GPS data is included in telemetry packets and flash-stored flight recordings.
+The flight computer uses an Adafruit Ultimate GPS module connected via UART for position tracking, ground speed, heading, and UTC time. GPS data is included in telemetry packets and flash-stored flight recordings.
 
 Source: `firmware_flight/src/gps.c`, `firmware_flight/include/gps.h`
 
-## Hardware
+## Supported Modules
+
+Two Adafruit Ultimate GPS modules are supported:
+
+| | FeatherWing (PID 3133) | Breakout (PID 5440) |
+|---|---|---|
+| Chipset | MT3339 | MTK3333 |
+| GNSS | GPS only | GPS + GLONASS |
+| Channels | 22 tracking / 66 searching | 33 tracking / 99 searching |
+| Sensitivity | -165 dBm | -165 dBm |
+| Accuracy | < 3 m | < 3 m |
+| Antenna | Built-in patch | Built-in patch + uFL for external |
+| Enable Pin | Hardwired always-on | EN pin (active high, internal pull-up) |
+| PPS | Available | Available |
+| Backup Battery | CR1220 footprint | CR1220 footprint |
+| NMEA Prefix | `$GP` | `$GN` (multi-GNSS) or `$GP` |
+
+**Recommended:** The Breakout (PID 5440) is preferred for rocket flights because:
+- GPS + GLONASS provides faster fix acquisition and more satellites
+- uFL connector allows an external active antenna for better reception inside a rocket airframe
+- CR1220 backup battery enables warm starts (faster fix after power cycle)
+
+The NMEA parser handles both `$GP` and `$GN` prefixes — it matches sentence types at offset +3 (e.g., `GGA`, `RMC`), so the talker ID is ignored.
+
+## Hardware Interface
 
 | Parameter | Value |
 |-----------|-------|
-| Module | PA1616D (MediaTek MT3339) |
-| Product | Adafruit Ultimate GPS FeatherWing (PID 3133) |
 | Interface | UART0 at 9600 baud, 8N1 |
-| TX Pin | GP0 (UART0 TX -> GPS RX) |
-| RX Pin | GP1 (UART0 RX -> GPS TX) |
+| TX Pin | GP0 (UART0 TX → GPS RX) |
+| RX Pin | GP1 (UART0 RX → GPS TX) |
+| Logic Level | 3.3V (5V-safe input) |
+| Power | 3.0–5.5V, ~29 mA tracking / 34 mA acquisition |
 | Update Rate | 1 Hz (configurable up to 10 Hz) |
-| Channels | 22 tracking, 66 searching |
-| Sensitivity | -165 dBm |
-| Antenna | Built-in patch antenna (external SMA optional) |
-| Enable | Directly wired to GND (always on) |
+
+## Wiring: GPS Breakout (PID 5440) to Feather RP2040 RFM95
+
+```
+Adafruit Ultimate GPS              Feather RP2040
+Breakout (PID 5440)                + RFM95 LoRa
+┌──────────────────┐               ┌──────────────────┐
+│                  │               │                  │
+│  VIN ────────────────────────────── 3V3              │
+│                  │               │                  │
+│  GND ────────────────────────────── GND              │
+│                  │               │                  │
+│  TX  ────────────────────────────── GP1 (UART0 RX)   │
+│                  │               │                  │
+│  RX  ────────────────────────────── GP0 (UART0 TX)   │
+│                  │               │                  │
+│  EN  ── n/c (internal pull-up)   │                  │
+│  FIX ── n/c (LED on breakout)    │                  │
+│  PPS ── n/c (no free GPIO)       │                  │
+│                  │               │                  │
+└──────────────────┘               └──────────────────┘
+
+4 wires: VIN, GND, TX, RX
+```
+
+**Notes:**
+- **VIN** accepts 3.0–5.5V. Use Feather 3V3 pin (regulated) or USB pin (5V when USB connected).
+- **TX/RX crossover:** GPS TX connects to Feather RX (GP1), GPS RX connects to Feather TX (GP0).
+- **EN pin:** Leave unconnected — internal pull-up keeps GPS always enabled. On a carrier board with a free GPIO, EN can be driven LOW to put the GPS in standby for power savings.
+- **PPS pin:** 1 pulse-per-second output for precision timing. Not used by current firmware (no free GPIO on the Feather). Can be connected on a carrier board for future use.
+- **External antenna:** Connect via the uFL connector on the breakout. An active antenna is recommended for flights inside composite or fiberglass airframes.
 
 ## NMEA Sentence Parsing
 

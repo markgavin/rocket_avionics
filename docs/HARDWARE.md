@@ -19,7 +19,7 @@ Both use the same base board (Adafruit Feather RP2040 with RFM95 LoRa) for simpl
 | BMP390 Barometric Sensor | 4816 | 1 | Altitude measurement (primary) |
 | BMP581 Barometric Sensor | 5857 | 1 | Altitude measurement (secondary, higher accuracy) |
 | LSM6DSOX + LIS3MDL 9-DoF IMU FeatherWing | 4565 | 1 | Accelerometer, gyroscope, magnetometer |
-| GPS Module (UART, 9600 baud) | varies | 1 | Position tracking |
+| Ultimate GPS Breakout (MTK3333) | 5440 | 1 | Position tracking (GPS+GLONASS) |
 | FeatherWing OLED 128x64 | 4650 | 1 | Status display |
 | Quad Side-By-Side FeatherWing Kit | 4254 | 1 | Mounting all boards |
 | LiPo Battery 3.7V 500mAh+ | varies | 1 | Power |
@@ -84,18 +84,20 @@ I2C Devices:
 - ICM-20649 Accel/Gyro: 0x68 (or 0x69)
 - SSD1306 OLED: 0x3C
 
-#### GPS Module (UART1) - Flight Computer Only
+#### GPS Module (UART0) - Flight Computer Only
 
 | Function | GPIO | Notes |
 |----------|------|-------|
-| UART TX | GP4 | To GPS RX |
-| UART RX | GP5 | From GPS TX |
+| UART0 TX | GP0 | To GPS RX |
+| UART0 RX | GP1 | From GPS TX |
 
 GPS Configuration:
+- Module: Adafruit Ultimate GPS Breakout (PID 5440, MTK3333)
 - Baud Rate: 9600
 - Protocol: NMEA 0183
-- Sentences: GPRMC, GPGGA
-- Update Rate: 1 Hz typical
+- Sentences: GGA, RMC (parser handles both `$GP` and `$GN` prefixes)
+- Update Rate: 1 Hz (configurable up to 10 Hz)
+- See [GPS.md](GPS.md) for wiring diagram and full details
 
 #### SD Card (Adalogger FeatherWing)
 
@@ -340,11 +342,12 @@ Expected devices on I2C bus:
 ### GPS Not Getting Fix
 
 1. GPS requires clear sky view - won't work indoors
-2. Wait 30-60 seconds for initial fix (cold start)
-3. Check UART connections (GP4 TX to GPS RX, GP5 RX from GPS TX)
+2. Wait 30-60 seconds for initial fix (cold start); install CR1220 battery for warm starts
+3. Check UART connections (GP0 TX to GPS RX, GP1 RX from GPS TX)
 4. Verify GPS module baud rate is 9600
-5. Verify GPS module power (3.3V from Feather)
-6. Check for valid NMEA sentences (GPRMC, GPGGA)
+5. Verify GPS module power (3.3V from Feather 3V3 pin)
+6. Check for valid NMEA sentences (`$GPGGA`/`$GNGGA`, `$GPRMC`/`$GNRMC`)
+7. For rocket airframes: connect an external active antenna via uFL connector
 
 ### Gateway Ground Pressure Not Working
 

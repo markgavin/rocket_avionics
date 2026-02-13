@@ -11,7 +11,7 @@ Rocket flight computer firmware for Adafruit Feather RP2040 with RFM95 LoRa Radi
 - **IMU:** LSM6DSOX + LIS3MDL 9-DoF (Product ID: 4565) or ICM-20649
 - **Sensor Fusion:** Complementary filter fuses baro + IMU for altitude/velocity (see `docs/SENSORS.md`)
 - **Display:** Adafruit FeatherWing OLED 128x64 (Product ID: 4650)
-- **GPS:** Optional GPS module on UART0
+- **GPS:** Adafruit Ultimate GPS FeatherWing (MT3339) or Breakout (MTK3333, PID 5440) on UART0
 
 ## Project Structure
 
