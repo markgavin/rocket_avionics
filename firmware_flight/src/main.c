@@ -22,13 +22,19 @@
 #include "bmp390.h"
 #include "bmp581.h"
 #include "lora_radio.h"
+#ifdef DISPLAY_EINK
+#include "uc8151d.h"
+#include "framebuffer.h"
+#else
 #include "ssd1306.h"
+#endif
 #include "status_display.h"
 #include "heartbeat_led.h"
 #include "imu.h"
 #include "gps.h"
 
 #include "pico/stdlib.h"
+#include "pico/multicore.h"
 #include "hardware/i2c.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
@@ -77,14 +83,16 @@ static bool sBmp390Ok = false ;
 static bool sBmp581Ok = false ;
 static bool sLoRaOk = false ;
 static bool sImuOk = false ;
-static bool sOledOk = false ;
+static bool sDisplayOk = false ;
 static bool sGpsOk = false ;
 static bool sFlashOk = false ;
 
 // Timing
 static uint32_t sLastSensorReadMs = 0 ;
 static uint32_t sLastImuReadMs = 0 ;
+#ifndef DISPLAY_EINK
 static uint32_t sLastDisplayUpdateMs = 0 ;
+#endif
 static uint32_t sLastLoRaRxMs = 0 ;
 static uint32_t sLastLoRaTxMs = 0 ;  // Last successful telemetry TX
 static uint32_t sLastFlashLogMs = 0 ;  // Last flash logging time
@@ -123,10 +131,87 @@ static void InitializeI2C(void) ;
 static void InitializeSPI(void) ;
 static void InitializeButtons(void) ;
 static void ProcessButtons(uint32_t inCurrentMs) ;
+#ifndef DISPLAY_EINK
 static void UpdateDisplay(uint32_t inCurrentMs) ;
+#endif
 static void SendTelemetry(uint32_t inCurrentMs) ;
 static void SendBaroCompare(void) ;
 static void ProcessLoRaCommands(void) ;
+
+//----------------------------------------------
+// Core1 Display Data (shared between cores)
+// Lock-free design using volatile flags.
+// RP2040 Cortex-M0+ has no cache and no out-of-order
+// execution, so volatile alone guarantees coherence.
+//----------------------------------------------
+#ifdef DISPLAY_EINK
+
+typedef struct {
+  // Flight state
+  FlightState pState ;
+  bool pOrientationMode ;
+  uint8_t pRocketId ;
+  char pRocketName[16] ;
+  bool pRocketIdEditing ;
+
+  // Telemetry values
+  float pAltitudeM ;
+  float pVelocityMps ;
+  float pPressurePa ;
+  float pTemperatureC ;
+
+  // GPS
+  bool pGpsOk ;
+  bool pGpsFix ;
+  uint8_t pGpsSatellites ;
+  float pGpsLatitude ;
+  float pGpsLongitude ;
+  float pGpsSpeedMps ;
+  float pGpsHeadingDeg ;
+
+  // LoRa
+  bool pLoRaOk ;
+  bool pLoRaConnected ;
+  int16_t pRssi ;
+  int8_t pSnr ;
+  int16_t pLastRssi ;
+  uint32_t pPacketsSent ;
+  uint32_t pPacketsReceived ;
+
+  // Device status
+  bool pBaroOk ;
+  bool pImuOk ;
+  bool pGpsStatus ;
+  const char * pBaroType ;
+
+  // Flight results
+  FlightResults pResults ;
+  float pGroundPressurePa ;
+
+  // Timing
+  uint32_t pCurrentMs ;
+  uint32_t pLastLoRaTxMs ;
+  uint32_t pLastLoRaRxMs ;
+} DisplaySharedData ;
+
+// Core0 → Core1: bulk telemetry data (core0 writes, core1 reads)
+static DisplaySharedData sDisplayShared ;
+
+// Core1 → Core0: iteration counter for debug monitoring
+static volatile uint32_t sCore1Iterations = 0 ;
+
+// Core0 → Core1: button events (individual atomic flags)
+static volatile bool sBtnCycleMode = false ;
+static volatile bool sBtnHome = false ;
+static volatile bool sBtnEditRocket = false ;
+
+// Core1 → Core0: current display mode (atomic word read)
+static volatile DisplayMode sCore1CurrentMode = kDisplayModeLive ;
+
+// Core1 display loop — runs independently, can block freely
+static void Core1_DisplayLoop(void) ;
+
+#endif // DISPLAY_EINK
 
 //----------------------------------------------
 // Function: main
@@ -153,7 +238,7 @@ int main(void)
   printf("Flight controller initialized\n") ;
 
   // Show splash screen
-  if (sOledOk)
+  if (sDisplayOk)
   {
     StatusDisplay_ShowSplash() ;
     sleep_ms(kSplashDisplayMs) ;
@@ -168,6 +253,8 @@ int main(void)
       sImuOk,
       sGpsOk) ;
     sleep_ms(kSplashDisplayMs) ;
+
+    sleep_ms(kSplashDisplayMs) ;
   }
 
   // Print startup summary
@@ -180,10 +267,30 @@ int main(void)
     printf("  Baro:    NONE (FAIL)\n") ;
   printf("  LoRa:    %s\n", sLoRaOk ? "OK" : "FAIL") ;
   printf("  IMU:     %s\n", sImuOk ? "OK" : "FAIL") ;
-  printf("  OLED:    %s\n", sOledOk ? "OK" : "FAIL") ;
+  printf("  Display: %s\n", sDisplayOk ? "OK" : "FAIL") ;
   printf("  GPS:     %s\n", sGpsOk ? "OK" : "FAIL") ;
   printf("  Flash:   %s\n", sFlashOk ? "OK" : "FAIL") ;
   printf("\nEntering main loop...\n\n") ;
+
+#ifdef DISPLAY_EINK
+  // Launch core1 for eInk display updates.
+  // All display I/O moves to core1 so it can block
+  // on eInk refresh without affecting LoRa on core0.
+  if (sDisplayOk)
+  {
+    memset(&sDisplayShared, 0, sizeof(sDisplayShared)) ;
+    sDisplayShared.pBaroType = sBmp390Ok ? "BMP390" : (sBmp581Ok ? "BMP581" : "None") ;
+    sDisplayShared.pBaroOk = sBmp390Ok || sBmp581Ok ;
+    sDisplayShared.pLoRaOk = sLoRaOk ;
+    sDisplayShared.pImuOk = sImuOk ;
+    sDisplayShared.pGpsStatus = sGpsOk ;
+    printf("Launching Core1 for eInk display...\n") ;
+    multicore_launch_core1(Core1_DisplayLoop) ;
+    printf("Core1 launched OK\n") ;
+  }
+#endif
+
+  printf("Starting main loop...\n") ;
 
   // Put LoRa in receive mode to listen for commands
   if (sLoRaOk)
@@ -274,6 +381,7 @@ int main(void)
       }
     }
 
+
     //------------------------------------------
     // 2. Read IMU (100 Hz)
     //------------------------------------------
@@ -285,6 +393,8 @@ int main(void)
       // Update flight controller with IMU data (complementary filter)
       FlightControl_UpdateImu(&sFlightController, &sImu.pData, theCurrentMs) ;
     }
+
+
 
     //------------------------------------------
     // 3. Update flight state machine
@@ -425,8 +535,9 @@ int main(void)
       FlightStorage_LogSample(&theSample) ;
     }
 
+
     //------------------------------------------
-    // 4. Send LoRa telemetry (10 Hz)
+    // 4. Send LoRa telemetry (10 Hz) — PRIORITY
     //------------------------------------------
     if (sLoRaOk && FlightControl_ShouldSendTelemetry(&sFlightController, theCurrentMs))
     {
@@ -452,13 +563,60 @@ int main(void)
     }
 
     //------------------------------------------
-    // 7. Update display (5 Hz)
+    // 7. Update display
     //------------------------------------------
+#ifdef DISPLAY_EINK
+    // eInk: populate shared data for core1 (lock-free)
+    // Core0 writes unconditionally; core1 reads when ready.
+    // Torn reads are harmless for display purposes.
+    if (sDisplayOk)
+    {
+      const GpsData * theGps = sGpsOk ? GPS_GetData() : NULL ;
+
+      sDisplayShared.pState = FlightControl_GetState(&sFlightController) ;
+      sDisplayShared.pOrientationMode = sFlightController.pOrientationMode ;
+      sDisplayShared.pRocketId = sRocketId ;
+      strncpy(sDisplayShared.pRocketName, sRocketName, sizeof(sDisplayShared.pRocketName) - 1) ;
+      sDisplayShared.pRocketIdEditing = sRocketIdEditing ;
+
+      sDisplayShared.pAltitudeM = sFlightController.pCurrentAltitudeM ;
+      sDisplayShared.pVelocityMps = sFlightController.pCurrentVelocityMps ;
+      sDisplayShared.pPressurePa = sFlightController.pCurrentPressurePa ;
+      sDisplayShared.pTemperatureC = sFlightController.pCurrentTemperatureC ;
+      sDisplayShared.pGroundPressurePa = sFlightController.pGroundPressurePa ;
+      sDisplayShared.pResults = sFlightController.pResults ;
+
+      sDisplayShared.pGpsOk = sGpsOk ;
+      sDisplayShared.pGpsFix = (theGps != NULL) && theGps->pValid ;
+      sDisplayShared.pGpsSatellites = (theGps != NULL) ? theGps->pSatellites : 0 ;
+      sDisplayShared.pGpsLatitude = (theGps != NULL) ? theGps->pLatitude : 0.0f ;
+      sDisplayShared.pGpsLongitude = (theGps != NULL) ? theGps->pLongitude : 0.0f ;
+      sDisplayShared.pGpsSpeedMps = (theGps != NULL) ? theGps->pSpeedMps : 0.0f ;
+      sDisplayShared.pGpsHeadingDeg = (theGps != NULL) ? theGps->pHeadingDeg : 0.0f ;
+
+      sDisplayShared.pLoRaOk = sLoRaOk ;
+      sDisplayShared.pLoRaConnected = sLoRaOk && (sLastLoRaTxMs > 0) &&
+        ((theCurrentMs - sLastLoRaTxMs) < kLoRaTimeoutMs) ;
+      sDisplayShared.pRssi = sGatewayRssi ;
+      sDisplayShared.pSnr = sGatewaySnr ;
+      sDisplayShared.pLastRssi = sLoRaRadio.pLastRssi ;
+      sDisplayShared.pPacketsSent = sLoRaRadio.pPacketsSent ;
+      sDisplayShared.pPacketsReceived = sLoRaRadio.pPacketsReceived ;
+      sDisplayShared.pLastLoRaTxMs = sLastLoRaTxMs ;
+      sDisplayShared.pLastLoRaRxMs = sLastLoRaRxMs ;
+      sDisplayShared.pCurrentMs = theCurrentMs ;
+
+      sRocketIdEditing = false ;
+    }
+#else
+    // OLED: direct update on core0
     if ((theCurrentMs - sLastDisplayUpdateMs) >= kDisplayUpdateIntervalMs)
     {
       sLastDisplayUpdateMs = theCurrentMs ;
       UpdateDisplay(theCurrentMs) ;
     }
+#endif
+
 
     //------------------------------------------
     // 8. Update heartbeat LED
@@ -466,6 +624,7 @@ int main(void)
     HeartbeatLED_Update(
       FlightControl_GetState(&sFlightController),
       theCurrentMs) ;
+
 
     //------------------------------------------
     // 9. Process button inputs
@@ -545,17 +704,30 @@ static void InitializeHardware(void)
     printf("WARNING: No barometer found (BMP390 or BMP581)\n") ;
   }
 
-  // Initialize OLED display
+  // Initialize display
+#ifdef DISPLAY_EINK
+  printf("Initializing eInk display...\n") ;
+  if (StatusDisplay_Init())
+  {
+    sDisplayOk = true ;
+    printf("eInk display initialized\n") ;
+  }
+  else
+  {
+    printf("WARNING: eInk display initialization failed\n") ;
+  }
+#else
   printf("Initializing OLED display...\n") ;
   if (StatusDisplay_Init())
   {
-    sOledOk = true ;
+    sDisplayOk = true ;
     printf("OLED display initialized\n") ;
   }
   else
   {
     printf("WARNING: OLED display initialization failed\n") ;
   }
+#endif
 
   // Initialize IMU (LSM6DSOX + LIS3MDL)
   printf("Initializing IMU...\n") ;
@@ -649,6 +821,39 @@ static void InitializeSPI(void)
 {
   printf("Initializing SPI1 bus...\n") ;
 
+  // Initialize eInk display pins to safe state (prevents floating
+  // pins from interfering with SPI1 when eInk display is physically connected)
+  gpio_init(kPinEpdCs) ;
+  gpio_set_dir(kPinEpdCs, GPIO_OUT) ;
+  gpio_put(kPinEpdCs, 1) ;        // CS high = deselected
+
+  gpio_init(kPinEpdDc) ;
+  gpio_set_dir(kPinEpdDc, GPIO_OUT) ;
+  gpio_put(kPinEpdDc, 0) ;
+
+  gpio_init(kPinEpdReset) ;
+  gpio_set_dir(kPinEpdReset, GPIO_OUT) ;
+  gpio_put(kPinEpdReset, 0) ;     // Hold in reset
+
+  gpio_init(kPinEpdBusy) ;
+  gpio_set_dir(kPinEpdBusy, GPIO_IN) ;
+  gpio_pull_up(kPinEpdBusy) ;    // If BUSY not wired, reads HIGH (not busy)
+
+  gpio_init(kPinEpdSramCs) ;
+  gpio_set_dir(kPinEpdSramCs, GPIO_OUT) ;
+  gpio_put(kPinEpdSramCs, 1) ;    // SRAM CS high = deselected
+
+#ifdef DISPLAY_EINK
+  // eInk bit-banged SPI pins (dedicated, no SPI1 conflict)
+  gpio_init(kPinEpdSck) ;
+  gpio_set_dir(kPinEpdSck, GPIO_OUT) ;
+  gpio_put(kPinEpdSck, 0) ;
+
+  gpio_init(kPinEpdMosi) ;
+  gpio_set_dir(kPinEpdMosi, GPIO_OUT) ;
+  gpio_put(kPinEpdMosi, 0) ;
+#endif
+
   // Initialize SPI1 for LoRa radio
   spi_init(kSpiPort, kSpiLoRaBaudrate) ;
   gpio_set_function(kPinSpiSck, GPIO_FUNC_SPI) ;
@@ -723,7 +928,11 @@ static void ProcessButtons(uint32_t inCurrentMs)
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
       DEBUG_PRINT("Button A: Previous display mode...\n") ;
+#ifdef DISPLAY_EINK
+      sBtnCycleMode = true ;
+#else
       StatusDisplay_PrevMode() ;
+#endif
     }
   }
 
@@ -742,31 +951,42 @@ static void ProcessButtons(uint32_t inCurrentMs)
 
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
-      if (StatusDisplay_GetMode() == kDisplayModeRocketId)
+#ifdef DISPLAY_EINK
       {
-        // On Rocket ID screen: cycle through rocket IDs 0-15
-        sRocketId = (sRocketId + 1) % 16 ;
-        DEBUG_PRINT("Button B: Rocket ID changed to %u\n", sRocketId) ;
+        // Read current display mode from core1 (atomic word read)
+        DisplayMode theMode = sCore1CurrentMode ;
 
-        // Save to flash
-        if (Storage_SaveRocketId(sRocketId))
+        if (theMode == kDisplayModeRocketId)
         {
-          DEBUG_PRINT("Rocket ID saved to flash\n") ;
+          // On Rocket ID screen: cycle the ID (flash save on core0)
+          sRocketId = (sRocketId + 1) % 16 ;
+          DEBUG_PRINT("Button B: Rocket ID changed to %u\n", sRocketId) ;
+          Storage_SaveRocketId(sRocketId) ;
+          sRocketIdEditing = true ;
+          sBtnEditRocket = true ;
         }
         else
         {
-          DEBUG_PRINT("Failed to save rocket ID\n") ;
+          // On all other screens: go Home (Live)
+          DEBUG_PRINT("Button B: Home\n") ;
+          sBtnHome = true ;
         }
-
-        // Mark as editing (for display feedback)
-        sRocketIdEditing = true ;
       }
-      else
+#else
+      // Rocket ID editing on core0 (saves to flash)
+      sRocketId = (sRocketId + 1) % 16 ;
+      DEBUG_PRINT("Button B: Rocket ID changed to %u\n", sRocketId) ;
+      Storage_SaveRocketId(sRocketId) ;
+      sRocketIdEditing = true ;
+
+      if (StatusDisplay_GetMode() != kDisplayModeRocketId)
       {
-        // On all other screens: go Home (Live/Idle screen)
-        DEBUG_PRINT("Button B: Home - returning to Live screen\n") ;
+        // On non-Rocket ID screens, undo the ID change and go Home
+        sRocketId = (sRocketId + 15) % 16 ;  // Undo increment
+        sRocketIdEditing = false ;
         StatusDisplay_SetMode(kDisplayModeLive) ;
       }
+#endif
     }
   }
 
@@ -786,17 +1006,23 @@ static void ProcessButtons(uint32_t inCurrentMs)
     if (theHoldTime > kButtonDebounceMs && theHoldTime < kButtonLongPressMs)
     {
       DEBUG_PRINT("Button C: Next display mode...\n") ;
+#ifdef DISPLAY_EINK
+      sBtnCycleMode = true ;
+#else
       StatusDisplay_CycleMode() ;
+#endif
     }
   }
 }
 
 //----------------------------------------------
-// Function: UpdateDisplay
+// Function: UpdateDisplay (OLED only — eInk uses Core1_DisplayLoop)
 //----------------------------------------------
+#ifndef DISPLAY_EINK
+
 static void UpdateDisplay(uint32_t inCurrentMs)
 {
-  if (!sOledOk) return ;
+  if (!sDisplayOk) return ;
 
   FlightState theState = FlightControl_GetState(&sFlightController) ;
   DisplayMode theMode = StatusDisplay_GetMode() ;
@@ -994,6 +1220,8 @@ static void UpdateDisplay(uint32_t inCurrentMs)
   }
 }
 
+#endif // !DISPLAY_EINK
+
 //----------------------------------------------
 // Function: SendTelemetry
 //----------------------------------------------
@@ -1005,7 +1233,7 @@ static void SendTelemetry(uint32_t inCurrentMs)
   uint8_t theLen = FlightControl_BuildTelemetryPacket(&sFlightController, theImuData, sRocketId, &thePacket) ;
 
   // Send via LoRa (blocking to ensure packet completes)
-  // Timeout increased to 200ms for 42-byte GPS-enabled packet
+  // SF7/125kHz 42-byte packet takes ~80ms airtime
   if (LoRa_SendBlocking(&sLoRaRadio, (uint8_t *)&thePacket, theLen, 200))
   {
     // Mark telemetry as sent (updates timestamp and sequence number)
@@ -1097,7 +1325,7 @@ static void SendDeviceInfo(void)
   if (sBmp581Ok || sBmp390Ok) theFlags |= 0x01 ;
   if (sLoRaOk) theFlags |= 0x02 ;
   if (sImuOk) theFlags |= 0x04 ;
-  if (sOledOk) theFlags |= 0x10 ;
+  if (sDisplayOk) theFlags |= 0x10 ;
   if (sGpsOk) theFlags |= 0x20 ;
   thePacket[theOffset++] = theFlags ;
 
@@ -1556,3 +1784,174 @@ static void ProcessLoRaCommands(void)
   // Return to receive mode
   LoRa_StartReceive(&sLoRaRadio) ;
 }
+
+//----------------------------------------------
+// Function: Core1_DisplayLoop
+// Purpose: eInk display loop running on core1.
+//   Reads shared data from core0, handles button
+//   events, and calls StatusDisplay_* functions.
+//   Can block freely on eInk refresh without
+//   affecting LoRa/sensors on core0.
+//----------------------------------------------
+#ifdef DISPLAY_EINK
+
+static void Core1_DisplayLoop(void)
+{
+  // IMPORTANT: No printf on core1. The USB CDC mutex is serviced
+  // by core0's IRQ handler. If core1 holds the printf mutex while
+  // core0 waits for it, core0 can't service the USB IRQ, causing
+  // deadlock. Use sCore1Iterations for debug monitoring from core0.
+
+  DisplaySharedData theData ;
+  memset(&theData, 0, sizeof(theData)) ;
+  theData.pBaroType = "None" ;
+
+  while (1)
+  {
+    sCore1Iterations++ ;
+
+    // Copy latest data from core0 (lock-free)
+    // Torn reads are harmless — worst case one frame shows
+    // a mix of old/new values, imperceptible on eInk.
+    theData = sDisplayShared ;
+
+    // Read button events (atomic bool reads, clear after reading)
+    bool theBtnCycle = sBtnCycleMode ;
+    if (theBtnCycle) sBtnCycleMode = false ;
+    bool theBtnHome = sBtnHome ;
+    if (theBtnHome) sBtnHome = false ;
+    bool theBtnEditRocket = sBtnEditRocket ;
+    if (theBtnEditRocket) sBtnEditRocket = false ;
+
+    // Process button events
+    if (theBtnHome)
+    {
+      StatusDisplay_SetMode(kDisplayModeLive) ;
+    }
+    if (theBtnCycle)
+    {
+      StatusDisplay_CycleMode() ;
+    }
+
+    // Write current mode back for core0 Button B decisions
+    DisplayMode theMode = StatusDisplay_GetMode() ;
+    sCore1CurrentMode = theMode ;
+
+    // Skip display updates during active flight (LoRa priority)
+    if (theData.pState >= kFlightBoost && theData.pState <= kFlightDescent)
+    {
+      busy_wait_us_32(kDisplayUpdateIntervalMs * 1000) ;
+      continue ;
+    }
+
+    // Update display based on current mode
+    switch (theMode)
+    {
+      case kDisplayModeLive:
+        if (theData.pState == kFlightArmed)
+        {
+          StatusDisplay_ShowArmed(theData.pGroundPressurePa) ;
+        }
+        else if (theData.pState == kFlightLanded || theData.pState == kFlightComplete)
+        {
+          StatusDisplay_ShowFlightComplete(&theData.pResults) ;
+        }
+        else
+        {
+          bool theLinkActive = theData.pLoRaOk && (theData.pLastLoRaTxMs > 0) &&
+            ((theData.pCurrentMs - theData.pLastLoRaTxMs) < kLoRaTimeoutMs) ;
+
+          StatusDisplay_UpdateCompact(
+            theData.pState,
+            theData.pOrientationMode,
+            theData.pRocketId,
+            theData.pAltitudeM,
+            theData.pVelocityMps,
+            theData.pGpsOk,
+            theData.pGpsFix,
+            theData.pGpsSatellites,
+            theLinkActive,
+            theData.pRssi,
+            theData.pSnr) ;
+        }
+        break ;
+
+      case kDisplayModeDeviceInfo:
+        StatusDisplay_ShowDeviceInfo(
+          FIRMWARE_VERSION_STRING,
+          theData.pBaroType,
+          theData.pBaroOk,
+          theData.pLoRaOk,
+          theData.pImuOk,
+          theData.pGpsStatus) ;
+        break ;
+
+      case kDisplayModeFlightStats:
+        StatusDisplay_ShowFlightComplete(&theData.pResults) ;
+        break ;
+
+      case kDisplayModeLoRaStatus:
+        {
+          bool theLinkActive = theData.pLoRaOk && (theData.pLastLoRaRxMs > 0) &&
+            ((theData.pCurrentMs - theData.pLastLoRaRxMs) < kLoRaTimeoutMs) ;
+          StatusDisplay_ShowLoRaStatus(
+            theLinkActive,
+            theData.pLastRssi,
+            theData.pPacketsSent,
+            theData.pPacketsReceived) ;
+        }
+        break ;
+
+      case kDisplayModeSensors:
+        StatusDisplay_ShowSensorReadings(
+          theData.pPressurePa,
+          theData.pTemperatureC,
+          theData.pAltitudeM) ;
+        break ;
+
+      case kDisplayModeGpsStatus:
+        StatusDisplay_ShowGpsStatus(
+          theData.pGpsFix,
+          theData.pGpsSatellites,
+          theData.pGpsLatitude,
+          theData.pGpsLongitude,
+          theData.pGpsSpeedMps,
+          theData.pGpsHeadingDeg) ;
+        break ;
+
+      case kDisplayModeRocketId:
+        StatusDisplay_ShowRocketId(
+          theData.pRocketId,
+          theData.pRocketName,
+          theData.pRocketIdEditing) ;
+        break ;
+
+      case kDisplayModeAbout:
+        StatusDisplay_ShowAbout(
+          FIRMWARE_VERSION_STRING,
+          kBuildDate,
+          kBuildTime) ;
+        break ;
+
+      default:
+        break ;
+    }
+
+    // Sleep between display updates
+    uint32_t theInterval = kDisplayUpdateIntervalMs ;
+    if (theData.pState == kFlightLanded || theData.pState == kFlightComplete)
+    {
+      theInterval = kDisplayUpdateSlowMs ;
+    }
+    if (theBtnCycle || theBtnHome || theBtnEditRocket)
+    {
+      busy_wait_us_32(200000) ;
+    }
+    else
+    {
+      busy_wait_us_32(theInterval * 1000) ;
+    }
+  }
+}
+
+#endif // DISPLAY_EINK

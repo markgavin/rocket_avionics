@@ -12,6 +12,7 @@
 #include "pins.h"
 
 #include "hardware/i2c.h"
+#include "pico/time.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -720,25 +721,30 @@ const char * IMU_GetTypeName(const Imu * inImu)
 static bool WriteRegister(uint8_t inAddr, uint8_t inReg, uint8_t inValue)
 {
   uint8_t theData[2] = { inReg, inValue } ;
-  int theResult = i2c_write_blocking(kI2cPort, inAddr, theData, 2, false) ;
+  absolute_time_t theTimeout = make_timeout_time_ms(100) ;
+  int theResult = i2c_write_blocking_until(kI2cPort, inAddr, theData, 2, false, theTimeout) ;
   return theResult == 2 ;
 }
 
 static bool ReadRegister(uint8_t inAddr, uint8_t inReg, uint8_t * outValue)
 {
-  int theResult = i2c_write_blocking(kI2cPort, inAddr, &inReg, 1, true) ;
+  absolute_time_t theTimeout = make_timeout_time_ms(100) ;
+  int theResult = i2c_write_blocking_until(kI2cPort, inAddr, &inReg, 1, true, theTimeout) ;
   if (theResult != 1) return false ;
 
-  theResult = i2c_read_blocking(kI2cPort, inAddr, outValue, 1, false) ;
+  theTimeout = make_timeout_time_ms(100) ;
+  theResult = i2c_read_blocking_until(kI2cPort, inAddr, outValue, 1, false, theTimeout) ;
   return theResult == 1 ;
 }
 
 static bool ReadRegisters(uint8_t inAddr, uint8_t inReg, uint8_t * outBuffer, uint8_t inLen)
 {
-  int theResult = i2c_write_blocking(kI2cPort, inAddr, &inReg, 1, true) ;
+  absolute_time_t theTimeout = make_timeout_time_ms(100) ;
+  int theResult = i2c_write_blocking_until(kI2cPort, inAddr, &inReg, 1, true, theTimeout) ;
   if (theResult != 1) return false ;
 
-  theResult = i2c_read_blocking(kI2cPort, inAddr, outBuffer, inLen, false) ;
+  theTimeout = make_timeout_time_ms(100) ;
+  theResult = i2c_read_blocking_until(kI2cPort, inAddr, outBuffer, inLen, false, theTimeout) ;
   return theResult == inLen ;
 }
 

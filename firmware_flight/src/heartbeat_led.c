@@ -50,7 +50,7 @@ static void SendColor(uint32_t inColor)
   pio_sm_put_blocking(sPio, sStateMachine, theData) ;
 
   // Small delay to ensure PIO processes the data
-  sleep_us(100) ;
+  busy_wait_us_32(100) ;
 }
 
 //----------------------------------------------

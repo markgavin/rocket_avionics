@@ -30,12 +30,50 @@ static volatile bool sPacketReceived = false ;
 static volatile bool sTransmitDone = false ;
 
 //----------------------------------------------
-// Internal: SPI Transfer
+// Internal: SPI1 Reinitialize
+// Resets SPI1 to recover from stuck state.
+//----------------------------------------------
+static void SpiReinit(void)
+{
+  spi_deinit(kSpiPort) ;
+  spi_init(kSpiPort, kSpiLoRaBaudrate) ;
+  gpio_set_function(kPinSpiSck, GPIO_FUNC_SPI) ;
+  gpio_set_function(kPinSpiMosi, GPIO_FUNC_SPI) ;
+  gpio_set_function(kPinSpiMiso, GPIO_FUNC_SPI) ;
+}
+
+//----------------------------------------------
+// Internal: SPI Transfer (timeout-protected)
+// 5ms timeout prevents hang if SPI1 is stuck.
+// A single byte at 1 MHz takes ~8us, so 5ms is
+// very generous.
 //----------------------------------------------
 static uint8_t SpiTransfer(uint8_t inData)
 {
-  uint8_t theResult ;
-  spi_write_read_blocking(kSpiPort, &inData, &theResult, 1) ;
+  uint8_t theResult = 0 ;
+  absolute_time_t theDeadline = make_timeout_time_ms(5) ;
+
+  // TX: wait for space in FIFO
+  while (!spi_is_writable(kSpiPort))
+  {
+    if (absolute_time_diff_us(get_absolute_time(), theDeadline) <= 0)
+    {
+      SpiReinit() ;
+      return 0 ;
+    }
+  }
+  spi_get_hw(kSpiPort)->dr = inData ;
+
+  // RX: wait for data
+  while (!spi_is_readable(kSpiPort))
+  {
+    if (absolute_time_diff_us(get_absolute_time(), theDeadline) <= 0)
+    {
+      SpiReinit() ;
+      return 0 ;
+    }
+  }
+  theResult = (uint8_t)spi_get_hw(kSpiPort)->dr ;
   return theResult ;
 }
 
@@ -275,6 +313,62 @@ bool LoRa_SetSyncWord(LoRa_Radio * ioRadio, uint8_t inSyncWord)
 }
 
 //----------------------------------------------
+// Function: LoRa_ReadVersion
+// Reads the version register (0x42) for diagnostics.
+// Returns 0x12 for RFM95/SX1276, 0x00 if SPI broken.
+//----------------------------------------------
+uint8_t LoRa_ReadVersion(LoRa_Radio * inRadio)
+{
+  (void)inRadio ;
+  return ReadRegister(RFM95_REG_VERSION) ;
+}
+
+//----------------------------------------------
+// Function: LoRa_EnsureReady
+// Checks SPI1 communication with the radio by
+// reading the version register. If the radio is
+// not responding, performs a full hardware reset
+// (GP17 toggle) and reconfigures all settings.
+//----------------------------------------------
+bool LoRa_EnsureReady(LoRa_Radio * ioRadio)
+{
+  if (!ioRadio->pInitialized)
+    return false ;
+
+  // Full hardware reset — matches LoRa_Init timing exactly.
+  // NO SpiReinit (SPI peripheral is fine, only radio needs reset).
+  gpio_put(kPinLoRaCs, 1) ;
+  gpio_put(kPinLoRaReset, 0) ;
+  sleep_ms(10) ;
+  gpio_put(kPinLoRaReset, 1) ;
+  sleep_ms(10) ;
+
+  // Verify radio came back
+  uint8_t theVersion = ReadRegister(RFM95_REG_VERSION) ;
+  if (theVersion != 0x12)
+    return false ;
+
+  // Reconfigure radio (sleep → configure → standby)
+  SetMode(RFM95_MODE_SLEEP) ;
+  sleep_ms(10) ;
+
+  WriteRegister(RFM95_REG_FIFO_TX_BASE_ADDR, 0x00) ;
+  WriteRegister(RFM95_REG_FIFO_RX_BASE_ADDR, 0x00) ;
+  WriteRegister(RFM95_REG_LNA, ReadRegister(RFM95_REG_LNA) | 0x03) ;
+  WriteRegister(RFM95_REG_MODEM_CONFIG_3, 0x04) ;
+
+  LoRa_SetFrequency(ioRadio, ioRadio->pFrequencyHz) ;
+  LoRa_SetSpreadingFactor(ioRadio, ioRadio->pSpreadFactor) ;
+  LoRa_SetBandwidth(ioRadio, ioRadio->pBandwidth) ;
+  LoRa_SetCodingRate(ioRadio, ioRadio->pCodingRate) ;
+  LoRa_SetTxPower(ioRadio, ioRadio->pTxPowerDbm) ;
+  LoRa_SetSyncWord(ioRadio, ioRadio->pSyncWord) ;
+
+  SetMode(RFM95_MODE_STDBY) ;
+  return true ;
+}
+
+//----------------------------------------------
 // Function: LoRa_Send
 //----------------------------------------------
 bool LoRa_Send(LoRa_Radio * ioRadio, const uint8_t * inData, uint8_t inLen)
@@ -283,6 +377,11 @@ bool LoRa_Send(LoRa_Radio * ioRadio, const uint8_t * inData, uint8_t inLen)
   {
     return false ;
   }
+
+  // Drain stale RX FIFO data (noise from eInk bit-bang
+  // can inject phantom bytes into SPI1 RX FIFO)
+  while (spi_is_readable(kSpiPort))
+    (void)spi_get_hw(kSpiPort)->dr ;
 
   // Go to standby mode
   SetMode(RFM95_MODE_STDBY) ;
@@ -342,7 +441,7 @@ bool LoRa_SendBlocking(
       return false ;
     }
 
-    sleep_us(100) ;
+    busy_wait_us_32(100) ;
   }
 
   // Return to standby
@@ -359,6 +458,10 @@ bool LoRa_StartReceive(LoRa_Radio * ioRadio)
   {
     return false ;
   }
+
+  // Drain stale RX FIFO data
+  while (spi_is_readable(kSpiPort))
+    (void)spi_get_hw(kSpiPort)->dr ;
 
   // Configure DIO0 for RxDone
   WriteRegister(RFM95_REG_DIO_MAPPING_1, 0x00) ;

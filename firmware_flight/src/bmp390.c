@@ -324,15 +324,6 @@ bool BMP390_ReadPressureTemperature(
                         (uint32_t)theData[4] << 8 |
                         (uint32_t)theData[3] ;
 
-  // Debug: print raw values occasionally
-  static uint32_t sDebugCounter = 0 ;
-  if ((++sDebugCounter % 100) == 1)
-  {
-    printf("BMP RAW: P=%lu T=%lu bytes=[%02X %02X %02X %02X %02X %02X]\n",
-      (unsigned long)theRawPress, (unsigned long)theRawTemp,
-      theData[0], theData[1], theData[2], theData[3], theData[4], theData[5]) ;
-  }
-
   // Compensate temperature first (needed for pressure compensation)
   float theTemperature = CompensateTemperature((BMP390 *)inSensor, theRawTemp) ;
 

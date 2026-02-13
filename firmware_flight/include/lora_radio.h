@@ -238,6 +238,22 @@ bool LoRa_SetTxPower(LoRa_Radio * ioRadio, int8_t inPowerDbm) ;
 bool LoRa_SetSyncWord(LoRa_Radio * ioRadio, uint8_t inSyncWord) ;
 
 //----------------------------------------------
+// Function: LoRa_ReadVersion
+// Purpose: Read version register (SPI diagnostic)
+// Returns: 0x12 if radio responding, 0x00 if broken
+//----------------------------------------------
+uint8_t LoRa_ReadVersion(LoRa_Radio * inRadio) ;
+
+//----------------------------------------------
+// Function: LoRa_EnsureReady
+// Purpose: Check radio health and reset if needed
+// Parameters:
+//   ioRadio - Radio to check
+// Returns: true if radio is ready
+//----------------------------------------------
+bool LoRa_EnsureReady(LoRa_Radio * ioRadio) ;
+
+//----------------------------------------------
 // Function: LoRa_Send
 // Purpose: Send a packet
 // Parameters:

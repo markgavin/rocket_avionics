@@ -31,6 +31,15 @@ set(CMAKE_CXX_STANDARD 17)
 # Initialize the Pico SDK
 pico_sdk_init()
 
+# Display selection: eInk (UC8151D 296x128) or OLED (SSD1306 128x64)
+option(DISPLAY_EINK "Use UC8151D eInk display instead of SSD1306 OLED" OFF)
+
+if(DISPLAY_EINK)
+    set(DISPLAY_SOURCES src/uc8151d.c src/framebuffer.c src/eink_display.c)
+else()
+    set(DISPLAY_SOURCES src/ssd1306.c src/status_display.c)
+endif()
+
 # Main executable
 add_executable(rocket_avionics_flight
     src/main.c
@@ -40,8 +49,7 @@ add_executable(rocket_avionics_flight
     src/bmp390.c
     src/bmp581.c
     src/imu.c
-    src/ssd1306.c
-    src/status_display.c
+    ${DISPLAY_SOURCES}
     src/storage.c
     src/flight_storage.c
     src/heartbeat_led.c
@@ -82,6 +90,7 @@ target_link_libraries(rocket_avionics_flight
     hardware_pio
     hardware_clocks
     pico_unique_id
+    pico_multicore
 )
 
 # Enable USB output, disable UART
@@ -101,4 +110,6 @@ target_compile_options(rocket_avionics_flight PRIVATE
 # Define for flight computer hardware
 target_compile_definitions(rocket_avionics_flight PRIVATE
     HARDWARE_FLIGHT=1
+    $<$<BOOL:${DISPLAY_EINK}>:DISPLAY_EINK=1>
+    PICO_CORE1_STACK_SIZE=4096
 )

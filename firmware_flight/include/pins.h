@@ -87,10 +87,9 @@
 
 //----------------------------------------------
 // Future: Pyro Channels (for ejection charges)
-// Reserve these pins for future use
+// Note: GP24/GP25 reassigned to eInk display SPI.
+// Pyro pins will be assigned on carrier board revision.
 //----------------------------------------------
-#define kPinPyro1           24  // GP24 - Drogue deployment (future)
-#define kPinPyro2           25  // GP25 - Main deployment (future)
 #define kPinPyro1Continuity 26  // GP26/A0 - Drogue continuity ADC (future)
 #define kPinPyro2Continuity 27  // GP27/A1 - Main continuity ADC (future)
 
@@ -115,7 +114,6 @@
 // Telemetry Timing
 //----------------------------------------------
 #define kTelemetryIntervalMs        100     // 10 Hz LoRa telemetry
-#define kDisplayUpdateIntervalMs    200     // 5 Hz display update
 #define kSensorSampleIntervalMs     10      // 100 Hz sensor sampling
 #define kImuSampleIntervalMs        10      // 100 Hz IMU sampling
 
@@ -149,10 +147,42 @@
 #define kButtonLongPressMs          1000    // Long press threshold
 
 //----------------------------------------------
-// Display Constants (SSD1306 128x64)
+// eInk Display GPIO Pins (always defined)
+// Must be initialized to safe states at startup even
+// in OLED builds to prevent floating pins from
+// interfering with SPI1 (LoRa) when eInk is connected.
 //----------------------------------------------
+#define kPinEpdCs           10  // GP10 - eInk chip select
+#define kPinEpdDc           11  // GP11 - Data/Command
+#define kPinEpdReset        12  // GP12 - Hardware reset
+#define kPinEpdBusy         13  // GP13 - Busy signal (input)
+#define kPinEpdSramCs       28  // GP28 - SRAM CS (held high)
+
+//----------------------------------------------
+// Display Constants
+//----------------------------------------------
+#ifdef DISPLAY_EINK
+
+//----------------------------------------------
+// eInk Display (UC8151D 296x128, bit-banged SPI)
+//----------------------------------------------
+#define kPinEpdSck          24  // GP24 - eInk SCK (bit-banged, dedicated)
+#define kPinEpdMosi         25  // GP25 - eInk MOSI (bit-banged, dedicated)
+#define kDisplayUpdateIntervalMs    2000    // 2s polling in IDLE
+#define kDisplayUpdateSlowMs        5000    // 5s in COMPLETE
+#define kDisplayWidth               296
+#define kDisplayHeight              128
+
+#else
+
+//----------------------------------------------
+// OLED Display (SSD1306 128x64 FeatherWing via I2C)
+//----------------------------------------------
+#define kDisplayUpdateIntervalMs    200     // 5 Hz display update
 #define kDisplayWidth               128
 #define kDisplayHeight              64
+
+#endif // DISPLAY_EINK
 
 //----------------------------------------------
 // Communication Timeout

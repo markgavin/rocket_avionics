@@ -20,23 +20,23 @@
 //----------------------------------------------
 // Heartbeat LED Colors (GRB format for WS2812)
 // Format: 0x00GGRRBB
-// All colors at ~5% brightness (0x0D = 13/255)
+// All colors at ~20% brightness (0x33 = 51/255)
 //----------------------------------------------
 #define kLedColorOff        0x00000000
-#define kLedColorGreen      0x000D0000  // Idle - slow pulse
-#define kLedColorYellow     0x000D0D00  // Armed - medium blink
-#define kLedColorRed        0x00000D00  // Boost - fast blink
-#define kLedColorOrange     0x00050D00  // Coast - steady
-#define kLedColorMagenta    0x00000D0D  // Apogee - flash
-#define kLedColorBlue       0x0000000D  // Descent - medium blink
-#define kLedColorCyan       0x000D000D  // Landed - slow pulse
-#define kLedColorWhite      0x000D0D0D  // Complete - steady
+#define kLedColorGreen      0x00330000  // Idle - slow pulse
+#define kLedColorYellow     0x00333300  // Armed - medium blink
+#define kLedColorRed        0x00003300  // Boost - fast blink
+#define kLedColorOrange     0x001A3300  // Coast - steady
+#define kLedColorMagenta    0x00003333  // Apogee - flash
+#define kLedColorBlue       0x00000033  // Descent - medium blink
+#define kLedColorCyan       0x00330033  // Landed - slow pulse
+#define kLedColorWhite      0x00333333  // Complete - steady
 
-// Dimmed versions for pulsing effect (~1% brightness)
-#define kLedColorGreenDim   0x00030000
-#define kLedColorYellowDim  0x00030300
-#define kLedColorRedDim     0x00000300
-#define kLedColorBlueDim    0x00000003
+// Dimmed versions for pulsing effect (~4% brightness)
+#define kLedColorGreenDim   0x00060000
+#define kLedColorYellowDim  0x00060600
+#define kLedColorRedDim     0x00000600
+#define kLedColorBlueDim    0x00000006
 
 //----------------------------------------------
 // Function: HeartbeatLED_Init
