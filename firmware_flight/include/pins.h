@@ -78,11 +78,12 @@
 // Supported modules:
 //   - Ultimate GPS FeatherWing (PID 3133) - PA1616D / MT3339
 //   - Ultimate GPS Breakout (PID 5440) - PA1616D / MTK3333
-// Uses UART0 on Feather serial pins (bottom of board)
+// Uses UART0. RX on GP13 (D13) instead of GP1 to avoid
+// crosstalk into adjacent I2C lines (GP2/GP3).
 // MTK3333 outputs $GN prefix (multi-GNSS); parser handles both $GP and $GN
 //----------------------------------------------
-#define kPinGpsTx           0   // GP0 - UART0 TX (GPS RX)
-#define kPinGpsRx           1   // GP1 - UART0 RX (GPS TX)
+#define kPinGpsTx           0   // GP0 - UART0 TX (to GPS RX)
+#define kPinGpsRx           1   // GP1 - UART0 RX (from GPS TX)
 #define kGpsUartPort        uart0
 #define kGpsUartBaudrate    9600  // GPS default baud rate
 // Note: FeatherWing has EN wired always-on. Breakout has EN pin with

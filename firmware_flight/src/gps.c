@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <math.h>
 
 //----------------------------------------------
 // Constants
@@ -135,7 +134,7 @@ static void ParseGGA(const char * inSentence)
 
   // Latitude
   thePtr = GetNextField(thePtr, theField, sizeof(theField)) ;
-  char theLat[20] ;
+  char theLat[20] = {0} ;
   strncpy(theLat, theField, sizeof(theLat) - 1) ;
 
   // Latitude direction
@@ -144,7 +143,7 @@ static void ParseGGA(const char * inSentence)
 
   // Longitude
   thePtr = GetNextField(thePtr, theField, sizeof(theField)) ;
-  char theLon[20] ;
+  char theLon[20] = {0} ;
   strncpy(theLon, theField, sizeof(theLon) - 1) ;
 
   // Longitude direction
@@ -265,16 +264,21 @@ bool GPS_Init(void)
   memset(&sGpsData, 0, sizeof(sGpsData)) ;
   sGpsData.pFixQuality = kGpsFixNone ;
 
-  // Initialize UART for GPS (9600 baud default)
+  // Pull-up on RX pin BEFORE uart_init. A floating RX line
+  // receives noise as garbage UART data, which can destabilize
+  // the system. Pull-up holds RX at logic HIGH (UART idle).
+  // When GPS is connected, its TX output overrides the weak pull-up.
+  gpio_pull_up(kPinGpsRx) ;
+
   uart_init(kGpsUartPort, kGpsUartBaudrate) ;
+
+  // Disable DMA request signals — uart_init enables TXDMAE/RXDMAE
+  // by default which can trigger rogue DMA if any channel is
+  // configured for UART0's DREQ.
+  uart_get_hw(kGpsUartPort)->dmacr = 0 ;
+
   gpio_set_function(kPinGpsTx, GPIO_FUNC_UART) ;
   gpio_set_function(kPinGpsRx, GPIO_FUNC_UART) ;
-
-  // Set UART format: 8N1
-  uart_set_format(kGpsUartPort, 8, 1, UART_PARITY_NONE) ;
-
-  // Enable UART FIFO
-  uart_set_fifo_enabled(kGpsUartPort, true) ;
 
   // Initialize GPS enable pin (if used)
   #ifdef kPinGpsEnable
@@ -286,15 +290,9 @@ bool GPS_Init(void)
   sInitialized = true ;
   sNmeaBufferPos = 0 ;
 
-  // Give GPS time to start
-  sleep_ms(100) ;
-
-  // Send initialization commands
-  // Update rate to 1Hz (default, can increase to 5Hz or 10Hz)
-  GPS_SendCommand("PMTK220,1000") ;
-
-  // Request only GGA and RMC sentences
-  GPS_SendCommand("PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0") ;
+  // GPS module uses 1Hz GGA+RMC by default — no need to send
+  // PMTK commands. Skipping uart_puts avoids any risk of
+  // uart_write_blocking hanging if TX FIFO doesn't drain.
 
   return true ;
 }
@@ -330,10 +328,16 @@ void GPS_Update(uint32_t inCurrentTimeMs)
     }
   }
 
-  // Read available UART data
-  while (uart_is_readable(kGpsUartPort))
+  // Read available UART data (bounded to prevent hang if
+  // UART peripheral is stuck readable). At 9600 baud / 100 Hz
+  // call rate, expect ~10 bytes per call. 64 is very generous.
+  // Direct register read instead of uart_getc() to avoid the
+  // spin-wait inside uart_read_blocking().
+  int theBytesRead = 0 ;
+  while (uart_is_readable(kGpsUartPort) && theBytesRead < 64)
   {
-    char theChar = uart_getc(kGpsUartPort) ;
+    theBytesRead++ ;
+    char theChar = (char)(uart_get_hw(kGpsUartPort)->dr) ;
 
     if (theChar == '$')
     {
@@ -357,6 +361,7 @@ void GPS_Update(uint32_t inCurrentTimeMs)
       sNmeaBuffer[sNmeaBufferPos++] = theChar ;
     }
   }
+
 }
 
 //----------------------------------------------
