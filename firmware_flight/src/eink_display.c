@@ -26,11 +26,13 @@
 #define kHeaderY          0
 #define kHeaderH          14
 #define kLabel1Y          20
-#define kValue1Y          32      // 8-aligned for partial refresh
-#define kSep1Y            52
-#define kLabel2Y          56
-#define kValue2Y          72      // 8-aligned
-#define kSep2Y            92
+#define kValue1Y          28
+#define kSep1Y            46
+#define kLabel2Y          50
+#define kValue2Y          60
+#define kSep2Y            78
+#define kLabel3Y          82
+#define kValue3Y          92
 #define kFooterY          114
 #define kFooterH          14
 
@@ -62,13 +64,14 @@
 #define kPressUnitX       (kCol1X + 80)
 #define kUnitRow1Y        (kValue1Y + 6)
 #define kUnitRow2Y        (kValue2Y + 6)
+#define kUnitRow3Y        (kValue3Y + 6)
 
 // Pyro continuity threshold (volts)
 #define kPyroContinuityThresholdV  0.5f
 
 // Content area for area-based partial refresh
 #define kContentY         16
-#define kContentH         96
+#define kContentH         98
 
 #define kFullRefreshInterval  50
 
@@ -125,6 +128,9 @@ static char sPrevVal3[16] ;
 static char sPrevVal4[16] ;
 static char sPrevVal5[16] ;
 static char sPrevVal6[16] ;
+static char sPrevVal7[16] ;
+static char sPrevVal8[16] ;
+static char sPrevVal9[16] ;
 
 //----------------------------------------------
 // Helper: FormatFloat
@@ -134,20 +140,18 @@ static void FormatFloat(char * outBuf, size_t inSize, float inValue, int inDecim
   int theWhole = (int)inValue ;
   float theFrac = fabsf(inValue - (float)theWhole) ;
 
+  float theMultiplier = (inDecimals == 1) ? 10.0f :
+                        (inDecimals == 3) ? 1000.0f : 100.0f ;
+  int theFracInt = (int)(theFrac * theMultiplier + 0.5f) ;
+  const char * theFmt = (inDecimals == 1) ? "%d.%01d" :
+                         (inDecimals == 3) ? "%d.%03d" : "%d.%02d" ;
+  const char * theNegFmt = (inDecimals == 1) ? "-%d.%01d" :
+                            (inDecimals == 3) ? "-%d.%03d" : "-%d.%02d" ;
+
   if (inValue < 0.0f && theWhole == 0)
-  {
-    if (inDecimals == 1)
-      snprintf(outBuf, inSize, "-%d.%01d", 0, (int)(theFrac * 10.0f + 0.5f)) ;
-    else
-      snprintf(outBuf, inSize, "-%d.%02d", 0, (int)(theFrac * 100.0f + 0.5f)) ;
-  }
+    snprintf(outBuf, inSize, theNegFmt, 0, theFracInt) ;
   else
-  {
-    if (inDecimals == 1)
-      snprintf(outBuf, inSize, "%d.%01d", theWhole, (int)(theFrac * 10.0f + 0.5f)) ;
-    else
-      snprintf(outBuf, inSize, "%d.%02d", theWhole, (int)(theFrac * 100.0f + 0.5f)) ;
-  }
+    snprintf(outBuf, inSize, theFmt, theWhole, theFracInt) ;
 }
 
 //----------------------------------------------
@@ -190,6 +194,9 @@ static void ClearPrevStrings(void)
   sPrevVal4[0] = '\0' ;
   sPrevVal5[0] = '\0' ;
   sPrevVal6[0] = '\0' ;
+  sPrevVal7[0] = '\0' ;
+  sPrevVal8[0] = '\0' ;
+  sPrevVal9[0] = '\0' ;
 }
 
 //----------------------------------------------
@@ -415,6 +422,7 @@ void StatusDisplay_Update(
     inAltitudeM, inVelocityMps,
     0.0f, NULL,
     false, false, 0,
+    0.0f, 0.0f,
     inLoRaConnected, 0, 0) ;
 }
 
@@ -434,6 +442,8 @@ void StatusDisplay_UpdateCompact(
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude,
   bool inLoRaConnected,
   int16_t inRssi,
   int8_t inSnr)
@@ -474,6 +484,30 @@ void StatusDisplay_UpdateCompact(
     snprintf(theGwStr, sizeof(theGwStr), "Ok") ;
   else
     snprintf(theGwStr, sizeof(theGwStr), "Poor") ;
+
+  // GPS Row 3 data
+  char theSatsStr[16] ;
+  char theLatStr[16] ;
+  char theLonStr[16] ;
+
+  if (inGpsOk && inGpsFix)
+  {
+    snprintf(theSatsStr, sizeof(theSatsStr), "%u", inGpsSatellites) ;
+    FormatFloat(theLatStr, sizeof(theLatStr), inGpsLatitude, 3) ;
+    FormatFloat(theLonStr, sizeof(theLonStr), inGpsLongitude, 3) ;
+  }
+  else if (inGpsOk)
+  {
+    snprintf(theSatsStr, sizeof(theSatsStr), "%u", inGpsSatellites) ;
+    snprintf(theLatStr, sizeof(theLatStr), "--") ;
+    snprintf(theLonStr, sizeof(theLonStr), "--") ;
+  }
+  else
+  {
+    snprintf(theSatsStr, sizeof(theSatsStr), "--") ;
+    snprintf(theLatStr, sizeof(theLatStr), "--") ;
+    snprintf(theLonStr, sizeof(theLonStr), "--") ;
+  }
 
   // Determine if full refresh needed
   bool theNeedsFull = (sLastDrawnScreen != kScreenLive) ||
@@ -532,6 +566,15 @@ void StatusDisplay_UpdateCompact(
 
     FB_DrawHLine(sFrameBuffer, 4, kSep2Y, 288, kColorBlack) ;
 
+    // Row 3: SATS | LAT | LON
+    FB_DrawString(sFrameBuffer, kCol1X, kLabel3Y, "SATS", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kLabel3Y, "LAT", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kLabel3Y, "LON", kColorBlack, 1) ;
+
+    FB_DrawString(sFrameBuffer, kCol1X, kValue3Y, theSatsStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kValue3Y, theLatStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kValue3Y, theLonStr, kColorBlack, kValueScale) ;
+
     DrawFooter() ;
     FullRefreshScreen() ;
     sLastDrawnScreen = kScreenLive ;
@@ -557,6 +600,15 @@ void StatusDisplay_UpdateCompact(
     RefreshValue(sPrevVal6, theGwStr, kCol3X, kValue2Y,
                  kCol3BoxX, kCol3BoxW, NULL, 0, 0) ;
 
+    RefreshValue(sPrevVal7, theSatsStr, kCol1X, kValue3Y,
+                 kCol1BoxX, kCol1BoxW, NULL, 0, 0) ;
+
+    RefreshValue(sPrevVal8, theLatStr, kCol2X, kValue3Y,
+                 kCol2BoxX, kCol2BoxW, NULL, 0, 0) ;
+
+    RefreshValue(sPrevVal9, theLonStr, kCol3X, kValue3Y,
+                 kCol3BoxX, kCol3BoxW, NULL, 0, 0) ;
+
     // Sync sPrevBuffer after all partial refreshes
     memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
   }
@@ -568,6 +620,9 @@ void StatusDisplay_UpdateCompact(
   strcpy(sPrevVal4, theMaxAltStr) ;
   strcpy(sPrevVal5, theMaxVelStr) ;
   strcpy(sPrevVal6, theGwStr) ;
+  strcpy(sPrevVal7, theSatsStr) ;
+  strcpy(sPrevVal8, theLatStr) ;
+  strcpy(sPrevVal9, theLonStr) ;
 }
 
 //----------------------------------------------

@@ -420,12 +420,16 @@ void StatusDisplay_UpdateCompact(
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude,
   bool inLoRaConnected,
   int16_t inRssi,
   int8_t inSnr)
 {
   (void)inAccelG ;
   (void)inResults ;
+  (void)inGpsLatitude ;
+  (void)inGpsLongitude ;
   if (!sInitialized) return ;
 
   SSD1306_Clear() ;

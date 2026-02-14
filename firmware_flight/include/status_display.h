@@ -230,6 +230,8 @@ void StatusDisplay_UpdateCompact(
   bool inGpsOk,
   bool inGpsFix,
   uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude,
   bool inLoRaConnected,
   int16_t inRssi,
   int8_t inSnr) ;

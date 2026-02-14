@@ -235,15 +235,32 @@ int main(void)
   stdio_init_all() ;
   sleep_ms(kStartupDelayMs) ;
 
+  // Check if last reboot was caused by the watchdog
+  bool theWatchdogReboot = watchdog_caused_reboot() ;
+
   printf("\n\n") ;
   printf("======================================\n") ;
   printf("  ROCKET AVIONICS FLIGHT COMPUTER\n") ;
   printf("  Version %s\n", FIRMWARE_VERSION_STRING) ;
   printf("  Build: %s %s\n", kBuildDate, kBuildTime) ;
+  if (theWatchdogReboot)
+    printf("  *** WATCHDOG REBOOT ***\n") ;
   printf("======================================\n\n") ;
 
   // Initialize all hardware
   InitializeHardware() ;
+
+  // If watchdog caused this reboot, flash red 3 times as warning
+  if (theWatchdogReboot)
+  {
+    for (int i = 0 ; i < 3 ; i++)
+    {
+      HeartbeatLED_SetColor(kLedColorRed) ;
+      sleep_ms(200) ;
+      HeartbeatLED_Off() ;
+      sleep_ms(200) ;
+    }
+  }
 
   // Initialize flight controller
   printf("Initializing flight controller...\n") ;
@@ -313,11 +330,8 @@ int main(void)
     LoRa_StartReceive(&sLoRaRadio) ;
   }
 
-  // Enable hardware watchdog (8 second timeout).
-  // If the main loop hangs (bad cable, SPI lockup, etc.),
-  // the watchdog resets the MCU and the I2C bus test will
-  // detect the fault on the next boot.
-  watchdog_enable(8000, true) ;
+  // Hardware watchdog — temporarily disabled while debugging GPS
+  // watchdog_enable(8000, true) ;
 
   // Main loop
   uint32_t theLastLoopUs = time_us_32() ;
@@ -783,6 +797,7 @@ static void InitializeHardware(void)
   Storage_Init() ;
   sRocketId = Storage_LoadRocketId() ;
   Storage_LoadRocketName(sRocketName) ;
+
   printf("Rocket ID: %u, Name: '%s'\n", sRocketId, sRocketName[0] ? sRocketName : "(none)") ;
 
   printf("Hardware initialization complete\n\n") ;
@@ -1168,6 +1183,8 @@ static void UpdateDisplay(uint32_t inCurrentMs)
             sGpsOk,
             theGpsFix,
             theGpsSatellites,
+            theGps ? theGps->pLatitude : 0.0f,
+            theGps ? theGps->pLongitude : 0.0f,
             theLinkActive,
             sGatewayRssi,
             sGatewaySnr) ;
@@ -1969,6 +1986,8 @@ static void Core1_DisplayLoop(void)
             theData.pGpsOk,
             theData.pGpsFix,
             theData.pGpsSatellites,
+            theData.pGpsLatitude,
+            theData.pGpsLongitude,
             theData.pLoRaConnected,
             theData.pRssi,
             theData.pSnr) ;
