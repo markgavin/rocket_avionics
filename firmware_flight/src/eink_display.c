@@ -73,7 +73,7 @@
 #define kContentY         16
 #define kContentH         98
 
-#define kFullRefreshInterval  50
+#define kFullRefreshInterval  20
 
 //----------------------------------------------
 // Screen IDs (for tracking current display)
@@ -143,6 +143,14 @@ static void FormatFloat(char * outBuf, size_t inSize, float inValue, int inDecim
   float theMultiplier = (inDecimals == 1) ? 10.0f :
                         (inDecimals == 3) ? 1000.0f : 100.0f ;
   int theFracInt = (int)(theFrac * theMultiplier + 0.5f) ;
+
+  // Handle rounding overflow (e.g., 9.95 with 1 decimal → theFracInt=10)
+  if (theFracInt >= (int)theMultiplier)
+  {
+    theFracInt = 0 ;
+    theWhole += (inValue >= 0.0f) ? 1 : -1 ;
+  }
+
   const char * theFmt = (inDecimals == 1) ? "%d.%01d" :
                          (inDecimals == 3) ? "%d.%03d" : "%d.%02d" ;
   const char * theNegFmt = (inDecimals == 1) ? "-%d.%01d" :
@@ -204,9 +212,8 @@ static void ClearPrevStrings(void)
 // Compares old and new strings character by character.
 // Same length: refreshes only changed digit cells (12x16 px).
 // Different length: full-box fallback refresh.
-// Uses sPrevBuffer (set by previous cycle's memcpy) as
-// old reference. Caller must memcpy(sPrevBuffer, sFrameBuffer)
-// AFTER all RefreshValue calls in each update cycle.
+// Syncs sPrevBuffer after each WritePartial so old data
+// always matches the actual display state.
 //----------------------------------------------
 static void RefreshValue(const char * inOldStr, const char * inNewStr,
                          int inTextX, int inValueY,
@@ -234,6 +241,9 @@ static void RefreshValue(const char * inOldStr, const char * inNewStr,
         // Partial refresh just this digit cell
         UC8151D_WritePartial(sPrevBuffer, sFrameBuffer,
                              theDigitX, inValueY, kCellW, kCellH) ;
+
+        // Sync sPrevBuffer so next digit's old data is correct
+        memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
       }
     }
   }
@@ -250,6 +260,9 @@ static void RefreshValue(const char * inOldStr, const char * inNewStr,
     // Partial refresh the full box region
     UC8151D_WritePartial(sPrevBuffer, sFrameBuffer,
                          inBoxX, inValueY, inBoxW, kCellH) ;
+
+    // Sync sPrevBuffer to match display state
+    memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
   }
 }
 
@@ -473,6 +486,23 @@ void StatusDisplay_UpdateCompact(
   FormatFloat(theMaxAltStr, sizeof(theMaxAltStr), theDispMaxAlt, 1) ;
   FormatFloat(theMaxVelStr, sizeof(theMaxVelStr), theDispMaxVel, 1) ;
 
+  // Pad positive velocity/accel with leading space so string length
+  // matches negative values (prevents full-box refresh on sign change)
+  if (theDispVel >= 0.0f)
+  {
+    char theTmp[20] ;
+    snprintf(theTmp, sizeof(theTmp), " %s", theVelStr) ;
+    strncpy(theVelStr, theTmp, sizeof(theVelStr) - 1) ;
+    theVelStr[sizeof(theVelStr) - 1] = '\0' ;
+  }
+  if (theDispAccel >= 0.0f)
+  {
+    char theTmp[20] ;
+    snprintf(theTmp, sizeof(theTmp), " %s", theAccelStr) ;
+    strncpy(theAccelStr, theTmp, sizeof(theAccelStr) - 1) ;
+    theAccelStr[sizeof(theAccelStr) - 1] = '\0' ;
+  }
+
   // Gateway status
   if (!inLoRaConnected)
     snprintf(theGwStr, sizeof(theGwStr), "--") ;
@@ -608,9 +638,6 @@ void StatusDisplay_UpdateCompact(
 
     RefreshValue(sPrevVal9, theLonStr, kCol3X, kValue3Y,
                  kCol3BoxX, kCol3BoxW, NULL, 0, 0) ;
-
-    // Sync sPrevBuffer after all partial refreshes
-    memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
   }
 
   // Save current strings
@@ -763,7 +790,13 @@ void StatusDisplay_ShowDeviceInfo(
   FB_DrawString(sFrameBuffer, kCol1X, theY, theBuffer, kColorBlack, 1) ;
   theY += 12 ;
 
-  snprintf(theBuffer, sizeof(theBuffer), "Display: eInk 296x128") ;
+  const char * theBoardName = "eInk" ;
+  EpdBoardType theBoardType = UC8151D_GetBoardType() ;
+  if (theBoardType == kEpdBoardBreakout)
+    theBoardName = "eInk Breakout" ;
+  else if (theBoardType == kEpdBoardFeather)
+    theBoardName = "eInk Feather" ;
+  snprintf(theBuffer, sizeof(theBuffer), "Display: %s", theBoardName) ;
   FB_DrawString(sFrameBuffer, kCol1X, theY, theBuffer, kColorBlack, 1) ;
 
   DrawFooter() ;
@@ -891,9 +924,6 @@ void StatusDisplay_ShowSensorReadings(
 
     RefreshValue(sPrevVal3, theAltStr, kCol3X, kValue1Y,
                  kCol3BoxX, kCol3BoxW, "m", kCol3X + 60, kUnitRow1Y) ;
-
-    // Sync sPrevBuffer after all partial refreshes
-    memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
   }
 
   strcpy(sPrevVal1, thePressStr) ;

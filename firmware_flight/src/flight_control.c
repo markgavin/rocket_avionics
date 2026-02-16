@@ -13,6 +13,7 @@
 
 #include "pico/stdlib.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <math.h>
 
@@ -176,6 +177,7 @@ void FlightControl_UpdateSensors(
       // Store as temporary reference for IDLE display only
       ioController->pGroundPressurePa = inPressurePa ;
       theReferencePressure = inPressurePa ;
+      printf("BARO: Ground ref = %.1f Pa\n", inPressurePa) ;
     }
   }
 
@@ -232,6 +234,19 @@ void FlightControl_UpdateSensors(
   {
     ioController->pCurrentAltitudeM = 0.0f ;
     ioController->pCurrentVelocityMps = 0.0f ;
+  }
+
+  // Periodic altitude diagnostic (1 Hz on USB console)
+  {
+    static uint32_t sLastDiagMs = 0 ;
+    if (inCurrentTimeMs - sLastDiagMs >= 1000)
+    {
+      sLastDiagMs = inCurrentTimeMs ;
+      printf("ALT: %.1f m  P=%.0f Pa  P0=%.0f Pa\n",
+             ioController->pCurrentAltitudeM,
+             ioController->pCurrentPressurePa,
+             ioController->pGroundPressurePa) ;
+    }
   }
 
   ioController->pLastSampleTimeMs = inCurrentTimeMs ;

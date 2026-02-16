@@ -20,6 +20,16 @@ static const uint32_t kBusyTimeoutMs = 200 ;     // Quick check for BUSY pin
 static const uint32_t kFullRefreshMs = 3000 ;     // Fixed delay: full refresh
 static const uint32_t kPartialRefreshMs = 500 ;   // Fixed delay: partial refresh
 static const uint32_t kPowerOnMs = 200 ;          // Fixed delay: power on
+static const uint32_t kDetectTimeoutMs = 100 ;    // Board detection probe timeout
+
+//----------------------------------------------
+// Runtime Pin Configuration
+// CS, DC, and SRAM CS differ between Breakout Friend
+// and Feather Friend. Set by DetectBoard() during Init.
+//----------------------------------------------
+static uint8_t sPinCs = kPinEpdCs ;
+static uint8_t sPinDc = kPinEpdDc ;
+static EpdBoardType sBoardType = kEpdBoardNone ;
 
 //----------------------------------------------
 // Bit-Banged SPI Write
@@ -83,18 +93,18 @@ static void WaitReady(uint32_t inFixedDelayMs)
 
 static void SendCommand(uint8_t inCmd)
 {
-  gpio_put(kPinEpdDc, 0) ;    // DC low = command
-  gpio_put(kPinEpdCs, 0) ;    // CS low = select
+  gpio_put(sPinDc, 0) ;    // DC low = command
+  gpio_put(sPinCs, 0) ;    // CS low = select
   BitBangSpiWrite(&inCmd, 1) ;
-  gpio_put(kPinEpdCs, 1) ;    // CS high = deselect
+  gpio_put(sPinCs, 1) ;    // CS high = deselect
 }
 
 static void SendData(const uint8_t * inData, size_t inLen)
 {
-  gpio_put(kPinEpdDc, 1) ;    // DC high = data
-  gpio_put(kPinEpdCs, 0) ;    // CS low = select
+  gpio_put(sPinDc, 1) ;    // DC high = data
+  gpio_put(sPinCs, 0) ;    // CS low = select
   BitBangSpiWrite(inData, inLen) ;
-  gpio_put(kPinEpdCs, 1) ;    // CS high = deselect
+  gpio_put(sPinCs, 1) ;    // CS high = deselect
 }
 
 static void SendDataByte(uint8_t inByte)
@@ -121,8 +131,91 @@ static void HardwareReset(void)
 }
 
 //----------------------------------------------
+// Board Detection
+//
+// Probes the display with both pin sets to determine
+// which eInk board is connected. Sends power-on command
+// and checks if BUSY toggles within timeout.
+//----------------------------------------------
+
+static bool ProbeWithPins(uint8_t inCs, uint8_t inDc)
+{
+  // Set candidate pins for this probe
+  sPinCs = inCs ;
+  sPinDc = inDc ;
+
+  // Send power-on command using candidate pins
+  SendCommand(kCmdPon) ;
+
+  // Wait for BUSY to go low (display processing) then high (ready)
+  uint32_t theStart = to_ms_since_boot(get_absolute_time()) ;
+
+  // First wait for BUSY to go low (command received)
+  while (gpio_get(kPinEpdBusy))
+  {
+    uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
+    if (theElapsed > kDetectTimeoutMs)
+      return false ;  // Display never started processing — wrong pins
+    busy_wait_us_32(1000) ;
+  }
+
+  // BUSY went low — display received the command. Wait for it to finish.
+  while (!gpio_get(kPinEpdBusy))
+  {
+    uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
+    if (theElapsed > kPowerOnMs + kDetectTimeoutMs)
+      break ;  // Timeout waiting for ready, but display did respond
+    busy_wait_us_32(1000) ;
+  }
+
+  return true ;  // Display responded on these pins
+}
+
+static void DetectBoard(void)
+{
+  printf("EPD: Auto-detecting eInk board...\n") ;
+
+  // Reset display (shared RST pin)
+  HardwareReset() ;
+
+  // Try Breakout Friend first (CS=GP10, DC=GP11)
+  printf("  Probing Breakout Friend (CS=GP10, DC=GP11)...\n") ;
+  if (ProbeWithPins(kPinEpdCs, kPinEpdDc))
+  {
+    sBoardType = kEpdBoardBreakout ;
+    sPinCs = kPinEpdCs ;
+    sPinDc = kPinEpdDc ;
+    printf("  Detected: eInk Breakout Friend\n") ;
+    return ;
+  }
+
+  // Reset again before trying alternate pins
+  HardwareReset() ;
+
+  // Try Feather Friend (CS=GP9, DC=GP10)
+  printf("  Probing Feather Friend (CS=GP9, DC=GP10)...\n") ;
+  if (ProbeWithPins(kPinEpdCsAlt, kPinEpdDcAlt))
+  {
+    sBoardType = kEpdBoardFeather ;
+    sPinCs = kPinEpdCsAlt ;
+    sPinDc = kPinEpdDcAlt ;
+    printf("  Detected: eInk Feather Friend\n") ;
+    return ;
+  }
+
+  // Neither responded
+  sBoardType = kEpdBoardNone ;
+  printf("  No eInk display detected\n") ;
+}
+
+//----------------------------------------------
 // Public Functions
 //----------------------------------------------
+
+EpdBoardType UC8151D_GetBoardType(void)
+{
+  return sBoardType ;
+}
 
 bool UC8151D_Init(void)
 {
@@ -131,7 +224,12 @@ bool UC8151D_Init(void)
 
   // Note: All eInk GPIO pins are initialized in main.c InitializeSPI()
 
-  // Triple hardware reset (per Adafruit driver)
+  // Auto-detect which eInk board is connected
+  DetectBoard() ;
+  if (sBoardType == kEpdBoardNone)
+    return false ;
+
+  // Reset again for clean init after detection probes
   printf("  Hardware reset (3x)...\n") ;
   HardwareReset() ;
 
@@ -183,13 +281,13 @@ void UC8151D_Clear(uint8_t inColor)
 {
   // Send new data (DTM2) — all same color
   SendCommand(kCmdDtm2) ;
-  gpio_put(kPinEpdDc, 1) ;
-  gpio_put(kPinEpdCs, 0) ;
+  gpio_put(sPinDc, 1) ;
+  gpio_put(sPinCs, 0) ;
   for (int i = 0 ; i < kEpdBufferSize ; i++)
   {
     BitBangSpiWrite(&inColor, 1) ;
   }
-  gpio_put(kPinEpdCs, 1) ;
+  gpio_put(sPinCs, 1) ;
 
   UC8151D_Refresh() ;
 }
@@ -244,25 +342,25 @@ void UC8151D_WritePartial(const uint8_t * inOldData, const uint8_t * inNewData,
 
   // Send old data (DTM1) — needed for clean partial refresh
   SendCommand(kCmdDtm1) ;
-  gpio_put(kPinEpdDc, 1) ;
-  gpio_put(kPinEpdCs, 0) ;
+  gpio_put(sPinDc, 1) ;
+  gpio_put(sPinCs, 0) ;
   for (int v = theVstart ; v <= theVend ; v++)
   {
     BitBangSpiWrite(&inOldData[v * kEpdBytesPerRow + theHbyteStart],
                     theBytesPerRow) ;
   }
-  gpio_put(kPinEpdCs, 1) ;
+  gpio_put(sPinCs, 1) ;
 
   // Send new data (DTM2)
   SendCommand(kCmdDtm2) ;
-  gpio_put(kPinEpdDc, 1) ;
-  gpio_put(kPinEpdCs, 0) ;
+  gpio_put(sPinDc, 1) ;
+  gpio_put(sPinCs, 0) ;
   for (int v = theVstart ; v <= theVend ; v++)
   {
     BitBangSpiWrite(&inNewData[v * kEpdBytesPerRow + theHbyteStart],
                     theBytesPerRow) ;
   }
-  gpio_put(kPinEpdCs, 1) ;
+  gpio_put(sPinCs, 1) ;
 
   // Refresh partial region
   SendCommand(kCmdDrf) ;

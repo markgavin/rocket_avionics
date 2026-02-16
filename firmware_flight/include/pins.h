@@ -157,12 +157,28 @@
 // Must be initialized to safe states at startup even
 // in OLED builds to prevent floating pins from
 // interfering with SPI1 (LoRa) when eInk is connected.
+//
+// Two board variants are auto-detected at runtime:
+//   - eInk Breakout Friend: CS=GP10, DC=GP11, SRAM=GP28
+//   - eInk Feather Friend (4446): CS=GP9, DC=GP10, SRAM=GP6
+// Shared pins (same for both): RST=GP12, BUSY=GP13,
+//   SCK=GP24, MOSI=GP25 (bit-banged)
 //----------------------------------------------
+
+// Breakout Friend pins (default)
 #define kPinEpdCs           10  // GP10 - eInk chip select
 #define kPinEpdDc           11  // GP11 - Data/Command
+#define kPinEpdSramCs       28  // GP28 - SRAM CS (held high)
+
+// Feather Friend alternate pins (auto-detected at runtime)
+#define kPinEpdCsAlt        9   // GP9  - Feather Friend ECS (D9)
+#define kPinEpdDcAlt        10  // GP10 - Feather Friend D/C (D10)
+#define kPinEpdSramCsAlt    6   // GP6  - Feather Friend SRAM CS (D6)
+#define kPinEpdSdCs         5   // GP5  - Feather Friend SD CS (held high)
+
+// Shared pins (same for both boards)
 #define kPinEpdReset        12  // GP12 - Hardware reset
 #define kPinEpdBusy         13  // GP13 - Busy signal (input)
-#define kPinEpdSramCs       28  // GP28 - SRAM CS (held high)
 
 //----------------------------------------------
 // Display Constants

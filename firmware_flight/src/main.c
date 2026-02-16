@@ -925,16 +925,33 @@ static void InitializeSPI(void)
 {
   printf("Initializing SPI1 bus...\n") ;
 
-  // Initialize eInk display pins to safe state (prevents floating
-  // pins from interfering with SPI1 when eInk display is physically connected)
-  gpio_init(kPinEpdCs) ;
-  gpio_set_dir(kPinEpdCs, GPIO_OUT) ;
-  gpio_put(kPinEpdCs, 1) ;        // CS high = deselected
+  // Safe-state ALL candidate eInk pins for both board variants.
+  // Prevents floating pins from interfering with SPI1 (LoRa).
+  // Breakout Friend: CS=GP10, DC=GP11, SRAM=GP28
+  // Feather Friend:  CS=GP9,  DC=GP10, SRAM=GP6, SD=GP5
 
-  gpio_init(kPinEpdDc) ;
-  gpio_set_dir(kPinEpdDc, GPIO_OUT) ;
-  gpio_put(kPinEpdDc, 0) ;
+  // CS/SRAM/SD pins: HIGH = deselected
+  uint8_t theCsPins[] = {
+    kPinEpdCs, kPinEpdSramCs,
+    kPinEpdCsAlt, kPinEpdSramCsAlt, kPinEpdSdCs
+  } ;
+  for (int i = 0 ; i < (int)sizeof(theCsPins) ; i++)
+  {
+    gpio_init(theCsPins[i]) ;
+    gpio_set_dir(theCsPins[i], GPIO_OUT) ;
+    gpio_put(theCsPins[i], 1) ;   // HIGH = deselected
+  }
 
+  // DC pins: LOW = command mode (safe default, prevents stray data writes)
+  uint8_t theDcPins[] = { kPinEpdDc, kPinEpdDcAlt } ;
+  for (int i = 0 ; i < (int)sizeof(theDcPins) ; i++)
+  {
+    gpio_init(theDcPins[i]) ;
+    gpio_set_dir(theDcPins[i], GPIO_OUT) ;
+    gpio_put(theDcPins[i], 0) ;   // LOW = command mode
+  }
+
+  // Shared eInk pins (same for both boards)
   gpio_init(kPinEpdReset) ;
   gpio_set_dir(kPinEpdReset, GPIO_OUT) ;
   gpio_put(kPinEpdReset, 0) ;     // Hold in reset
@@ -942,10 +959,6 @@ static void InitializeSPI(void)
   gpio_init(kPinEpdBusy) ;
   gpio_set_dir(kPinEpdBusy, GPIO_IN) ;
   gpio_pull_up(kPinEpdBusy) ;    // If BUSY not wired, reads HIGH (not busy)
-
-  gpio_init(kPinEpdSramCs) ;
-  gpio_set_dir(kPinEpdSramCs, GPIO_OUT) ;
-  gpio_put(kPinEpdSramCs, 1) ;    // SRAM CS high = deselected
 
 #ifdef DISPLAY_EINK
   // eInk bit-banged SPI pins (dedicated, no SPI1 conflict)

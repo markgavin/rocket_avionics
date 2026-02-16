@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 870" width="880" height="870">
+  <style>
+    text { font-family: 'Courier New', monospace; }
+    .title { font-size: 18px; font-weight: bold; }
+    .subtitle { font-size: 12px; fill: #555; }
+    .pin-label { font-size: 10.5px; }
+    .pin-func { font-size: 9px; fill: #555; }
+    .gps-label { font-size: 10.5px; font-weight: bold; fill: #c00; }
+    .gps-func { font-size: 9px; fill: #c00; }
+    .eink-label { font-size: 10.5px; font-weight: bold; fill: #07777a; }
+    .eink-func { font-size: 9px; fill: #07777a; }
+    .section-title { font-size: 13px; font-weight: bold; }
+    .note { font-size: 10px; fill: #333; }
+    .board-fill { fill: #1a5c2a; }
+    .usb-fill { fill: #888; }
+    .pin-circle { fill: #d4af37; stroke: #333; stroke-width: 1; }
+    .pin-gps { fill: #ff3333; stroke: #900; stroke-width: 2; }
+    .pin-i2c { fill: #3399ff; stroke: #333; stroke-width: 1; }
+    .pin-spi-shared { fill: #ff9900; stroke: #333; stroke-width: 1; }
+    .pin-btn { fill: #cc66ff; stroke: #333; stroke-width: 1; }
+    .pin-eink { fill: #0bbbbf; stroke: #077; stroke-width: 1.5; }
+    .pin-adc { fill: #99cc33; stroke: #333; stroke-width: 1; }
+    .pin-pwr { fill: #fff; stroke: #333; stroke-width: 1; }
+    .pin-gnd { fill: #333; stroke: #333; stroke-width: 1; }
+    .wire-gps { stroke: #c00; stroke-width: 2; fill: none; stroke-dasharray: 6,3; }
+    .wire-eink { stroke: #07777a; stroke-width: 1.5; fill: none; stroke-dasharray: 4,2; }
+  </style>
+
+  <!-- Background -->
+  <rect width="880" height="870" fill="white"/>
+
+  <!-- Title -->
+  <text x="440" y="28" text-anchor="middle" class="title">Feather RP2040 + RFM95 LoRa (PID 5714) - Pinout Reference</text>
+  <text x="440" y="44" text-anchor="middle" class="subtitle">Component Side (top view) - USB at top - Source: Adafruit PrettyPins</text>
+
+  <!-- Board outline -->
+  <rect x="255" y="60" width="210" height="490" rx="12" ry="12" class="board-fill"/>
+
+  <!-- USB connector -->
+  <rect x="322" y="52" width="76" height="22" rx="4" ry="4" class="usb-fill"/>
+  <text x="360" y="68" text-anchor="middle" font-size="10" fill="white" font-weight="bold">USB-C</text>
+
+  <!-- Board labels -->
+  <text x="360" y="100" text-anchor="middle" font-size="11" fill="#afd8a0" font-weight="bold">Feather RP2040</text>
+  <text x="360" y="114" text-anchor="middle" font-size="11" fill="#afd8a0" font-weight="bold">RFM95 LoRa 915MHz</text>
+
+  <!-- NeoPixel -->
+  <rect x="300" y="126" width="12" height="12" rx="2" ry="2" fill="#222" stroke="#555" stroke-width="0.5"/>
+  <text x="306" y="150" text-anchor="middle" font-size="7" fill="#afd8a0">GP4 Neo</text>
+
+  <!-- RFM95 module area -->
+  <rect x="280" y="380" width="160" height="80" rx="4" ry="4" fill="#0d3d1a" stroke="#2a7a3a" stroke-width="1"/>
+  <text x="360" y="405" text-anchor="middle" font-size="10" fill="#7ab88a">RFM95W 915MHz</text>
+  <text x="360" y="419" text-anchor="middle" font-size="8" fill="#5a9a6a">CS=GP16 RST=GP17</text>
+  <text x="360" y="433" text-anchor="middle" font-size="8" fill="#5a9a6a">DIO0=GP21 DIO1=GP22</text>
+
+  <!-- STEMMA QT -->
+  <rect x="310" y="468" width="100" height="18" rx="3" ry="3" fill="#222" stroke="#555" stroke-width="0.5"/>
+  <text x="360" y="481" text-anchor="middle" font-size="8" fill="#aaa">STEMMA QT (I2C1)</text>
+
+  <!-- Antenna -->
+  <rect x="345" y="498" width="30" height="40" rx="2" ry="2" fill="#0d3d1a" stroke="#2a7a3a" stroke-width="1"/>
+  <text x="360" y="522" text-anchor="middle" font-size="7" fill="#5a9a6a">ANT</text>
+
+  <!-- ======================================== -->
+  <!-- LEFT HEADER (16 pins) top to bottom      -->
+  <!-- ======================================== -->
+
+  <!-- 1. RESET -->
+  <circle cx="253" cy="90" r="5" class="pin-pwr"/>
+  <text x="240" y="94" text-anchor="end" class="pin-label">RST</text>
+
+  <!-- 2. 3.3V ** GPS VIN ** -->
+  <circle cx="253" cy="116" r="7" class="pin-gps"/>
+  <text x="240" y="113" text-anchor="end" class="gps-label">3.3V</text>
+  <text x="240" y="124" text-anchor="end" class="gps-func">GPS VIN</text>
+
+  <!-- 3. 3.3V -->
+  <circle cx="253" cy="142" r="5" class="pin-pwr"/>
+  <text x="240" y="146" text-anchor="end" class="pin-label">3.3V</text>
+
+  <!-- 4. GND ** GPS GND ** -->
+  <circle cx="253" cy="168" r="7" class="pin-gps"/>
+  <text x="240" y="165" text-anchor="end" class="gps-label">GND</text>
+  <text x="240" y="176" text-anchor="end" class="gps-func">GPS GND</text>
+
+  <!-- 5. A0 / GP26 -->
+  <circle cx="253" cy="194" r="5" class="pin-adc"/>
+  <text x="240" y="198" text-anchor="end" class="pin-label">A0 (GP26)</text>
+  <text x="240" y="208" text-anchor="end" class="pin-func">Pyro1 ADC</text>
+
+  <!-- 6. A1 / GP27 -->
+  <circle cx="253" cy="220" r="5" class="pin-adc"/>
+  <text x="240" y="224" text-anchor="end" class="pin-label">A1 (GP27)</text>
+  <text x="240" y="234" text-anchor="end" class="pin-func">Pyro2 ADC</text>
+
+  <!-- 7. A2 / GP28 ** eInk SRAM CS ** -->
+  <circle cx="253" cy="246" r="6" class="pin-eink"/>
+  <text x="240" y="243" text-anchor="end" class="eink-label">A2 (GP28)</text>
+  <text x="240" y="254" text-anchor="end" class="eink-func">eInk SRCS</text>
+
+  <!-- 8. A3 / GP29 -->
+  <circle cx="253" cy="272" r="5" class="pin-circle"/>
+  <text x="240" y="276" text-anchor="end" class="pin-label">A3 (GP29)</text>
+  <text x="240" y="286" text-anchor="end" class="pin-func">(available)</text>
+
+  <!-- 9. D24 / GP24 ** eInk SCK ** -->
+  <circle cx="253" cy="298" r="6" class="pin-eink"/>
+  <text x="240" y="295" text-anchor="end" class="eink-label">D24 (GP24)</text>
+  <text x="240" y="306" text-anchor="end" class="eink-func">eInk SCK</text>
+
+  <!-- 10. D25 / GP25 ** eInk MOSI ** -->
+  <circle cx="253" cy="324" r="6" class="pin-eink"/>
+  <text x="240" y="321" text-anchor="end" class="eink-label">D25 (GP25)</text>
+  <text x="240" y="332" text-anchor="end" class="eink-func">eInk MOSI</text>
+
+  <!-- 11. SCK / GP14 -->
+  <circle cx="253" cy="350" r="5" class="pin-spi-shared"/>
+  <text x="240" y="354" text-anchor="end" class="pin-label">SCK (GP14)</text>
+  <text x="240" y="364" text-anchor="end" class="pin-func">SPI1 (RFM95)</text>
+
+  <!-- 12. MOSI / GP15 -->
+  <circle cx="253" cy="376" r="5" class="pin-spi-shared"/>
+  <text x="240" y="380" text-anchor="end" class="pin-label">MO (GP15)</text>
+  <text x="240" y="390" text-anchor="end" class="pin-func">SPI1 (RFM95)</text>
+
+  <!-- 13. MISO / GP8 -->
+  <circle cx="253" cy="402" r="5" class="pin-spi-shared"/>
+  <text x="240" y="406" text-anchor="end" class="pin-label">MI (GP8)</text>
+  <text x="240" y="416" text-anchor="end" class="pin-func">SPI1 (RFM95)</text>
+
+  <!-- 14. RX / GP1 ** GPS TX ** -->
+  <circle cx="253" cy="428" r="7" class="pin-gps"/>
+  <text x="240" y="425" text-anchor="end" class="gps-label">RX (GP1)</text>
+  <text x="240" y="436" text-anchor="end" class="gps-func">GPS TX here</text>
+
+  <!-- 15. TX / GP0 ** GPS RX ** -->
+  <circle cx="253" cy="454" r="7" class="pin-gps"/>
+  <text x="240" y="451" text-anchor="end" class="gps-label">TX (GP0)</text>
+  <text x="240" y="462" text-anchor="end" class="gps-func">to GPS RX</text>
+
+  <!-- 16. GND -->
+  <circle cx="253" cy="480" r="5" class="pin-gnd"/>
+  <text x="240" y="484" text-anchor="end" class="pin-label">GND</text>
+
+  <!-- Left header bracket -->
+  <text x="240" y="88" text-anchor="end" font-size="8" fill="#999">1</text>
+  <text x="240" y="484" text-anchor="end" font-size="8" fill="#999">16</text>
+  <line x1="232" y1="86" x2="232" y2="482" stroke="#ccc" stroke-width="0.5"/>
+  <text x="228" y="290" text-anchor="end" font-size="9" fill="#999" transform="rotate(-90,228,290)">LEFT HEADER (16 pins)</text>
+
+  <!-- ======================================== -->
+  <!-- RIGHT HEADER (12 pins) top to bottom     -->
+  <!-- ======================================== -->
+
+  <!-- 1. VBAT -->
+  <circle cx="467" cy="194" r="5" class="pin-pwr"/>
+  <text x="480" y="198" class="pin-label">VBAT</text>
+  <text x="480" y="208" class="pin-func">LiPo+</text>
+
+  <!-- 2. EN -->
+  <circle cx="467" cy="220" r="5" class="pin-pwr"/>
+  <text x="480" y="224" class="pin-label">EN</text>
+  <text x="480" y="234" class="pin-func">Regulator enable</text>
+
+  <!-- 3. VBUS -->
+  <circle cx="467" cy="246" r="5" class="pin-pwr"/>
+  <text x="480" y="250" class="pin-label">VBUS</text>
+  <text x="480" y="260" class="pin-func">USB 5V</text>
+
+  <!-- 4. D13 / GP13 ** eInk BUSY ** -->
+  <circle cx="467" cy="272" r="6" class="pin-eink"/>
+  <text x="480" y="269" class="eink-label">D13 (GP13)</text>
+  <text x="480" y="280" class="eink-func">eInk BUSY</text>
+
+  <!-- 5. D12 / GP12 ** eInk RESET ** -->
+  <circle cx="467" cy="298" r="6" class="pin-eink"/>
+  <text x="480" y="295" class="eink-label">D12 (GP12)</text>
+  <text x="480" y="306" class="eink-func">eInk RST</text>
+
+  <!-- 6. D11 / GP11 ** eInk D/C ** -->
+  <circle cx="467" cy="324" r="6" class="pin-eink"/>
+  <text x="480" y="321" class="eink-label">D11 (GP11)</text>
+  <text x="480" y="332" class="eink-func">eInk D/C</text>
+
+  <!-- 7. D10 / GP10 ** eInk CS ** -->
+  <circle cx="467" cy="350" r="6" class="pin-eink"/>
+  <text x="480" y="347" class="eink-label">D10 (GP10)</text>
+  <text x="480" y="358" class="eink-func">eInk ECS</text>
+
+  <!-- 8. D9 / GP9 -->
+  <circle cx="467" cy="376" r="5" class="pin-btn"/>
+  <text x="480" y="380" class="pin-label">D9 (GP9)</text>
+  <text x="480" y="390" class="pin-func">Button A</text>
+
+  <!-- 9. D6 / GP6 -->
+  <circle cx="467" cy="402" r="5" class="pin-btn"/>
+  <text x="480" y="406" class="pin-label">D6 (GP6)</text>
+  <text x="480" y="416" class="pin-func">Button B</text>
+
+  <!-- 10. D5 / GP5 -->
+  <circle cx="467" cy="428" r="5" class="pin-btn"/>
+  <text x="480" y="432" class="pin-label">D5 (GP5)</text>
+  <text x="480" y="442" class="pin-func">Button C</text>
+
+  <!-- 11. SCL / GP3 -->
+  <circle cx="467" cy="454" r="5" class="pin-i2c"/>
+  <text x="480" y="458" class="pin-label">SCL (GP3)</text>
+  <text x="480" y="468" class="pin-func">I2C1 bus</text>
+
+  <!-- 12. SDA / GP2 -->
+  <circle cx="467" cy="480" r="5" class="pin-i2c"/>
+  <text x="480" y="484" class="pin-label">SDA (GP2)</text>
+  <text x="480" y="494" class="pin-func">I2C1 bus</text>
+
+  <!-- Right header bracket -->
+  <text x="480" y="192" font-size="8" fill="#999">1</text>
+  <text x="480" y="484" font-size="8" fill="#999">12</text>
+  <line x1="488" y1="192" x2="488" y2="482" stroke="#ccc" stroke-width="0.5"/>
+  <text x="494" y="340" font-size="9" fill="#999" transform="rotate(90,494,340)">RIGHT HEADER (12 pins)</text>
+
+  <!-- ======================================== -->
+  <!-- GPS BREAKOUT WIRING                      -->
+  <!-- ======================================== -->
+
+  <rect x="620" y="70" width="230" height="190" rx="8" ry="8" fill="#fff5f5" stroke="#c00" stroke-width="2"/>
+  <text x="735" y="92" text-anchor="middle" font-size="13" font-weight="bold" fill="#c00">Adafruit GPS Breakout</text>
+  <text x="735" y="107" text-anchor="middle" font-size="10" fill="#c00">PID 5440 - PA1616D / MTK3333</text>
+
+  <circle cx="640" cy="126" r="5" class="pin-gps"/>
+  <text x="652" y="130" font-size="11" fill="#c00" font-weight="bold">VIN</text>
+  <text x="700" y="130" font-size="9" fill="#888">3.3V power in</text>
+
+  <circle cx="640" cy="146" r="5" class="pin-gps"/>
+  <text x="652" y="150" font-size="11" fill="#c00" font-weight="bold">GND</text>
+  <text x="700" y="150" font-size="9" fill="#888">Ground</text>
+
+  <circle cx="640" cy="166" r="5" class="pin-gps"/>
+  <text x="652" y="170" font-size="11" fill="#c00" font-weight="bold">TX</text>
+  <text x="700" y="170" font-size="9" fill="#888">GPS transmits NMEA</text>
+
+  <circle cx="640" cy="186" r="5" class="pin-gps"/>
+  <text x="652" y="190" font-size="11" fill="#c00" font-weight="bold">RX</text>
+  <text x="700" y="190" font-size="9" fill="#888">GPS receives commands</text>
+
+  <text x="640" y="216" font-size="9" fill="#aaa">EN, FIX, PPS, VBAT, 3V3</text>
+  <text x="640" y="228" font-size="9" fill="#aaa">Leave unconnected</text>
+  <text x="640" y="248" font-size="9" fill="#aaa">EN has internal pull-up (ON)</text>
+
+  <!-- GPS wires -->
+  <path d="M 253,116 L 210,116 L 210,55 L 630,55 L 630,126 L 635,126" class="wire-gps"/>
+  <text x="420" y="50" text-anchor="middle" font-size="9" fill="#c00" font-weight="bold">RED wire: 3.3V (left pin 2) to GPS VIN</text>
+
+  <path d="M 253,168 L 200,168 L 200,42 L 635,42 L 635,146" class="wire-gps"/>
+  <text x="420" y="38" text-anchor="middle" font-size="9" fill="#c00" font-weight="bold">BLACK wire: GND (left pin 4) to GPS GND</text>
+
+  <path d="M 253,428 L 220,428 L 220,510 L 610,510 L 610,166 L 635,166" class="wire-gps"/>
+  <path d="M 253,454 L 210,454 L 210,520 L 616,520 L 616,186 L 635,186" class="wire-gps"/>
+
+  <text x="420" y="508" text-anchor="middle" font-size="9" fill="#c00" font-weight="bold">GREEN wire: RX/GP1 (left pin 14) from GPS TX</text>
+  <text x="420" y="522" text-anchor="middle" font-size="9" fill="#c00" font-weight="bold">YELLOW wire: TX/GP0 (left pin 15) to GPS RX</text>
+
+  <!-- ======================================== -->
+  <!-- eINK FRIEND BREAKOUT WIRING              -->
+  <!-- ======================================== -->
+
+  <rect x="620" y="280" width="230" height="250" rx="8" ry="8" fill="#f0fafa" stroke="#07777a" stroke-width="2"/>
+  <text x="735" y="302" text-anchor="middle" font-size="13" font-weight="bold" fill="#07777a">eInk Friend Breakout</text>
+  <text x="735" y="317" text-anchor="middle" font-size="10" fill="#07777a">UC8151D 296x128 (bit-banged SPI)</text>
+
+  <circle cx="640" cy="340" r="5" class="pin-eink"/>
+  <text x="652" y="344" font-size="10" fill="#07777a" font-weight="bold">ECS</text>
+  <text x="700" y="344" font-size="9" fill="#888">eInk chip select</text>
+
+  <circle cx="640" cy="360" r="5" class="pin-eink"/>
+  <text x="652" y="364" font-size="10" fill="#07777a" font-weight="bold">D/C</text>
+  <text x="700" y="364" font-size="9" fill="#888">Data / Command</text>
+
+  <circle cx="640" cy="380" r="5" class="pin-eink"/>
+  <text x="652" y="384" font-size="10" fill="#07777a" font-weight="bold">RST</text>
+  <text x="700" y="384" font-size="9" fill="#888">Hardware reset</text>
+
+  <circle cx="640" cy="400" r="5" class="pin-eink"/>
+  <text x="652" y="404" font-size="10" fill="#07777a" font-weight="bold">BUSY</text>
+  <text x="700" y="404" font-size="9" fill="#888">Busy signal (input)</text>
+
+  <circle cx="640" cy="420" r="5" class="pin-eink"/>
+  <text x="652" y="424" font-size="10" fill="#07777a" font-weight="bold">SRCS</text>
+  <text x="700" y="424" font-size="9" fill="#888">SRAM chip select</text>
+
+  <circle cx="640" cy="440" r="5" class="pin-eink"/>
+  <text x="652" y="444" font-size="10" fill="#07777a" font-weight="bold">SCK</text>
+  <text x="700" y="444" font-size="9" fill="#888">SPI clock (bit-banged)</text>
+
+  <circle cx="640" cy="460" r="5" class="pin-eink"/>
+  <text x="652" y="464" font-size="10" fill="#07777a" font-weight="bold">MOSI</text>
+  <text x="700" y="464" font-size="9" fill="#888">SPI data (bit-banged)</text>
+
+  <circle cx="640" cy="484" r="4" class="pin-pwr"/>
+  <text x="652" y="488" font-size="10" fill="#07777a" font-weight="bold">Vin</text>
+  <text x="700" y="488" font-size="9" fill="#888">3.3V power</text>
+
+  <circle cx="640" cy="504" r="4" class="pin-gnd"/>
+  <text x="652" y="508" font-size="10" fill="#07777a" font-weight="bold">GND</text>
+  <text x="700" y="508" font-size="9" fill="#888">Ground</text>
+
+  <!-- eInk wires: Right header pins to eInk box -->
+  <!-- D10/GP10 (right pin 7, cy=350) to ECS -->
+  <path d="M 467,350 L 500,350 L 500,340 L 635,340" class="wire-eink"/>
+  <!-- D11/GP11 (right pin 6, cy=324) to D/C -->
+  <path d="M 467,324 L 508,324 L 508,360 L 635,360" class="wire-eink"/>
+  <!-- D12/GP12 (right pin 5, cy=298) to RST -->
+  <path d="M 467,298 L 516,298 L 516,380 L 635,380" class="wire-eink"/>
+  <!-- D13/GP13 (right pin 4, cy=272) to BUSY -->
+  <path d="M 467,272 L 524,272 L 524,400 L 635,400" class="wire-eink"/>
+
+  <!-- eInk wires: Left header pins to eInk box (route under board) -->
+  <!-- A2/GP28 (left pin 7, cy=246) to SRCS -->
+  <path d="M 253,246 L 230,246 L 230,540 L 605,540 L 605,420 L 635,420" class="wire-eink"/>
+  <!-- D24/GP24 (left pin 9, cy=298) to SCK -->
+  <path d="M 253,298 L 237,298 L 237,548 L 600,548 L 600,440 L 635,440" class="wire-eink"/>
+  <!-- D25/GP25 (left pin 10, cy=324) to MOSI -->
+  <path d="M 253,324 L 244,324 L 244,556 L 595,556 L 595,460 L 635,460" class="wire-eink"/>
+
+  <!-- eInk power: from 3.3V (left pin 3) and GND (left pin 16) -->
+  <path d="M 253,142 L 224,142 L 224,564 L 590,564 L 590,484 L 635,484" class="wire-eink"/>
+  <path d="M 253,480 L 244,480 L 244,572 L 585,572 L 585,504 L 635,504" class="wire-eink"/>
+
+  <!-- ======================================== -->
+  <!-- LEGEND AND WIRING TABLES                 -->
+  <!-- ======================================== -->
+  <rect x="30" y="590" width="820" height="270" rx="6" ry="6" fill="#f8f8f8" stroke="#ccc" stroke-width="1"/>
+
+  <text x="50" y="612" class="section-title">Legend</text>
+
+  <circle cx="60" cy="630" r="6" class="pin-gps"/>
+  <text x="75" y="634" class="note" font-weight="bold" fill="#c00">GPS (4 wires)</text>
+
+  <circle cx="60" cy="650" r="6" class="pin-eink"/>
+  <text x="75" y="654" class="note" font-weight="bold" fill="#07777a">eInk display (9 wires)</text>
+
+  <circle cx="60" cy="670" r="6" class="pin-i2c"/>
+  <text x="75" y="674" class="note">I2C1 (BMP390, ICM-20649, OLED)</text>
+
+  <circle cx="60" cy="690" r="6" class="pin-spi-shared"/>
+  <text x="75" y="694" class="note">SPI1 shared with RFM95 LoRa</text>
+
+  <circle cx="60" cy="710" r="6" class="pin-btn"/>
+  <text x="75" y="714" class="note">OLED FeatherWing buttons</text>
+
+  <circle cx="60" cy="730" r="6" class="pin-adc"/>
+  <text x="75" y="734" class="note">Pyro ADC (future)</text>
+
+  <circle cx="60" cy="750" r="6" class="pin-gnd"/>
+  <text x="75" y="754" class="note">GND</text>
+
+  <circle cx="200" cy="750" r="6" class="pin-pwr"/>
+  <text x="215" y="754" class="note">Power / system</text>
+
+  <!-- GPS Wiring Table -->
+  <text x="370" y="612" class="section-title" fill="#c00">GPS Wiring (all on LEFT header)</text>
+
+  <text x="370" y="632" class="note" font-weight="bold">Wire     Feather          GPS       Position</text>
+  <line x1="370" y1="636" x2="620" y2="636" stroke="#ccc" stroke-width="0.5"/>
+  <text x="370" y="650" class="note" fill="#c00">RED      3.3V             VIN       Left pin 2</text>
+  <text x="370" y="664" class="note" fill="#c00">BLACK    GND              GND       Left pin 4</text>
+  <text x="370" y="678" class="note" fill="#c00">GREEN    RX (GP1)         TX        Left pin 14</text>
+  <text x="370" y="692" class="note" fill="#c00">YELLOW   TX (GP0)         RX        Left pin 15</text>
+  <line x1="370" y1="700" x2="620" y2="700" stroke="#ccc" stroke-width="0.5"/>
+  <text x="370" y="714" class="note" fill="#c00" font-weight="bold">TX/RX are crossed!</text>
+
+  <!-- eInk Wiring Table -->
+  <text x="370" y="738" class="section-title" fill="#07777a">eInk Friend Wiring (both headers)</text>
+
+  <text x="370" y="758" class="note" font-weight="bold">Feather          eInk      Header / Position</text>
+  <line x1="370" y1="762" x2="820" y2="762" stroke="#ccc" stroke-width="0.5"/>
+  <text x="370" y="776" class="note" fill="#07777a">D10 (GP10)       ECS       Right pin 7</text>
+  <text x="370" y="790" class="note" fill="#07777a">D11 (GP11)       D/C       Right pin 6</text>
+  <text x="370" y="804" class="note" fill="#07777a">D12 (GP12)       RST       Right pin 5</text>
+  <text x="370" y="818" class="note" fill="#07777a">D13 (GP13)       BUSY      Right pin 4</text>
+  <text x="630" y="776" class="note" fill="#07777a">A2 (GP28)        SRCS      Left pin 7</text>
+  <text x="630" y="790" class="note" fill="#07777a">D24 (GP24)       SCK       Left pin 9</text>
+  <text x="630" y="804" class="note" fill="#07777a">D25 (GP25)       MOSI      Left pin 10</text>
+  <text x="630" y="818" class="note" fill="#07777a">3.3V             Vin       Left pin 3</text>
+  <text x="630" y="832" class="note" fill="#07777a">GND              GND       Left pin 16</text>
+
+  <!-- Build info -->
+  <text x="440" y="580" text-anchor="middle" font-size="9" fill="#999">Rocket Avionics Flight Computer - Build 199 - 2026-02</text>
+</svg>

@@ -48,8 +48,19 @@
 // Deep sleep check byte
 #define kDslpCheckByte    0xA5
 
+//----------------------------------------------
+// Board Type (auto-detected during Init)
+//----------------------------------------------
+typedef enum
+{
+  kEpdBoardNone = 0,       // No eInk display detected
+  kEpdBoardBreakout,       // eInk Breakout Friend (CS=GP10, DC=GP11)
+  kEpdBoardFeather         // eInk Feather Friend 4446 (CS=GP9, DC=GP10)
+} EpdBoardType ;
+
 // Public functions
 bool UC8151D_Init(void) ;
+EpdBoardType UC8151D_GetBoardType(void) ;
 void UC8151D_Clear(uint8_t inColor) ;
 void UC8151D_WriteImage(const uint8_t * inData) ;
 void UC8151D_WritePartial(const uint8_t * inOldData, const uint8_t * inNewData,
