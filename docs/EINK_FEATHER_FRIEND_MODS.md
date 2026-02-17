@@ -130,7 +130,7 @@ After cutting traces, add these bodge wires:
 
 ### BUSY Pin Note
 
-The BUSY pin is **not** connected to any Feather header pin by default on the Feather Friend. There is a breakout pad labeled BUSY on the board. Solder a wire from this pad to GP13 (D13) on the Feather. The firmware uses BUSY to detect when the display has finished refreshing. If BUSY is not wired, the driver falls back to fixed timing delays (3s full refresh, 500ms partial), which works but is slower.
+The BUSY pin is **not** connected to any Feather header pin by default on the Feather Friend. There is a breakout pad labeled BUSY on the board. Wiring BUSY to GP13 (D13) is **optional**. If wired, the firmware polls BUSY for faster display updates. If not wired, the driver automatically falls back to fixed timing delays (3s full refresh, 500ms partial), which works reliably but is slightly slower. Board auto-detection also adapts: with BUSY wired, the board is detected by BUSY toggling; without BUSY, the firmware assumes Feather Friend after the BUSY probe times out.
 
 ---
 
@@ -144,9 +144,7 @@ The eInk Feather Friend's default pins overlap with the OLED FeatherWing buttons
 | GP6 | SRCS (SRAM CS) | Button B |
 | GP5 | SDCS (SD CS) | Button C |
 
-**Resolution:** The firmware handles this by initializing these pins as SPI outputs (HIGH/deselected) during `InitializeSPI()`, then re-initializing GP9/GP6/GP5 as inputs with pull-ups during `InitializeButtons()`. Since the eInk CS is controlled via software (driven LOW only during SPI transfers), and the SRAM/SD chip selects are held permanently HIGH (deselected), the buttons continue to function normally.
-
-If you cut the SRCS (D6) and SDCS (D5) traces as recommended above, this conflict is eliminated entirely for those two pins.
+**Resolution:** In eInk builds (`DISPLAY_EINK` defined), `InitializeButtons()` is skipped entirely. The OLED FeatherWing buttons are not physically present when using the eInk Feather Friend, and initializing those pins as inputs would break the eInk CS/SRAM/SD chip selects. The pins remain as SPI outputs (HIGH/deselected) set by `InitializeSPI()`.
 
 ---
 

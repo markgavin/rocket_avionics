@@ -112,7 +112,7 @@ Protected Class FlightConnection
 
 		  Try
 		    LogMessage("Setting socket address and port...", "DEBUG")
-		    pTcpSocket.Address = pRetryHost
+		    pTcpSocket.Address = ResolveMdnsHostname(pRetryHost)
 		    pTcpSocket.Port = pRetryPort
 
 		    LogMessage("Calling Connect...", "DEBUG")
@@ -386,7 +386,7 @@ Protected Class FlightConnection
 		    AddHandler pTcpSocket.Error, AddressOf HandleTcpError
 
 		    Try
-		      pTcpSocket.Address = pRetryHost
+		      pTcpSocket.Address = ResolveMdnsHostname(pRetryHost)
 		      pTcpSocket.Port = pRetryPort
 		      pTcpSocket.Connect
 		    Catch e As RuntimeException
@@ -421,6 +421,71 @@ Protected Class FlightConnection
 		Private Sub LogMessage(inMessage As String, inLevel As String = "INFO")
 		  RaiseEvent DebugLog("[" + inLevel + "] " + inMessage)
 		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Function ResolveMdnsHostname(inHostname As String) As String
+		  // Resolve .local mDNS hostnames to IP addresses.
+		  // Xojo's TCPSocket cannot resolve .local names natively.
+		  // Uses macOS dns-sd for active mDNS resolution (dscacheutil
+		  // only checks cache and misses names not yet resolved).
+		  // Returns IP address if resolved, original hostname otherwise.
+
+		  If Not inHostname.EndsWith(".local") Then
+		    Return inHostname
+		  End If
+
+		  LogMessage("Resolving mDNS hostname: " + inHostname, "DEBUG")
+
+		  #If TargetMacOS Then
+		    // dns-sd -G v4 performs an active mDNS query.
+		    // It runs indefinitely, so we launch it in background, wait
+		    // up to 3 seconds, capture output, then kill it.
+		    Var theShell As New Shell
+		    theShell.TimeOut = 5
+		    theShell.Execute("dns-sd -G v4 " + inHostname + " & DNS_PID=$!; sleep 3; kill $DNS_PID 2>/dev/null; wait $DNS_PID 2>/dev/null")
+
+		    Var theOutput As String = theShell.Result
+		    If theOutput <> "" Then
+		      // Parse dns-sd output for an "Add" line containing the IP address
+		      // Format: "Timestamp  Add  Flags  IF  Hostname  Address  TTL"
+		      Var theLines() As String = theOutput.Split(Chr(10))
+		      For Each theLine As String In theLines
+		        theLine = theLine.Trim
+		        If theLine.IndexOf("Add") >= 0 Then
+		          // Split on whitespace and find the IPv4 address
+		          Var theParts() As String = theLine.Split(" ")
+		          For Each thePart As String In theParts
+		            thePart = thePart.Trim
+		            // Match IPv4 pattern: digits.digits.digits.digits
+		            If thePart.IndexOf(".") > 0 And thePart.Left(1) >= "0" And thePart.Left(1) <= "9" Then
+		              // Verify it looks like an IP (not a hostname)
+		              Var theDots As Integer = 0
+		              Var theValid As Boolean = True
+		              For i As Integer = 0 To thePart.Length - 1
+		                Var theChar As String = thePart.Middle(i, 1)
+		                If theChar = "." Then
+		                  theDots = theDots + 1
+		                ElseIf theChar < "0" Or theChar > "9" Then
+		                  theValid = False
+		                  Exit
+		                End If
+		              Next
+		              If theValid And theDots = 3 Then
+		                LogMessage("Resolved " + inHostname + " -> " + thePart, "INFO")
+		                Return thePart
+		              End If
+		            End If
+		          Next
+		        End If
+		      Next
+		    End If
+
+		    LogMessage("mDNS resolution failed for " + inHostname, "WARN")
+		  #EndIf
+
+		  Return inHostname
+		End Function
 	#tag EndMethod
 
 	#tag Method, Flags = &h21

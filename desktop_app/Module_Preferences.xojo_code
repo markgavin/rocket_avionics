@@ -229,11 +229,11 @@ Protected Module Module_Preferences
 	#tag EndProperty
 
 	#tag Property, Flags = &h0
-		WifiHost As String = "192.168.4.1"
+		WifiHost As String = "RocketGateway.local"
 	#tag EndProperty
 
 	#tag Property, Flags = &h0
-		WifiPort As Integer = 8080
+		WifiPort As Integer = 5000
 	#tag EndProperty
 
 

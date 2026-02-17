@@ -137,7 +137,9 @@ static char sRocketName[kRocketNameMaxLen] = "" ;  // Custom rocket name
 static void InitializeHardware(void) ;
 static void InitializeI2C(void) ;
 static void InitializeSPI(void) ;
+#ifndef DISPLAY_EINK
 static void InitializeButtons(void) ;
+#endif
 static void ProcessButtons(uint32_t inCurrentMs) ;
 #ifndef DISPLAY_EINK
 static void UpdateDisplay(uint32_t inCurrentMs) ;
@@ -693,8 +695,12 @@ static void InitializeHardware(void)
   // Initialize SPI bus
   InitializeSPI() ;
 
-  // Initialize buttons
+#ifndef DISPLAY_EINK
+  // OLED FeatherWing buttons (GP9/GP6/GP5).
+  // Skipped in eInk builds — those pins are used by Feather Friend
+  // for ECS/SRCS/SDCS, and no physical buttons exist on eInk boards.
   InitializeButtons() ;
+#endif
 
   // Initialize ADC for pyro continuity readings (GP26=ADC0, GP27=ADC1)
   adc_init() ;
@@ -996,7 +1002,10 @@ static void InitializeSPI(void)
 
 //----------------------------------------------
 // Function: InitializeButtons
+// OLED FeatherWing only — eInk builds skip this
+// because GP9/GP6/GP5 are eInk Feather Friend pins.
 //----------------------------------------------
+#ifndef DISPLAY_EINK
 static void InitializeButtons(void)
 {
   printf("Initializing buttons...\n") ;
@@ -1018,6 +1027,7 @@ static void InitializeButtons(void)
 
   printf("Buttons initialized\n") ;
 }
+#endif
 
 //----------------------------------------------
 // Function: ProcessButtons
@@ -1970,7 +1980,7 @@ static void Core1_DisplayLoop(void)
     // Skip display updates during active flight (LoRa priority)
     if (theData.pState >= kFlightBoost && theData.pState <= kFlightDescent)
     {
-      busy_wait_us_32(kDisplayUpdateIntervalMs * 1000) ;
+      sleep_ms(kDisplayUpdateIntervalMs) ;
       continue ;
     }
 
@@ -2074,7 +2084,7 @@ static void Core1_DisplayLoop(void)
         break ;
     }
 
-    // Sleep between display updates
+    // Sleep between display updates (sleep_ms uses __wfe() low-power wait)
     uint32_t theInterval = kDisplayUpdateIntervalMs ;
     if (theData.pState == kFlightLanded || theData.pState == kFlightComplete)
     {
@@ -2082,11 +2092,11 @@ static void Core1_DisplayLoop(void)
     }
     if (theBtnCycle || theBtnHome || theBtnEditRocket)
     {
-      busy_wait_us_32(200000) ;
+      sleep_ms(200) ;
     }
     else
     {
-      busy_wait_us_32(theInterval * 1000) ;
+      sleep_ms(theInterval) ;
     }
   }
 }

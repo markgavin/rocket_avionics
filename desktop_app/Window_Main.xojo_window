@@ -176,10 +176,10 @@ Begin Window Window_Main
          TabIndex        =   3
          TabPanelIndex   =   0
          TabStop         =   True
-         Text            =   "192.168.4.1"
+         Text            =   "RocketGateway.local"
          TextAlignment   =   0
          TextColor       =   &c00000000
-         Tooltip         =   "Gateway IP address"
+         Tooltip         =   "Gateway hostname or IP address"
          Top             =   75
          Transparent     =   False
          Underline       =   False
@@ -218,7 +218,7 @@ Begin Window Window_Main
          TabIndex        =   4
          TabPanelIndex   =   0
          TabStop         =   True
-         Text            =   "8080"
+         Text            =   "5000"
          TextAlignment   =   0
          TextColor       =   &c00000000
          Tooltip         =   "Gateway port"

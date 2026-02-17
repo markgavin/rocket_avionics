@@ -16,9 +16,8 @@
 // Constants
 //----------------------------------------------
 
-static const uint32_t kBusyTimeoutMs = 200 ;     // Quick check for BUSY pin
 static const uint32_t kFullRefreshMs = 3000 ;     // Fixed delay: full refresh
-static const uint32_t kPartialRefreshMs = 500 ;   // Fixed delay: partial refresh
+static const uint32_t kPartialRefreshMs = 800 ;   // Fixed delay: partial refresh
 static const uint32_t kPowerOnMs = 200 ;          // Fixed delay: power on
 static const uint32_t kDetectTimeoutMs = 100 ;    // Board detection probe timeout
 
@@ -30,6 +29,7 @@ static const uint32_t kDetectTimeoutMs = 100 ;    // Board detection probe timeo
 static uint8_t sPinCs = kPinEpdCs ;
 static uint8_t sPinDc = kPinEpdDc ;
 static EpdBoardType sBoardType = kEpdBoardNone ;
+static bool sBusyWired = false ;
 
 //----------------------------------------------
 // Bit-Banged SPI Write
@@ -60,34 +60,33 @@ static void BitBangSpiWrite(const uint8_t * inData, size_t inLen)
 // SPI Helpers
 //----------------------------------------------
 
-// Try BUSY pin briefly; returns true if pin responded, false if timed out.
-// Uses busy_wait (not sleep_ms) so this is safe to call from core1
-// without interacting with core0's alarm pool.
-static bool CheckBusy(void)
-{
-  uint32_t theStart = to_ms_since_boot(get_absolute_time()) ;
-
-  while (!gpio_get(kPinEpdBusy))
-  {
-    uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
-    if (theElapsed > kBusyTimeoutMs)
-    {
-      return false ;  // Pin not responding
-    }
-    busy_wait_us_32(10000) ;
-  }
-  return true ;  // Pin went high — display is ready
-}
-
 // Wait for display to finish.
-// Uses BUSY pin if wired, otherwise falls back to fixed delay.
-// All waits use busy_wait (safe for core1, no alarm pool).
+// If BUSY is wired, polls until BUSY goes HIGH (ready).
+// If BUSY is not wired, uses fixed delay.
+// Uses sleep_ms for idle waits — puts core into low-power
+// state via __wfe() instead of spinning at 100% CPU.
 static void WaitReady(uint32_t inFixedDelayMs)
 {
-  if (!CheckBusy())
+  if (sBusyWired)
   {
-    // BUSY pin not responding — use fixed delay
-    busy_wait_us_32(inFixedDelayMs * 1000) ;
+    // Poll BUSY pin with timeout
+    uint32_t theStart = to_ms_since_boot(get_absolute_time()) ;
+    uint32_t theTimeoutMs = inFixedDelayMs + 1000 ;
+
+    while (!gpio_get(kPinEpdBusy))
+    {
+      uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
+      if (theElapsed > theTimeoutMs)
+      {
+        break ;  // Timeout — proceed anyway
+      }
+      sleep_ms(10) ;
+    }
+  }
+  else
+  {
+    // BUSY not wired — use fixed delay
+    sleep_ms(inFixedDelayMs) ;
   }
 }
 
@@ -133,79 +132,91 @@ static void HardwareReset(void)
 //----------------------------------------------
 // Board Detection
 //
-// Probes the display with both pin sets to determine
-// which eInk board is connected. Sends power-on command
-// and checks if BUSY toggles within timeout.
+// Probes the display with both pin sets. First tries
+// BUSY-based detection (fast). If BUSY is not wired,
+// falls back to assuming Feather Friend with fixed timing.
 //----------------------------------------------
 
-static bool ProbeWithPins(uint8_t inCs, uint8_t inDc)
+static void ConfigureProbePins(uint8_t inCs, uint8_t inDc)
 {
-  // Set candidate pins for this probe
+  // Re-configure candidate pins as outputs.
+  // In DISPLAY_EINK builds, InitializeButtons() is skipped.
+  // In OLED builds, it may have set GP9/GP6/GP5 to INPUT.
+  gpio_init(inCs) ;
+  gpio_set_dir(inCs, GPIO_OUT) ;
+  gpio_put(inCs, 1) ;    // CS HIGH = deselected
+
+  gpio_init(inDc) ;
+  gpio_set_dir(inDc, GPIO_OUT) ;
+  gpio_put(inDc, 0) ;    // DC LOW = command mode
+
   sPinCs = inCs ;
   sPinDc = inDc ;
+}
 
-  // Send power-on command using candidate pins
+static bool ProbeWithBusy(uint8_t inCs, uint8_t inDc)
+{
+  ConfigureProbePins(inCs, inDc) ;
+
+  // Send power-on command and watch for BUSY to toggle
   SendCommand(kCmdPon) ;
 
-  // Wait for BUSY to go low (display processing) then high (ready)
   uint32_t theStart = to_ms_since_boot(get_absolute_time()) ;
 
-  // First wait for BUSY to go low (command received)
+  // Wait for BUSY to go low (display processing)
   while (gpio_get(kPinEpdBusy))
   {
     uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
     if (theElapsed > kDetectTimeoutMs)
-      return false ;  // Display never started processing — wrong pins
+      return false ;  // BUSY never went low — not wired or wrong pins
     busy_wait_us_32(1000) ;
   }
 
-  // BUSY went low — display received the command. Wait for it to finish.
+  // BUSY went low — display received the command. Wait for ready.
   while (!gpio_get(kPinEpdBusy))
   {
     uint32_t theElapsed = to_ms_since_boot(get_absolute_time()) - theStart ;
     if (theElapsed > kPowerOnMs + kDetectTimeoutMs)
-      break ;  // Timeout waiting for ready, but display did respond
+      break ;
     busy_wait_us_32(1000) ;
   }
 
-  return true ;  // Display responded on these pins
+  return true ;
 }
 
 static void DetectBoard(void)
 {
   printf("EPD: Auto-detecting eInk board...\n") ;
 
-  // Reset display (shared RST pin)
   HardwareReset() ;
 
-  // Try Breakout Friend first (CS=GP10, DC=GP11)
-  printf("  Probing Breakout Friend (CS=GP10, DC=GP11)...\n") ;
-  if (ProbeWithPins(kPinEpdCs, kPinEpdDc))
+  // Try Breakout Friend (CS=GP10, DC=GP11) with BUSY detection
+  if (ProbeWithBusy(kPinEpdCs, kPinEpdDc))
   {
     sBoardType = kEpdBoardBreakout ;
-    sPinCs = kPinEpdCs ;
-    sPinDc = kPinEpdDc ;
-    printf("  Detected: eInk Breakout Friend\n") ;
+    sBusyWired = true ;
+    printf("  Detected: eInk Breakout Friend (BUSY wired)\n") ;
     return ;
   }
 
-  // Reset again before trying alternate pins
   HardwareReset() ;
 
-  // Try Feather Friend (CS=GP9, DC=GP10)
-  printf("  Probing Feather Friend (CS=GP9, DC=GP10)...\n") ;
-  if (ProbeWithPins(kPinEpdCsAlt, kPinEpdDcAlt))
+  // Try Feather Friend (CS=GP9, DC=GP10) with BUSY detection
+  if (ProbeWithBusy(kPinEpdCsAlt, kPinEpdDcAlt))
   {
     sBoardType = kEpdBoardFeather ;
-    sPinCs = kPinEpdCsAlt ;
-    sPinDc = kPinEpdDcAlt ;
-    printf("  Detected: eInk Feather Friend\n") ;
+    sBusyWired = true ;
+    printf("  Detected: eInk Feather Friend (BUSY wired)\n") ;
     return ;
   }
 
-  // Neither responded
-  sBoardType = kEpdBoardNone ;
-  printf("  No eInk display detected\n") ;
+  // BUSY-based detection failed — BUSY is probably not wired.
+  // Assume Feather Friend and use fixed timing delays.
+  printf("  BUSY not wired, assuming Feather Friend (fixed timing)\n") ;
+
+  ConfigureProbePins(kPinEpdCsAlt, kPinEpdDcAlt) ;
+  sBoardType = kEpdBoardFeather ;
+  sBusyWired = false ;
 }
 
 //----------------------------------------------
@@ -220,7 +231,6 @@ EpdBoardType UC8151D_GetBoardType(void)
 bool UC8151D_Init(void)
 {
   printf("EPD: Initializing UC8151D 296x128 eInk display\n") ;
-  printf("  Bit-banged SPI on GP24/GP25 (separate from LoRa SPI1)\n") ;
 
   // Note: All eInk GPIO pins are initialized in main.c InitializeSPI()
 
@@ -229,12 +239,10 @@ bool UC8151D_Init(void)
   if (sBoardType == kEpdBoardNone)
     return false ;
 
-  // Reset again for clean init after detection probes
-  printf("  Hardware reset (3x)...\n") ;
+  // Reset for clean init after detection probes
   HardwareReset() ;
 
   // Power setting
-  printf("  Sending power settings...\n") ;
   SendCommand(kCmdPwr) ;
   uint8_t thePwrData[] = { 0x03, 0x00, 0x2B, 0x2B, 0x09 } ;
   SendData(thePwrData, sizeof(thePwrData)) ;
@@ -245,12 +253,10 @@ bool UC8151D_Init(void)
   SendData(theBtstData, sizeof(theBtstData)) ;
 
   // Power on and wait
-  printf("  Power on...\n") ;
   SendCommand(kCmdPon) ;
   WaitReady(kPowerOnMs) ;
 
   // Panel setting: 0x1F for monochrome (not 0xCF which is tri-color)
-  printf("  Panel setting: 0x1F (mono)\n") ;
   SendCommand(kCmdPsr) ;
   SendDataByte(0x1F) ;
 
@@ -271,8 +277,8 @@ bool UC8151D_Init(void)
   SendCommand(kCmdVdcs) ;
   SendDataByte(0x0A) ;
 
-  printf("  EPD initialized successfully (%dx%d, buffer=%d bytes)\n",
-         kEpdWidth, kEpdHeight, kEpdBufferSize) ;
+  printf("  EPD initialized (%dx%d, BUSY %s)\n",
+         kEpdWidth, kEpdHeight, sBusyWired ? "wired" : "not wired") ;
 
   return true ;
 }
@@ -304,7 +310,7 @@ void UC8151D_WriteImage(const uint8_t * inData)
 void UC8151D_Refresh(void)
 {
   SendCommand(kCmdDrf) ;
-  busy_wait_us_32(100000) ;    // Brief delay before checking busy
+  sleep_ms(100) ;              // Brief delay before checking busy
   WaitReady(kFullRefreshMs) ;
 }
 
@@ -364,7 +370,7 @@ void UC8151D_WritePartial(const uint8_t * inOldData, const uint8_t * inNewData,
 
   // Refresh partial region
   SendCommand(kCmdDrf) ;
-  busy_wait_us_32(100000) ;
+  sleep_ms(100) ;
   WaitReady(kPartialRefreshMs) ;
 
   // Exit partial mode
@@ -373,8 +379,6 @@ void UC8151D_WritePartial(const uint8_t * inOldData, const uint8_t * inNewData,
 
 void UC8151D_Sleep(void)
 {
-  printf("  EPD: Entering deep sleep\n") ;
-
   // CDI before sleep
   SendCommand(kCmdCdi) ;
   SendDataByte(0xF7) ;
