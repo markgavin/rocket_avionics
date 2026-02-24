@@ -60,6 +60,7 @@ typedef enum
 
 // Public functions
 bool UC8151D_Init(void) ;
+void UC8151D_Reinit(void) ;
 EpdBoardType UC8151D_GetBoardType(void) ;
 void UC8151D_Clear(uint8_t inColor) ;
 void UC8151D_WriteImage(const uint8_t * inData) ;

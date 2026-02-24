@@ -74,6 +74,7 @@
 #define kContentH         98
 
 #define kFullRefreshInterval  20
+#define kReinitInterval       20      // Reinit controller periodically
 
 //----------------------------------------------
 // Screen IDs (for tracking current display)
@@ -227,24 +228,37 @@ static void RefreshValue(const char * inOldStr, const char * inNewStr,
 
   if (theOldLen == theNewLen)
   {
-    // Same length — refresh only changed characters
+    // Same length — find bounding box of all changed characters,
+    // update framebuffer, then do ONE partial refresh for the region.
+    // Multiple rapid WritePartial calls cause display corruption.
+    int theFirst = -1 ;
+    int theLast = -1 ;
+
     for (int i = 0 ; i < theNewLen ; i++)
     {
       if (inOldStr[i] != inNewStr[i])
       {
-        int theDigitX = inTextX + i * kCellW ;
+        if (theFirst == -1) theFirst = i ;
+        theLast = i ;
+      }
+    }
 
-        // Clear and redraw this digit in framebuffer
+    if (theFirst >= 0)
+    {
+      // Update framebuffer for all changed characters
+      for (int i = theFirst ; i <= theLast ; i++)
+      {
+        int theDigitX = inTextX + i * kCellW ;
         FB_FillRect(sFrameBuffer, theDigitX, inValueY, kCellW, kCellH, kColorWhite) ;
         FB_DrawChar(sFrameBuffer, theDigitX, inValueY, inNewStr[i], kColorBlack, kValueScale) ;
-
-        // Partial refresh just this digit cell
-        UC8151D_WritePartial(sPrevBuffer, sFrameBuffer,
-                             theDigitX, inValueY, kCellW, kCellH) ;
-
-        // Sync sPrevBuffer so next digit's old data is correct
-        memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
       }
+
+      // Single partial refresh covering all changed digits
+      int theX = inTextX + theFirst * kCellW ;
+      int theW = (theLast - theFirst + 1) * kCellW ;
+      UC8151D_WritePartial(sPrevBuffer, sFrameBuffer,
+                           theX, inValueY, theW, kCellH) ;
+      memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
     }
   }
   else
@@ -304,6 +318,12 @@ static void DrawFooter(void)
 //----------------------------------------------
 static void FullRefreshScreen(void)
 {
+  // Periodic controller reinit to prevent freeze after extended use
+  if (sUpdateCount > 0 && (sUpdateCount % kReinitInterval) == 0)
+  {
+    UC8151D_Reinit() ;
+  }
+
   UC8151D_WriteImage(sFrameBuffer) ;
   memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;
 }
@@ -503,17 +523,18 @@ void StatusDisplay_UpdateCompact(
     theAccelStr[sizeof(theAccelStr) - 1] = '\0' ;
   }
 
-  // Gateway status
+  // Gateway status — all strings padded to 6 chars so RefreshValue
+  // always uses per-digit path (full-box fallback unreliable on eInk)
   if (!inLoRaConnected)
-    snprintf(theGwStr, sizeof(theGwStr), "--") ;
+    snprintf(theGwStr, sizeof(theGwStr), "--    ") ;
   else if (inRssi == 0 && inSnr == 0)
     snprintf(theGwStr, sizeof(theGwStr), "Active") ;
   else if (inRssi > -70 && inSnr > 5)
-    snprintf(theGwStr, sizeof(theGwStr), "Good") ;
+    snprintf(theGwStr, sizeof(theGwStr), "Good  ") ;
   else if (inRssi > -90 && inSnr > 0)
-    snprintf(theGwStr, sizeof(theGwStr), "Ok") ;
+    snprintf(theGwStr, sizeof(theGwStr), "Ok    ") ;
   else
-    snprintf(theGwStr, sizeof(theGwStr), "Poor") ;
+    snprintf(theGwStr, sizeof(theGwStr), "Poor  ") ;
 
   // GPS Row 3 data
   char theSatsStr[16] ;
@@ -697,42 +718,94 @@ void StatusDisplay_ShowInFlight(
 //----------------------------------------------
 // Public: StatusDisplay_ShowFlightComplete
 //----------------------------------------------
-void StatusDisplay_ShowFlightComplete(const FlightResults * inResults)
+void StatusDisplay_ShowFlightComplete(
+  const FlightResults * inResults,
+  bool inGpsFix,
+  uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude)
 {
   if (!sInitialized || inResults == NULL) return ;
-  if (sLastDrawnScreen == kScreenLanded) return ;
 
-  FB_Clear(sFrameBuffer, kColorWhite) ;
-  DrawHeader("FLIGHT COMPLETE", NULL) ;
+  sUpdateCount++ ;
 
-  char theBuffer[32] ;
+  // GPS data strings
+  char theSatsStr[16] ;
+  char theLatStr[16] ;
+  char theLonStr[16] ;
 
-  FB_DrawString(sFrameBuffer, kCol1X, kLabel1Y, "MAX ALTITUDE", kColorBlack, 1) ;
-  snprintf(theBuffer, sizeof(theBuffer), "%.1f m", inResults->pMaxAltitudeM) ;
-  FB_DrawString(sFrameBuffer, kCol1X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
+  snprintf(theSatsStr, sizeof(theSatsStr), "%u", inGpsSatellites) ;
+  if (inGpsFix)
+  {
+    FormatFloat(theLatStr, sizeof(theLatStr), inGpsLatitude, 3) ;
+    FormatFloat(theLonStr, sizeof(theLonStr), inGpsLongitude, 3) ;
+  }
+  else
+  {
+    snprintf(theLatStr, sizeof(theLatStr), "--") ;
+    snprintf(theLonStr, sizeof(theLonStr), "--") ;
+  }
 
-  FB_DrawString(sFrameBuffer, kCol2X, kLabel1Y, "MAX VELOCITY", kColorBlack, 1) ;
-  snprintf(theBuffer, sizeof(theBuffer), "%.1f m/s", inResults->pMaxVelocityMps) ;
-  FB_DrawString(sFrameBuffer, kCol2X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
+  // Full refresh on first draw or periodically (GPS data changes)
+  bool theNeedsFull = (sLastDrawnScreen != kScreenLanded) ||
+                      (sUpdateCount % kFullRefreshInterval == 0) ;
 
-  FB_DrawHLine(sFrameBuffer, 4, kSep1Y, 288, kColorBlack) ;
+  if (theNeedsFull)
+  {
+    FB_Clear(sFrameBuffer, kColorWhite) ;
+    DrawHeader("FLIGHT COMPLETE", NULL) ;
 
-  FB_DrawString(sFrameBuffer, kCol1X, kLabel2Y, "APOGEE TIME", kColorBlack, 1) ;
-  snprintf(theBuffer, sizeof(theBuffer), "%.1f s", inResults->pApogeeTimeMs / 1000.0f) ;
-  FB_DrawString(sFrameBuffer, kCol1X, kValue2Y, theBuffer, kColorBlack, kValueScale) ;
+    char theBuffer[32] ;
 
-  FB_DrawString(sFrameBuffer, kCol2X, kLabel2Y, "FLIGHT TIME", kColorBlack, 1) ;
-  snprintf(theBuffer, sizeof(theBuffer), "%.1f s", inResults->pFlightTimeMs / 1000.0f) ;
-  FB_DrawString(sFrameBuffer, kCol2X, kValue2Y, theBuffer, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol1X, kLabel1Y, "MAX ALTITUDE", kColorBlack, 1) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%.1f m", inResults->pMaxAltitudeM) ;
+    FB_DrawString(sFrameBuffer, kCol1X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
 
-  FB_DrawHLine(sFrameBuffer, 4, kSep2Y, 288, kColorBlack) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kLabel1Y, "MAX VELOCITY", kColorBlack, 1) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%.1f m/s", inResults->pMaxVelocityMps) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kValue1Y, theBuffer, kColorBlack, kValueScale) ;
 
-  snprintf(theBuffer, sizeof(theBuffer), "Samples: %lu", (unsigned long)inResults->pSampleCount) ;
-  FB_DrawString(sFrameBuffer, kCol1X, 96, theBuffer, kColorBlack, 1) ;
+    FB_DrawHLine(sFrameBuffer, 4, kSep1Y, 288, kColorBlack) ;
 
-  DrawFooter() ;
-  FullRefreshScreen() ;
-  sLastDrawnScreen = kScreenLanded ;
+    FB_DrawString(sFrameBuffer, kCol1X, kLabel2Y, "APOGEE TIME", kColorBlack, 1) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%.1f s", inResults->pApogeeTimeMs / 1000.0f) ;
+    FB_DrawString(sFrameBuffer, kCol1X, kValue2Y, theBuffer, kColorBlack, kValueScale) ;
+
+    FB_DrawString(sFrameBuffer, kCol2X, kLabel2Y, "FLIGHT TIME", kColorBlack, 1) ;
+    snprintf(theBuffer, sizeof(theBuffer), "%.1f s", inResults->pFlightTimeMs / 1000.0f) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kValue2Y, theBuffer, kColorBlack, kValueScale) ;
+
+    FB_DrawHLine(sFrameBuffer, 4, kSep2Y, 288, kColorBlack) ;
+
+    // Row 3: GPS recovery data (SATS | LAT | LON)
+    FB_DrawString(sFrameBuffer, kCol1X, kLabel3Y, "SATS", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kLabel3Y, "LAT", kColorBlack, 1) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kLabel3Y, "LON", kColorBlack, 1) ;
+
+    FB_DrawString(sFrameBuffer, kCol1X, kValue3Y, theSatsStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol2X, kValue3Y, theLatStr, kColorBlack, kValueScale) ;
+    FB_DrawString(sFrameBuffer, kCol3X, kValue3Y, theLonStr, kColorBlack, kValueScale) ;
+
+    DrawFooter() ;
+    FullRefreshScreen() ;
+    sLastDrawnScreen = kScreenLanded ;
+  }
+  else
+  {
+    // Per-digit partial refresh for GPS row (satellites change as acquired)
+    RefreshValue(sPrevVal7, theSatsStr, kCol1X, kValue3Y,
+                 kCol1BoxX, kCol1BoxW, NULL, 0, 0) ;
+
+    RefreshValue(sPrevVal8, theLatStr, kCol2X, kValue3Y,
+                 kCol2BoxX, kCol2BoxW, NULL, 0, 0) ;
+
+    RefreshValue(sPrevVal9, theLonStr, kCol3X, kValue3Y,
+                 kCol3BoxX, kCol3BoxW, NULL, 0, 0) ;
+  }
+
+  strcpy(sPrevVal7, theSatsStr) ;
+  strcpy(sPrevVal8, theLatStr) ;
+  strcpy(sPrevVal9, theLonStr) ;
 }
 
 //----------------------------------------------

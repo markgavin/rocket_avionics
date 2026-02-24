@@ -49,9 +49,11 @@ static void BitBangSpiWrite(const uint8_t * inData, size_t inLen)
     {
       gpio_put(kPinEpdMosi, (theByte >> theBit) & 1) ;
       gpio_put(kPinEpdSck, 1) ;   // Rising edge — device samples
-      __asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop") ;
+      __asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop;"
+                      "nop; nop; nop; nop; nop; nop; nop; nop") ;
       gpio_put(kPinEpdSck, 0) ;   // Falling edge
-      __asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop") ;
+      __asm volatile ("nop; nop; nop; nop; nop; nop; nop; nop;"
+                      "nop; nop; nop; nop; nop; nop; nop; nop") ;
     }
   }
 }
@@ -281,6 +283,53 @@ bool UC8151D_Init(void)
          kEpdWidth, kEpdHeight, sBusyWired ? "wired" : "not wired") ;
 
   return true ;
+}
+
+void UC8151D_Reinit(void)
+{
+  // Full software power cycle + hardware reset + re-init.
+  // Recovers from controller state corruption after
+  // extended partial refresh operation.
+  // Does NOT re-detect board (keeps current pin config).
+
+  // Exit partial mode if stuck
+  SendCommand(kCmdPtout) ;
+
+  // Software power off — more reliable than hardware reset
+  // alone since reset pin may not be connected on all boards
+  SendCommand(kCmdPof) ;
+  WaitReady(kPowerOnMs) ;
+
+  // Hardware reset (if connected)
+  HardwareReset() ;
+
+  // Full initialization sequence
+  SendCommand(kCmdPwr) ;
+  uint8_t thePwrData[] = { 0x03, 0x00, 0x2B, 0x2B, 0x09 } ;
+  SendData(thePwrData, sizeof(thePwrData)) ;
+
+  SendCommand(kCmdBtst) ;
+  uint8_t theBtstData[] = { 0x17, 0x17, 0x17 } ;
+  SendData(theBtstData, sizeof(theBtstData)) ;
+
+  SendCommand(kCmdPon) ;
+  WaitReady(kPowerOnMs) ;
+
+  SendCommand(kCmdPsr) ;
+  SendDataByte(0x1F) ;
+
+  SendCommand(kCmdCdi) ;
+  SendDataByte(0x97) ;
+
+  SendCommand(kCmdPll) ;
+  SendDataByte(0x29) ;
+
+  SendCommand(kCmdTres) ;
+  uint8_t theTresData[] = { 0x80, 0x01, 0x28 } ;
+  SendData(theTresData, sizeof(theTresData)) ;
+
+  SendCommand(kCmdVdcs) ;
+  SendDataByte(0x0A) ;
 }
 
 void UC8151D_Clear(uint8_t inColor)

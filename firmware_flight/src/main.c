@@ -212,8 +212,9 @@ typedef struct {
 // Core0 → Core1: bulk telemetry data (core0 writes, core1 reads)
 static DisplaySharedData sDisplayShared ;
 
-// Core1 → Core0: iteration counter for debug monitoring
+// Core1 → Core0: debug monitoring
 static volatile uint32_t sCore1Iterations = 0 ;
+static volatile float sCore1Altitude = -999.0f ;  // Altitude core1 received
 
 // Core0 → Core1: button events (individual atomic flags)
 static volatile bool sBtnCycleMode = false ;
@@ -432,6 +433,15 @@ int main(void)
     // 3a. Handle flight state transitions for flash storage
     //------------------------------------------
     FlightState theCurrentState = FlightControl_GetState(&sFlightController) ;
+    if (theCurrentState != sPreviousFlightState)
+    {
+      // Log all state transitions
+      char theBuf[48] ;
+      snprintf(theBuf, sizeof(theBuf), "MAIN STATE: %s -> %s",
+        FlightControl_GetStateName(sPreviousFlightState),
+        FlightControl_GetStateName(theCurrentState)) ;
+      puts(theBuf) ;
+    }
     if (sFlashOk && theCurrentState != sPreviousFlightState)
     {
       // State changed - check for recording start/stop
@@ -485,6 +495,18 @@ int main(void)
       }
 
       sPreviousFlightState = theCurrentState ;
+    }
+
+    // Auto-recover from spurious flight detection.
+    // If state reached LANDED/COMPLETE but max altitude < 20m,
+    // no real flight occurred — reset to IDLE.
+    // Threshold above launch detection (10m) so phantom flights are caught.
+    if ((theCurrentState == kFlightLanded || theCurrentState == kFlightComplete) &&
+        sFlightController.pResults.pMaxAltitudeM < 20.0f)
+    {
+      puts("*** AUTO-RESET: spurious flight (maxAlt < 20m) ***") ;
+      FlightControl_Reset(&sFlightController) ;
+      sPreviousFlightState = kFlightIdle ;
     }
 
     //------------------------------------------
@@ -629,8 +651,8 @@ int main(void)
       sDisplayShared.pGpsHeadingDeg = (theGps != NULL) ? theGps->pHeadingDeg : 0.0f ;
 
       sDisplayShared.pLoRaOk = sLoRaOk ;
-      sDisplayShared.pLoRaConnected = sLoRaOk && (sLastLoRaTxMs > 0) &&
-        ((theCurrentMs - sLastLoRaTxMs) < kLoRaTimeoutMs) ;
+      sDisplayShared.pLoRaConnected = sLoRaOk && (sLastLoRaRxMs > 0) &&
+        ((theCurrentMs - sLastLoRaRxMs) < kLoRaTimeoutMs) ;
 
       sDisplayShared.pRssi = sGatewayRssi ;
       sDisplayShared.pSnr = sGatewaySnr ;
@@ -642,6 +664,20 @@ int main(void)
       sDisplayShared.pCurrentMs = theCurrentMs ;
 
       sRocketIdEditing = false ;
+
+      // Heartbeat — once per minute, minimal output for long-term monitoring
+      static uint32_t sLastHeartbeatMs = 0 ;
+      if ((theCurrentMs - sLastHeartbeatMs) >= 60000)
+      {
+        sLastHeartbeatMs = theCurrentMs ;
+        char theBuf[64] ;
+        snprintf(theBuf, sizeof(theBuf), "st=%d min=%lu disp=%d alt=%.1f",
+                 (int)FlightControl_GetState(&sFlightController),
+                 (unsigned long)(theCurrentMs / 60000),
+                 (int)sCore1CurrentMode,
+                 (double)sFlightController.pCurrentAltitudeM) ;
+        puts(theBuf) ;
+      }
     }
 #else
     // OLED: direct update on core0
@@ -663,8 +699,14 @@ int main(void)
 
     //------------------------------------------
     // 9. Process button inputs
+    // Skipped in eInk builds: GP9/GP6/GP5 are eInk SPI
+    // chip-select lines, not buttons. Core1 toggling CS
+    // during SPI transfers causes phantom button presses
+    // that cycle the display mode to FlightStats.
     //------------------------------------------
+#ifndef DISPLAY_EINK
     ProcessButtons(theCurrentMs) ;
+#endif
 
     //------------------------------------------
     // 10. Feed watchdog and maintain loop timing
@@ -1181,15 +1223,17 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       }
       else if (theState == kFlightLanded || theState == kFlightComplete)
       {
-        StatusDisplay_ShowFlightComplete(&sFlightController.pResults) ;
+        StatusDisplay_ShowFlightComplete(&sFlightController.pResults,
+          theGpsFix, theGpsSatellites,
+          theGps ? theGps->pLatitude : 0.0f,
+          theGps ? theGps->pLongitude : 0.0f) ;
       }
       else
       {
         // Use compact display showing altitude, GPS, and gateway status with signal quality
-        // Link is active if we're successfully transmitting telemetry
-        // (similar to how gateway tracks connection by receiving packets)
-        bool theLinkActive = sLoRaOk && (sLastLoRaTxMs > 0) &&
-          ((inCurrentMs - sLastLoRaTxMs) < kLoRaTimeoutMs) ;
+        // Link is active if we've received an ACK from the gateway recently
+        bool theLinkActive = sLoRaOk && (sLastLoRaRxMs > 0) &&
+          ((inCurrentMs - sLastLoRaRxMs) < kLoRaTimeoutMs) ;
 
         // Pass actual RSSI/SNR from ACK packets (0/0 means no ACK data yet)
         // Display code will show "GW: Active" when RSSI=0/SNR=0 but link is active
@@ -1229,7 +1273,14 @@ static void UpdateDisplay(uint32_t inCurrentMs)
       break ;
 
     case kDisplayModeFlightStats:
-      StatusDisplay_ShowFlightComplete(&sFlightController.pResults) ;
+      {
+        const GpsData * theStatsGps = sGpsOk ? GPS_GetData() : NULL ;
+        StatusDisplay_ShowFlightComplete(&sFlightController.pResults,
+          (theStatsGps != NULL) && theStatsGps->pValid,
+          (theStatsGps != NULL) ? theStatsGps->pSatellites : 0,
+          (theStatsGps != NULL) ? theStatsGps->pLatitude : 0.0f,
+          (theStatsGps != NULL) ? theStatsGps->pLongitude : 0.0f) ;
+      }
       break ;
 
     case kDisplayModeLoRaStatus:
@@ -1747,7 +1798,7 @@ static void ProcessLoRaCommands(void)
     switch (theCommand)
     {
       case kCmdArm:
-        DEBUG_PRINT("LoRa: Arm command received\n") ;
+        puts("*** ARM COMMAND RECEIVED ***") ;
         FlightControl_Arm(&sFlightController) ;
         break ;
 
@@ -1954,6 +2005,7 @@ static void Core1_DisplayLoop(void)
     // Torn reads are harmless — worst case one frame shows
     // a mix of old/new values, imperceptible on eInk.
     theData = sDisplayShared ;
+    sCore1Altitude = theData.pAltitudeM ;   // Debug: expose for core0 monitoring
 
     // Read button events (atomic bool reads, clear after reading)
     bool theBtnCycle = sBtnCycleMode ;
@@ -1994,7 +2046,9 @@ static void Core1_DisplayLoop(void)
         }
         else if (theData.pState == kFlightLanded || theData.pState == kFlightComplete)
         {
-          StatusDisplay_ShowFlightComplete(&theData.pResults) ;
+          StatusDisplay_ShowFlightComplete(&theData.pResults,
+            theData.pGpsFix, theData.pGpsSatellites,
+            theData.pGpsLatitude, theData.pGpsLongitude) ;
         }
         else
         {
@@ -2028,7 +2082,9 @@ static void Core1_DisplayLoop(void)
         break ;
 
       case kDisplayModeFlightStats:
-        StatusDisplay_ShowFlightComplete(&theData.pResults) ;
+        StatusDisplay_ShowFlightComplete(&theData.pResults,
+          theData.pGpsFix, theData.pGpsSatellites,
+          theData.pGpsLatitude, theData.pGpsLongitude) ;
         break ;
 
       case kDisplayModeLoRaStatus:

@@ -163,7 +163,12 @@ void StatusDisplay_ShowInFlight(
 //----------------------------------------------
 // Function: StatusDisplay_ShowFlightComplete
 //----------------------------------------------
-void StatusDisplay_ShowFlightComplete(const FlightResults * inResults)
+void StatusDisplay_ShowFlightComplete(
+  const FlightResults * inResults,
+  bool inGpsFix,
+  uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude)
 {
   if (!sInitialized || inResults == NULL) return ;
 
@@ -186,12 +191,20 @@ void StatusDisplay_ShowFlightComplete(const FlightResults * inResults)
   snprintf(theBuffer, sizeof(theBuffer), "Max Vel: %.1f m/s", inResults->pMaxVelocityMps) ;
   SSD1306_DrawString(0, 34, theBuffer, 1) ;
 
-  // Flight time
-  snprintf(theBuffer, sizeof(theBuffer), "Flight: %.1f s", inResults->pFlightTimeMs / 1000.0f) ;
+  // GPS recovery data
+  if (inGpsFix)
+  {
+    snprintf(theBuffer, sizeof(theBuffer), "GPS:%u %.3f,%.3f",
+      inGpsSatellites, inGpsLatitude, inGpsLongitude) ;
+  }
+  else
+  {
+    snprintf(theBuffer, sizeof(theBuffer), "GPS:%u No Fix", inGpsSatellites) ;
+  }
   SSD1306_DrawString(0, 44, theBuffer, 1) ;
 
-  // Samples
-  snprintf(theBuffer, sizeof(theBuffer), "Samples: %lu", inResults->pSampleCount) ;
+  // Flight time
+  snprintf(theBuffer, sizeof(theBuffer), "Flight: %.1f s", inResults->pFlightTimeMs / 1000.0f) ;
   SSD1306_DrawString(0, 54, theBuffer, 1) ;
 
   SSD1306_Update() ;

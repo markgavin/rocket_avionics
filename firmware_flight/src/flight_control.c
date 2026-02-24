@@ -17,6 +17,8 @@
 #include <string.h>
 #include <math.h>
 
+#define printf(...) ((void)0)
+
 //----------------------------------------------
 // Constants
 //----------------------------------------------
@@ -265,6 +267,9 @@ void FlightControl_UpdateImu(
   // Mark IMU as available for complementary filter
   ioController->pImuAvailable = true ;
 
+  // Store acceleration magnitude for launch detection
+  ioController->pAccelMagnitude = inImuData->pAccelMagnitude ;
+
   // Compute delta time
   float theDtS = 0.0f ;
   if (ioController->pLastImuTimeMs > 0)
@@ -310,11 +315,33 @@ void FlightControl_Update(FlightController * ioController, uint32_t inCurrentTim
       break ;
 
     case kFlightArmed:
-      // Check for launch detection
-      if (ioController->pCurrentAltitudeM > kLaunchAltitudeThresholdM ||
-          ioController->pCurrentVelocityMps > kLaunchVelocityThresholdMps)
+      // Armed timeout: auto-disarm after 30 minutes to prevent
+      // barometric drift from accumulating indefinitely
+      if (inCurrentTimeMs - ioController->pArmedTimeMs > kArmedTimeoutMs)
       {
-        // Launch detected!
+        ioController->pState = kFlightIdle ;
+        ioController->pTelemetryEnabled = false ;
+        ioController->pSdLoggingEnabled = false ;
+        break ;
+      }
+
+      // Launch detection: ALL three conditions must be met simultaneously.
+      // Barometric drift alone cannot trigger — acceleration confirms thrust.
+      if (ioController->pCurrentAltitudeM > kLaunchAltitudeThresholdM &&
+          ioController->pCurrentVelocityMps > kLaunchVelocityThresholdMps &&
+          ioController->pAccelMagnitude > kLaunchAccelThresholdG)
+      {
+        ioController->pLaunchDetectCount++ ;
+      }
+      else
+      {
+        ioController->pLaunchDetectCount = 0 ;
+      }
+
+      // Require consecutive samples to filter single-sample noise
+      if (ioController->pLaunchDetectCount >= kLaunchDetectSamples)
+      {
+        // Launch confirmed!
         ioController->pState = kFlightBoost ;
         ioController->pLaunchTimeMs = inCurrentTimeMs ;
         ioController->pTelemetryEnabled = true ;
@@ -330,9 +357,10 @@ void FlightControl_Update(FlightController * ioController, uint32_t inCurrentTim
 
     case kFlightBoost:
       // Check for burnout (velocity starts decreasing significantly)
-      // Transition to coast when acceleration becomes negative
-      // For now, just check if velocity is decreasing
-      if (ioController->pCurrentVelocityMps < ioController->pResults.pMaxVelocityMps * 0.95f &&
+      // Minimum velocity gate prevents false transition when maxVelocity
+      // is near zero at start of boost phase
+      if (ioController->pResults.pMaxVelocityMps > 5.0f &&
+          ioController->pCurrentVelocityMps < ioController->pResults.pMaxVelocityMps * 0.95f &&
           ioController->pCurrentAltitudeM > 20.0f)
       {
         ioController->pState = kFlightCoast ;
@@ -430,7 +458,11 @@ void FlightControl_Update(FlightController * ioController, uint32_t inCurrentTim
   // Log state transition
   if (thePreviousState != ioController->pState)
   {
-    // State changed - could trigger events here
+    char theBuf[48] ;
+    snprintf(theBuf, sizeof(theBuf), "STATE: %s -> %s",
+      FlightControl_GetStateName(thePreviousState),
+      FlightControl_GetStateName(ioController->pState)) ;
+    puts(theBuf) ;
   }
 }
 
@@ -457,12 +489,16 @@ FlightError FlightControl_Arm(FlightController * ioController)
   ioController->pSampleCount = 0 ;
   ioController->pDescendingCount = 0 ;
   ioController->pStationaryCount = 0 ;
+  ioController->pLaunchDetectCount = 0 ;
   ioController->pCurrentAltitudeM = 0.0f ;
   ioController->pCurrentVelocityMps = 0.0f ;
   ioController->pTelemetrySequence = 0 ;
   ioController->pCfAltitudeM = 0.0f ;
   ioController->pCfVelocityMps = 0.0f ;
   // Keep pCfAccelBiasMps2 — it has already converged on pad
+
+  // Record arm time for timeout
+  ioController->pArmedTimeMs = to_ms_since_boot(get_absolute_time()) ;
 
   // Clear results
   memset(&ioController->pResults, 0, sizeof(FlightResults)) ;

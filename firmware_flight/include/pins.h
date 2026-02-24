@@ -128,6 +128,9 @@
 //----------------------------------------------
 #define kLaunchAltitudeThresholdM   10.0f   // Altitude to detect launch
 #define kLaunchVelocityThresholdMps 10.0f   // Velocity to detect launch
+#define kLaunchAccelThresholdG      2.0f    // Accel magnitude to confirm launch (g)
+#define kLaunchDetectSamples        5       // Consecutive samples for launch confirm
+#define kArmedTimeoutMs             1800000 // 30 minutes auto-disarm
 #define kApogeeVelocityThresholdMps 2.0f    // Velocity threshold for apogee
 #define kLandingVelocityThresholdMps 1.0f   // Velocity threshold for landing
 #define kLandingStationarySeconds   5       // Seconds stationary to detect landing

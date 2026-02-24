@@ -93,11 +93,20 @@ void StatusDisplay_ShowInFlight(
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowFlightComplete
-// Purpose: Show flight complete summary
+// Purpose: Show flight complete summary with GPS
 // Parameters:
 //   inResults - Flight results structure
+//   inGpsFix - GPS has valid fix
+//   inGpsSatellites - Number of satellites
+//   inGpsLatitude - Latitude in degrees
+//   inGpsLongitude - Longitude in degrees
 //----------------------------------------------
-void StatusDisplay_ShowFlightComplete(const FlightResults * inResults) ;
+void StatusDisplay_ShowFlightComplete(
+  const FlightResults * inResults,
+  bool inGpsFix,
+  uint8_t inGpsSatellites,
+  float inGpsLatitude,
+  float inGpsLongitude) ;
 
 //----------------------------------------------
 // Function: StatusDisplay_ShowError

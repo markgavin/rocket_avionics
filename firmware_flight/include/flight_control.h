@@ -220,6 +220,11 @@ typedef struct
   float pCfAccelBiasMps2 ;        // Learned accelerometer bias (m/s^2)
   uint32_t pLastImuTimeMs ;       // Last IMU update timestamp
 
+  // Launch detection
+  float pAccelMagnitude ;         // Current acceleration magnitude (g)
+  uint8_t pLaunchDetectCount ;    // Consecutive samples meeting launch criteria
+  uint32_t pArmedTimeMs ;         // System time when armed (for timeout)
+
   // Landing detection
   float pPreviousAltitudeM ;      // Previous altitude for velocity
   uint8_t pStationaryCount ;      // Consecutive stationary samples
