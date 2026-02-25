@@ -993,8 +993,12 @@ End
 	#tag Event
 		Sub Action()
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Main.pConnection.SendArm()
-		    LogMessage(">> ARM")
+		    If Window_Main.pSelectedRocketId < 0 Then
+		      LogMessage("!! No rocket selected")
+		      Return
+		    End If
+		    Window_Main.pConnection.SendArm(Window_Main.pSelectedRocketId)
+		    LogMessage(">> ARM rocket " + Str(Window_Main.pSelectedRocketId))
 		    pTxCount = pTxCount + 1
 		    UpdateStats()
 		  Else
@@ -1007,8 +1011,12 @@ End
 	#tag Event
 		Sub Action()
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Main.pConnection.SendDisarm()
-		    LogMessage(">> DISARM")
+		    If Window_Main.pSelectedRocketId < 0 Then
+		      LogMessage("!! No rocket selected")
+		      Return
+		    End If
+		    Window_Main.pConnection.SendDisarm(Window_Main.pSelectedRocketId)
+		    LogMessage(">> DISARM rocket " + Str(Window_Main.pSelectedRocketId))
 		    pTxCount = pTxCount + 1
 		    UpdateStats()
 		  Else
@@ -1021,7 +1029,7 @@ End
 	#tag Event
 		Sub Action()
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Main.pConnection.SendDownload()
+		    Window_Main.pConnection.SendDownload(Window_Main.pSelectedRocketId)
 		    LogMessage(">> DOWNLOAD")
 		    pTxCount = pTxCount + 1
 		    UpdateStats()
@@ -1035,8 +1043,12 @@ End
 	#tag Event
 		Sub Action()
 		  If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		    Window_Main.pConnection.SendReset()
-		    LogMessage(">> RESET")
+		    If Window_Main.pSelectedRocketId < 0 Then
+		      LogMessage("!! No rocket selected")
+		      Return
+		    End If
+		    Window_Main.pConnection.SendReset(Window_Main.pSelectedRocketId)
+		    LogMessage(">> RESET rocket " + Str(Window_Main.pSelectedRocketId))
 		    pTxCount = pTxCount + 1
 		    UpdateStats()
 		  Else

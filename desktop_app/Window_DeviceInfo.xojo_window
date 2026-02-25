@@ -1285,7 +1285,7 @@ End
 		      
 		      // Also request detailed fc_info (firmware version, etc.)
 		      If Window_Main.pConnection <> Nil And Window_Main.pConnection.IsConnected Then
-		        Window_Main.pConnection.SendCommand("fc_info")
+		        Window_Main.pConnection.SendCommand("fc_info", Nil, pSelectedRocketId)
 		      End If
 		      Return
 		    End If

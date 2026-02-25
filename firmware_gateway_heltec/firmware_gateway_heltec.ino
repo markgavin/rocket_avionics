@@ -284,6 +284,7 @@ uint32_t lastDisplayCycleMs = 0;
 float distanceToRocket = 0.0;    // meters
 float prevDistanceToRocket = -1.0;
 uint8_t prevDisplayRocketId = 255;
+uint8_t prevRocketState = 255;
 
 //----------------------------------------------
 // LoRa Receive Callback (ISR)
@@ -1814,8 +1815,13 @@ void handleClientCommand(int clientIdx, const String& command) {
     // All commands can include "rocket":N to target a specific rocket
     // Packet format: magic, type, targetRocketId, commandId, ...params
     //------------------------------------------
-    int targetRocket = extractJsonInt(command, "rocket", 0);
-    if (targetRocket < 0 || targetRocket >= MAX_ROCKETS) targetRocket = 0;
+    int targetRocket = extractJsonInt(command, "rocket", -1);
+    if (targetRocket < 0 || targetRocket >= MAX_ROCKETS) {
+        Serial.printf("Command '%s' rejected: missing or invalid rocket ID\n", cmd.c_str());
+        String err = "{\"type\":\"error\",\"code\":\"NO_ROCKET_ID\",\"message\":\"rocket ID required for " + cmd + "\"}";
+        clients[clientIdx].println(err);
+        return;
+    }
     uint8_t loraPacket[32];
     uint8_t packetLen = 0;
 
@@ -1929,15 +1935,29 @@ void handleClientCommand(int clientIdx, const String& command) {
         return;
     }
 
-    // Send binary command via LoRa
+    // Send binary command via LoRa (retry up to 3 times for reliability)
+    // Half-duplex LoRa can miss commands if flight computer is transmitting
     if (packetLen > 0) {
-        int state = radio.transmit(loraPacket, packetLen);
-        if (state == RADIOLIB_ERR_NONE) {
-            loraTxCount++;
-            Serial.printf("LoRa TX: cmd=%s len=%d OK\n", cmd.c_str(), packetLen);
-        } else {
-            Serial.printf("LoRa TX error: %d\n", state);
-            String err = "{\"type\":\"error\",\"code\":\"LORA_TX_FAIL\",\"message\":\"LoRa transmit failed\"}";
+        bool sent = false;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            int state = radio.transmit(loraPacket, packetLen);
+            if (state == RADIOLIB_ERR_NONE) {
+                loraTxCount++;
+                sent = true;
+                if (attempt == 0) {
+                    Serial.printf("LoRa TX: cmd=%s len=%d OK\n", cmd.c_str(), packetLen);
+                } else {
+                    Serial.printf("LoRa TX: cmd=%s len=%d OK (attempt %d)\n", cmd.c_str(), packetLen, attempt + 1);
+                }
+            } else {
+                Serial.printf("LoRa TX error: %d (attempt %d)\n", state, attempt + 1);
+            }
+            if (attempt < 2) {
+                delay(50);  // Brief gap between retries
+            }
+        }
+        if (!sent) {
+            String err = "{\"type\":\"error\",\"code\":\"LORA_TX_FAIL\",\"message\":\"LoRa transmit failed after 3 attempts\"}";
             clients[clientIdx].println(err);
         }
 
@@ -2723,7 +2743,8 @@ void updateDisplay() {
     }
 
     // Row 4: Rocket info (ID, distance, state)
-    if (distanceToRocket != prevDistanceToRocket || displayRocketIndex != prevDisplayRocketId) {
+    uint8_t currentRocketState = (displayRocketIndex < MAX_ROCKETS && rockets[displayRocketIndex].active) ? rockets[displayRocketIndex].state : 255;
+    if (distanceToRocket != prevDistanceToRocket || displayRocketIndex != prevDisplayRocketId || currentRocketState != prevRocketState) {
         tft.fillRect(2, 52, 156, 10, COLOR_BLACK);
         tft.setCursor(2, 52);
 
@@ -2779,6 +2800,7 @@ void updateDisplay() {
         }
         prevDistanceToRocket = distanceToRocket;
         prevDisplayRocketId = displayRocketIndex;
+        prevRocketState = currentRocketState;
     }
 
     // Row 5: Time (only if changed - update once per second)

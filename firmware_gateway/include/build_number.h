@@ -5,5 +5,5 @@
 
 #pragma once
 
-#define FIRMWARE_BUILD_NUMBER 4
-#define FIRMWARE_BUILD_STRING "4"
+#define FIRMWARE_BUILD_NUMBER 5
+#define FIRMWARE_BUILD_STRING "5"

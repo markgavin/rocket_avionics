@@ -318,11 +318,10 @@ static void DrawFooter(void)
 //----------------------------------------------
 static void FullRefreshScreen(void)
 {
-  // Periodic controller reinit to prevent freeze after extended use
-  if (sUpdateCount > 0 && (sUpdateCount % kReinitInterval) == 0)
-  {
-    UC8151D_Reinit() ;
-  }
+  // Always reinit controller before full refresh to clear any
+  // partial refresh state that may prevent display update.
+  // Adds ~400ms to the 3s refresh — acceptable for reliability.
+  UC8151D_Reinit() ;
 
   UC8151D_WriteImage(sFrameBuffer) ;
   memcpy(sPrevBuffer, sFrameBuffer, kEpdBufferSize) ;

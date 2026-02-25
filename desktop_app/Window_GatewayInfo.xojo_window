@@ -15,7 +15,7 @@ Begin Window Window_GatewayInfo
    MaxHeight       =   32000
    MaximizeButton  =   False
    MaxWidth        =   32000
-   MenuBar         =   0
+   MenuBar         =   4294967314
    MenuBarVisible  =   True
    MinHeight       =   300
    MinimizeButton  =   True

@@ -886,16 +886,16 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendArm()
-		  // Send arm command to flight computer
-		  SendCommand("arm")
+		Sub SendArm(inRocketId As Integer)
+		  // Send arm command to flight computer (requires rocket ID for safety)
+		  SendCommand("arm", Nil, inRocketId)
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendDisarm()
-		  // Send disarm command to flight computer
-		  SendCommand("disarm")
+		Sub SendDisarm(inRocketId As Integer)
+		  // Send disarm command to flight computer (requires rocket ID for safety)
+		  SendCommand("disarm", Nil, inRocketId)
 		End Sub
 	#tag EndMethod
 
@@ -914,21 +914,21 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendDownload()
+		Sub SendDownload(inRocketId As Integer)
 		  // Request flight data download
-		  SendCommand("download")
+		  SendCommand("download", Nil, inRocketId)
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendReset()
-		  // Reset the flight computer
-		  SendCommand("reset")
+		Sub SendReset(inRocketId As Integer)
+		  // Reset the flight computer (requires rocket ID for safety)
+		  SendCommand("reset", Nil, inRocketId)
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendOrientationMode(inEnabled As Boolean)
+		Sub SendOrientationMode(inRocketId As Integer, inEnabled As Boolean)
 		  // Enable or disable orientation testing mode (high-rate telemetry)
 		  If Not IsConnected Then
 		    LogMessage("Cannot send command - not connected", "WARN")
@@ -941,6 +941,7 @@ Protected Class FlightConnection
 		  Var theJson As New JSONItem
 		  theJson.Value("cmd") = "orientation_mode"
 		  theJson.Value("id") = theId
+		  theJson.Value("rocket") = inRocketId
 		  theJson.Value("enabled") = inEnabled
 
 		  SendData(theJson.ToString + EndOfLine)
@@ -980,8 +981,9 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendCommand(inCmd As String, inParam As Variant = Nil)
-		  // Send JSON command with optional parameter
+		Sub SendCommand(inCmd As String, inParam As Variant = Nil, inRocketId As Integer = -1)
+		  // Send JSON command with optional parameter and rocket ID
+		  // All commands to flight computer require rocket ID (gateway enforces this)
 		  If Not IsConnected Then
 		    LogMessage("Cannot send command - not connected", "WARN")
 		    Return
@@ -993,6 +995,10 @@ Protected Class FlightConnection
 		  Var theJson As New JSONItem
 		  theJson.Value("cmd") = inCmd
 		  theJson.Value("id") = theId
+
+		  If inRocketId >= 0 Then
+		    theJson.Value("rocket") = inRocketId
+		  End If
 
 		  If inParam <> Nil Then
 		    theJson.Value("param") = inParam
@@ -1044,14 +1050,14 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendFlashList()
+		Sub SendFlashList(inRocketId As Integer)
 		  // Request list of stored flights from flash
-		  SendCommand("flash_list")
+		  SendCommand("flash_list", Nil, inRocketId)
 		End Sub
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendFlashRead(inSlot As Integer, inSampleStart As Integer)
+		Sub SendFlashRead(inRocketId As Integer, inSlot As Integer, inSampleStart As Integer)
 		  // Request flash data chunk (samples)
 		  If Not IsConnected Then
 		    LogMessage("Cannot send command - not connected", "WARN")
@@ -1064,6 +1070,7 @@ Protected Class FlightConnection
 		  Var theJson As New JSONItem
 		  theJson.Value("cmd") = "flash_read"
 		  theJson.Value("id") = theId
+		  theJson.Value("rocket") = inRocketId
 		  theJson.Value("slot") = inSlot
 		  theJson.Value("sample") = inSampleStart
 
@@ -1072,7 +1079,7 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendFlashReadHeader(inSlot As Integer)
+		Sub SendFlashReadHeader(inRocketId As Integer, inSlot As Integer)
 		  // Request flash flight header
 		  If Not IsConnected Then
 		    LogMessage("Cannot send command - not connected", "WARN")
@@ -1085,6 +1092,7 @@ Protected Class FlightConnection
 		  Var theJson As New JSONItem
 		  theJson.Value("cmd") = "flash_read"
 		  theJson.Value("id") = theId
+		  theJson.Value("rocket") = inRocketId
 		  theJson.Value("slot") = inSlot
 		  theJson.Value("header") = True
 
@@ -1093,7 +1101,7 @@ Protected Class FlightConnection
 	#tag EndMethod
 
 	#tag Method, Flags = &h0
-		Sub SendFlashDelete(inSlot As Integer)
+		Sub SendFlashDelete(inRocketId As Integer, inSlot As Integer)
 		  // Delete a flight from flash (use slot=255 to delete all)
 		  If Not IsConnected Then
 		    LogMessage("Cannot send command - not connected", "WARN")
@@ -1106,6 +1114,7 @@ Protected Class FlightConnection
 		  Var theJson As New JSONItem
 		  theJson.Value("cmd") = "flash_delete"
 		  theJson.Value("id") = theId
+		  theJson.Value("rocket") = inRocketId
 		  theJson.Value("slot") = inSlot
 
 		  SendData(theJson.ToString + EndOfLine)

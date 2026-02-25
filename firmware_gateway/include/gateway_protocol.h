@@ -186,7 +186,8 @@ int GatewayProtocol_TelemetryToJson(
 bool GatewayProtocol_ParseCommand(
   const char * inJson,
   UsbCommandType * outCommandType,
-  uint32_t * outCommandId) ;
+  uint32_t * outCommandId,
+  int8_t * outRocketId) ;
 
 //----------------------------------------------
 // Function: GatewayProtocol_BuildLoRaCommand
@@ -199,6 +200,7 @@ bool GatewayProtocol_ParseCommand(
 //----------------------------------------------
 int GatewayProtocol_BuildLoRaCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   uint8_t * outPacket,
   int inMaxLen) ;
 
@@ -256,6 +258,7 @@ const char * GatewayProtocol_GetStateName(uint8_t inState) ;
 //----------------------------------------------
 int GatewayProtocol_BuildStorageReadCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   const char * inFilename,
   uint32_t inOffset,
   uint8_t * outPacket,
@@ -273,6 +276,7 @@ int GatewayProtocol_BuildStorageReadCommand(
 //----------------------------------------------
 int GatewayProtocol_BuildStorageDeleteCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   const char * inFilename,
   uint8_t * outPacket,
   int inMaxLen) ;
@@ -349,6 +353,7 @@ bool GatewayProtocol_ParseOrientationModeEnabled(
 // Returns: Packet length
 //----------------------------------------------
 int GatewayProtocol_BuildOrientationModeCommand(
+  uint8_t inTargetRocketId,
   bool inEnabled,
   uint8_t * outPacket,
   int inMaxLen) ;
@@ -378,6 +383,7 @@ bool GatewayProtocol_ParseFlashParams(
 // Returns: Packet length
 //----------------------------------------------
 int GatewayProtocol_BuildFlashReadCommand(
+  uint8_t inTargetRocketId,
   uint8_t inSlot,
   uint32_t inSample,
   uint8_t * outPacket,
@@ -393,6 +399,7 @@ int GatewayProtocol_BuildFlashReadCommand(
 // Returns: Packet length
 //----------------------------------------------
 int GatewayProtocol_BuildFlashDeleteCommand(
+  uint8_t inTargetRocketId,
   uint8_t inSlot,
   uint8_t * outPacket,
   int inMaxLen) ;

@@ -1469,8 +1469,8 @@ End
 		Private pPreviousState As String = ""
 	#tag EndProperty
 
-	#tag Property, Flags = &h21
-		Private pSelectedRocketId As Integer = -1
+	#tag Property, Flags = &h0
+		pSelectedRocketId As Integer = -1
 	#tag EndProperty
 
 
@@ -1545,11 +1545,15 @@ End
 	#tag Event
 		Sub Action()
 		  If pConnection.IsConnected Then
+		    If pSelectedRocketId < 0 Then
+		      MessageBox("No rocket selected. Select a rocket first.")
+		      Return
+		    End If
 		    // Confirm arming
-		    Var theResult As Integer = MsgBox("ARM the flight computer?" + EndOfLine + EndOfLine + _
+		    Var theResult As Integer = MsgBox("ARM rocket " + Str(pSelectedRocketId) + "?" + EndOfLine + EndOfLine + _
 		    "This will put the rocket in armed mode, ready for launch detection.", 1, "Confirm Arm")
 		    If theResult = 1 Then
-		      pConnection.SendArm()
+		      pConnection.SendArm(pSelectedRocketId)
 		    End If
 		  End If
 		End Sub
@@ -1558,8 +1562,8 @@ End
 #tag Events ButtonDisarm
 	#tag Event
 		Sub Action()
-		  If pConnection.IsConnected Then
-		    pConnection.SendDisarm()
+		  If pConnection.IsConnected And pSelectedRocketId >= 0 Then
+		    pConnection.SendDisarm(pSelectedRocketId)
 		  End If
 		End Sub
 	#tag EndEvent
@@ -1568,7 +1572,7 @@ End
 	#tag Event
 		Sub Action()
 		  If pConnection.IsConnected Then
-		    pConnection.SendDownload()
+		    pConnection.SendDownload(pSelectedRocketId)
 		  End If
 		End Sub
 	#tag EndEvent

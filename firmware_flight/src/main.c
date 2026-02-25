@@ -210,7 +210,8 @@ typedef struct {
 } DisplaySharedData ;
 
 // Core0 → Core1: bulk telemetry data (core0 writes, core1 reads)
-static DisplaySharedData sDisplayShared ;
+// volatile ensures compiler doesn't cache across cores
+static volatile DisplaySharedData sDisplayShared ;
 
 // Core1 → Core0: debug monitoring
 static volatile uint32_t sCore1Iterations = 0 ;
@@ -312,7 +313,7 @@ int main(void)
   // on eInk refresh without affecting LoRa on core0.
   if (sDisplayOk)
   {
-    memset(&sDisplayShared, 0, sizeof(sDisplayShared)) ;
+    memset((void *)&sDisplayShared, 0, sizeof(sDisplayShared)) ;
     sDisplayShared.pBaroType = sBmp390Ok ? "BMP390" :
       (sBmp581Ok ? "BMP581" : (sI2cBusOk ? "None" : "I2C FAIL")) ;
     sDisplayShared.pBaroOk = sBmp390Ok || sBmp581Ok ;
@@ -622,7 +623,7 @@ int main(void)
       sDisplayShared.pState = FlightControl_GetState(&sFlightController) ;
       sDisplayShared.pOrientationMode = sFlightController.pOrientationMode ;
       sDisplayShared.pRocketId = sRocketId ;
-      strncpy(sDisplayShared.pRocketName, sRocketName, sizeof(sDisplayShared.pRocketName) - 1) ;
+      memcpy((void *)sDisplayShared.pRocketName, sRocketName, sizeof(sDisplayShared.pRocketName) - 1) ;
       sDisplayShared.pRocketIdEditing = sRocketIdEditing ;
 
       sDisplayShared.pAltitudeM = sFlightController.pCurrentAltitudeM ;
@@ -2004,7 +2005,8 @@ static void Core1_DisplayLoop(void)
     // Copy latest data from core0 (lock-free)
     // Torn reads are harmless — worst case one frame shows
     // a mix of old/new values, imperceptible on eInk.
-    theData = sDisplayShared ;
+    // memcpy from volatile to ensure fresh read from shared memory.
+    memcpy(&theData, (const void *)&sDisplayShared, sizeof(theData)) ;
     sCore1Altitude = theData.pAltitudeM ;   // Debug: expose for core0 monitoring
 
     // Read button events (atomic bool reads, clear after reading)
@@ -2028,6 +2030,13 @@ static void Core1_DisplayLoop(void)
     // Write current mode back for core0 Button B decisions
     DisplayMode theMode = StatusDisplay_GetMode() ;
     sCore1CurrentMode = theMode ;
+
+    // Auto-switch to Live when armed (ARMED screen must show immediately)
+    if (theData.pState == kFlightArmed && theMode != kDisplayModeLive)
+    {
+      StatusDisplay_SetMode(kDisplayModeLive) ;
+      theMode = kDisplayModeLive ;
+    }
 
     // Skip display updates during active flight (LoRa priority)
     if (theData.pState >= kFlightBoost && theData.pState <= kFlightDescent)

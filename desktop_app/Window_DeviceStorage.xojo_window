@@ -683,7 +683,7 @@ End
 		  Else
 		    // Request next chunk
 		    If pConnection <> Nil And pConnection.IsConnected Then
-		      pConnection.SendFlashRead(inSlot, pFlashDownloadSample)
+		      pConnection.SendFlashRead(Window_Main.pSelectedRocketId, inSlot, pFlashDownloadSample)
 		    End If
 		  End If
 		End Sub
@@ -865,7 +865,7 @@ End
 		  ListFlash.RemoveAllRows
 		  
 		  // Send flash list command
-		  pConnection.SendFlashList
+		  pConnection.SendFlashList(Window_Main.pSelectedRocketId)
 		End Sub
 	#tag EndMethod
 
@@ -924,7 +924,7 @@ End
 		  ShowDownloadProgress(0)
 		  
 		  If pConnection <> Nil And pConnection.IsConnected Then
-		    pConnection.SendFlashRead(inSlot, 0)
+		    pConnection.SendFlashRead(Window_Main.pSelectedRocketId, inSlot, 0)
 		  End If
 		End Sub
 	#tag EndMethod
@@ -1060,7 +1060,7 @@ End
 		  If theResult = 1 Then
 		    LabelFlashStatus.Text = "Deleting slot " + Str(theSlot) + "..."
 		    If pConnection <> Nil And pConnection.IsConnected Then
-		      pConnection.SendFlashDelete(theSlot)
+		      pConnection.SendFlashDelete(Window_Main.pSelectedRocketId, theSlot)
 		    End If
 		  End If
 		End Sub

@@ -991,8 +991,9 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
         // Parse command
         UsbCommandType theCommandType ;
         uint32_t theCommandId ;
+        int8_t theRocketId ;
 
-        if (GatewayProtocol_ParseCommand(sUsbLineBuffer, &theCommandType, &theCommandId))
+        if (GatewayProtocol_ParseCommand(sUsbLineBuffer, &theCommandType, &theCommandId, &theRocketId))
         {
           // Handle ping locally
           if (theCommandType == kUsbCmdPing)
@@ -1082,6 +1083,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             {
               uint8_t thePacket[16] ;
               int theLen = GatewayProtocol_BuildFlashReadCommand(
+                theRocketId < 0 ? 0xFF : (uint8_t)theRocketId,
                 theSlot, theSample, thePacket, sizeof(thePacket)) ;
 
               DEBUG_PRINT("CMD: Flash read slot=%u sample=%lu\n", theSlot, (unsigned long)theSample) ;
@@ -1122,6 +1124,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             {
               uint8_t thePacket[8] ;
               int theLen = GatewayProtocol_BuildFlashDeleteCommand(
+                theRocketId < 0 ? 0xFF : (uint8_t)theRocketId,
                 theSlot, thePacket, sizeof(thePacket)) ;
 
               DEBUG_PRINT("CMD: Flash delete slot=%u\n", theSlot) ;
@@ -1159,7 +1162,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
             if (GatewayProtocol_ParseOrientationModeEnabled(sUsbLineBuffer, &theEnabled))
             {
               uint8_t thePacket[8] ;
-              int theLen = GatewayProtocol_BuildOrientationModeCommand(theEnabled, thePacket, sizeof(thePacket)) ;
+              int theLen = GatewayProtocol_BuildOrientationModeCommand(theRocketId < 0 ? 0xFF : (uint8_t)theRocketId, theEnabled, thePacket, sizeof(thePacket)) ;
 
               if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
               {
@@ -1308,9 +1311,20 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
           // Forward other commands to flight computer (arm, disarm, reset, sd_list, flash_list, info, etc.)
           else if (sLoRaOk)
           {
-            DEBUG_PRINT("CMD: Forwarding command type %d to flight computer\n", theCommandType) ;
+            if (theRocketId < 0)
+            {
+              char theResponse[80] ;
+              snprintf(theResponse, sizeof(theResponse),
+                "{\"type\":\"error\",\"id\":%lu,\"code\":\"NO_ROCKET_ID\",\"message\":\"rocket ID required\"}\n",
+                (unsigned long)theCommandId) ;
+              printf("%s", theResponse) ;
+              stdio_flush() ;
+            }
+            else
+            {
+            DEBUG_PRINT("CMD: Forwarding command type %d to rocket %d\n", theCommandType, theRocketId) ;
             uint8_t thePacket[8] ;
-            int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, thePacket, sizeof(thePacket)) ;
+            int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, (uint8_t)theRocketId, thePacket, sizeof(thePacket)) ;
             DEBUG_PRINT("CMD: Built LoRa packet, len=%d\n", theLen) ;
 
             if (theLen > 0)
@@ -1335,6 +1349,7 @@ static void ProcessUsbInput(uint32_t inCurrentMs)
               // Return to receive mode
               LoRa_StartReceive(&sLoRaRadio) ;
             }
+            }  // else (theRocketId >= 0)
           }
         }
       }
@@ -1581,8 +1596,9 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
   // Parse command
   UsbCommandType theCommandType ;
   uint32_t theCommandId ;
+  int8_t theRocketId ;
 
-  if (!GatewayProtocol_ParseCommand(inLine, &theCommandType, &theCommandId))
+  if (!GatewayProtocol_ParseCommand(inLine, &theCommandType, &theCommandId, &theRocketId))
   {
     return ;
   }
@@ -1679,6 +1695,7 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
     {
       uint8_t thePacket[16] ;
       int theLen = GatewayProtocol_BuildFlashReadCommand(
+        theRocketId < 0 ? 0xFF : (uint8_t)theRocketId,
         theSlot, theSample, thePacket, sizeof(thePacket)) ;
 
       if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
@@ -1712,6 +1729,7 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
     {
       uint8_t thePacket[8] ;
       int theLen = GatewayProtocol_BuildFlashDeleteCommand(
+        theRocketId < 0 ? 0xFF : (uint8_t)theRocketId,
         theSlot, thePacket, sizeof(thePacket)) ;
 
       if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
@@ -1742,7 +1760,7 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
     if (GatewayProtocol_ParseOrientationModeEnabled(inLine, &theEnabled))
     {
       uint8_t thePacket[8] ;
-      int theLen = GatewayProtocol_BuildOrientationModeCommand(theEnabled, thePacket, sizeof(thePacket)) ;
+      int theLen = GatewayProtocol_BuildOrientationModeCommand(theRocketId < 0 ? 0xFF : (uint8_t)theRocketId, theEnabled, thePacket, sizeof(thePacket)) ;
 
       if (theLen > 0 && LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
       {
@@ -1877,25 +1895,36 @@ static void ProcessCommandLine(const char * inLine, bool inIsWifi)
   // Forward other commands to flight computer
   else if (sLoRaOk)
   {
-    uint8_t thePacket[8] ;
-    int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, thePacket, sizeof(thePacket)) ;
-
-    if (theLen > 0)
+    if (theRocketId < 0)
     {
-      if (LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+      char theResponse[80] ;
+      snprintf(theResponse, sizeof(theResponse),
+        "{\"type\":\"error\",\"id\":%lu,\"code\":\"NO_ROCKET_ID\",\"message\":\"rocket ID required\"}\n",
+        (unsigned long)theCommandId) ;
+      OutputToAll(theResponse) ;
+    }
+    else
+    {
+      uint8_t thePacket[8] ;
+      int theLen = GatewayProtocol_BuildLoRaCommand(theCommandType, (uint8_t)theRocketId, thePacket, sizeof(thePacket)) ;
+
+      if (theLen > 0)
       {
-        sGatewayState.pPacketsSent++ ;
-        char theResponse[64] ;
-        GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
-        OutputToAll(theResponse) ;
+        if (LoRa_SendBlocking(&sLoRaRadio, thePacket, theLen, 500))
+        {
+          sGatewayState.pPacketsSent++ ;
+          char theResponse[64] ;
+          GatewayProtocol_BuildAckJson(theCommandId, true, theResponse, sizeof(theResponse)) ;
+          OutputToAll(theResponse) ;
+        }
+        else
+        {
+          char theResponse[64] ;
+          GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
+          OutputToAll(theResponse) ;
+        }
+        LoRa_StartReceive(&sLoRaRadio) ;
       }
-      else
-      {
-        char theResponse[64] ;
-        GatewayProtocol_BuildAckJson(theCommandId, false, theResponse, sizeof(theResponse)) ;
-        OutputToAll(theResponse) ;
-      }
-      LoRa_StartReceive(&sLoRaRadio) ;
     }
   }
 }

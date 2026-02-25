@@ -210,9 +210,12 @@ int GatewayProtocol_TelemetryToJson(
 bool GatewayProtocol_ParseCommand(
   const char * inJson,
   UsbCommandType * outCommandType,
-  uint32_t * outCommandId)
+  uint32_t * outCommandId,
+  int8_t * outRocketId)
 {
-  if (inJson == NULL || outCommandType == NULL || outCommandId == NULL) return false ;
+  if (inJson == NULL || outCommandType == NULL || outCommandId == NULL || outRocketId == NULL) return false ;
+
+  *outRocketId = -1 ;  // -1 means not specified
 
   // Simple JSON parsing (no external library needed for these simple commands)
   // Expected format: {"cmd":"arm","id":1}
@@ -329,6 +332,18 @@ bool GatewayProtocol_ParseCommand(
     *outCommandId = (uint32_t)strtoul(theIdStart, NULL, 10) ;
   }
 
+  // Find rocket ID: "rocket":N
+  const char * theRocketStart = strstr(inJson, "\"rocket\":") ;
+  if (theRocketStart != NULL)
+  {
+    theRocketStart += 9 ;  // Skip past "rocket":
+    int theRocketId = (int)strtol(theRocketStart, NULL, 10) ;
+    if (theRocketId >= 0 && theRocketId < 16)
+    {
+      *outRocketId = (int8_t)theRocketId ;
+    }
+  }
+
   return true ;
 }
 
@@ -337,50 +352,50 @@ bool GatewayProtocol_ParseCommand(
 //----------------------------------------------
 int GatewayProtocol_BuildLoRaCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   uint8_t * outPacket,
   int inMaxLen)
 {
   if (outPacket == NULL || inMaxLen < 4) return 0 ;
 
-  // Build simple command packet
+  // Build command packet: magic, type, targetRocketId, commandId
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = inTargetRocketId ;
 
   switch (inCommandType)
   {
     case kUsbCmdArm:
-      outPacket[2] = kCmdArm ;
+      outPacket[3] = kCmdArm ;
       break ;
     case kUsbCmdDisarm:
-      outPacket[2] = kCmdDisarm ;
+      outPacket[3] = kCmdDisarm ;
       break ;
     case kUsbCmdStatus:
-      outPacket[2] = kCmdStatus ;
+      outPacket[3] = kCmdStatus ;
       break ;
     case kUsbCmdReset:
-      outPacket[2] = kCmdReset ;
+      outPacket[3] = kCmdReset ;
       break ;
     case kUsbCmdDownload:
-      outPacket[2] = kCmdDownload ;
+      outPacket[3] = kCmdDownload ;
       break ;
     case kUsbCmdPing:
-      outPacket[2] = kCmdPing ;
+      outPacket[3] = kCmdPing ;
       break ;
     case kUsbCmdInfo:
-      outPacket[2] = kCmdInfo ;
+      outPacket[3] = kCmdInfo ;
       break ;
     // Storage commands (simple, no parameters)
     case kUsbCmdSdList:
-      outPacket[2] = kCmdSdList ;
+      outPacket[3] = kCmdSdList ;
       break ;
     case kUsbCmdFlashList:
-      outPacket[2] = kCmdFlashList ;
+      outPacket[3] = kCmdFlashList ;
       break ;
     default:
       return 0 ;
   }
-
-  outPacket[3] = 0 ;  // Reserved / CRC placeholder
 
   return 4 ;
 }
@@ -391,6 +406,7 @@ int GatewayProtocol_BuildLoRaCommand(
 //----------------------------------------------
 int GatewayProtocol_BuildStorageReadCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   const char * inFilename,
   uint32_t inOffset,
   uint8_t * outPacket,
@@ -400,21 +416,20 @@ int GatewayProtocol_BuildStorageReadCommand(
 
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = inTargetRocketId ;
 
   if (inCommandType == kUsbCmdSdRead)
   {
-    outPacket[2] = kCmdSdRead ;
+    outPacket[3] = kCmdSdRead ;
   }
   else if (inCommandType == kUsbCmdFlashRead)
   {
-    outPacket[2] = kCmdFlashRead ;
+    outPacket[3] = kCmdFlashRead ;
   }
   else
   {
     return 0 ;
   }
-
-  outPacket[3] = 0 ;  // Reserved
 
   // Add offset (4 bytes, little-endian)
   outPacket[4] = (uint8_t)(inOffset & 0xFF) ;
@@ -437,6 +452,7 @@ int GatewayProtocol_BuildStorageReadCommand(
 //----------------------------------------------
 int GatewayProtocol_BuildStorageDeleteCommand(
   UsbCommandType inCommandType,
+  uint8_t inTargetRocketId,
   const char * inFilename,
   uint8_t * outPacket,
   int inMaxLen)
@@ -445,21 +461,20 @@ int GatewayProtocol_BuildStorageDeleteCommand(
 
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
+  outPacket[2] = inTargetRocketId ;
 
   if (inCommandType == kUsbCmdSdDelete)
   {
-    outPacket[2] = kCmdSdDelete ;
+    outPacket[3] = kCmdSdDelete ;
   }
   else if (inCommandType == kUsbCmdFlashDelete)
   {
-    outPacket[2] = kCmdFlashDelete ;
+    outPacket[3] = kCmdFlashDelete ;
   }
   else
   {
     return 0 ;
   }
-
-  outPacket[3] = 0 ;  // Reserved
 
   // Add filename (up to 63 chars + null)
   int theNameLen = strlen(inFilename) ;
@@ -718,6 +733,7 @@ bool GatewayProtocol_ParseOrientationModeEnabled(
 // Function: GatewayProtocol_BuildOrientationModeCommand
 //----------------------------------------------
 int GatewayProtocol_BuildOrientationModeCommand(
+  uint8_t inTargetRocketId,
   bool inEnabled,
   uint8_t * outPacket,
   int inMaxLen)
@@ -726,9 +742,9 @@ int GatewayProtocol_BuildOrientationModeCommand(
 
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
-  outPacket[2] = kCmdOrientationMode ;
-  outPacket[3] = inEnabled ? 1 : 0 ;
-  outPacket[4] = 0 ;  // CRC placeholder
+  outPacket[2] = inTargetRocketId ;
+  outPacket[3] = kCmdOrientationMode ;
+  outPacket[4] = inEnabled ? 1 : 0 ;
 
   return 5 ;
 }
@@ -778,31 +794,34 @@ bool GatewayProtocol_ParseFlashParams(
 // Function: GatewayProtocol_BuildFlashReadCommand
 //----------------------------------------------
 int GatewayProtocol_BuildFlashReadCommand(
+  uint8_t inTargetRocketId,
   uint8_t inSlot,
   uint32_t inSample,
   uint8_t * outPacket,
   int inMaxLen)
 {
-  if (outPacket == NULL || inMaxLen < 8) return 0 ;
+  if (outPacket == NULL || inMaxLen < 9) return 0 ;
 
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
-  outPacket[2] = kCmdFlashRead ;
-  outPacket[3] = inSlot ;
+  outPacket[2] = inTargetRocketId ;
+  outPacket[3] = kCmdFlashRead ;
+  outPacket[4] = inSlot ;
 
   // Sample index (4 bytes, little-endian)
-  outPacket[4] = (uint8_t)(inSample & 0xFF) ;
-  outPacket[5] = (uint8_t)((inSample >> 8) & 0xFF) ;
-  outPacket[6] = (uint8_t)((inSample >> 16) & 0xFF) ;
-  outPacket[7] = (uint8_t)((inSample >> 24) & 0xFF) ;
+  outPacket[5] = (uint8_t)(inSample & 0xFF) ;
+  outPacket[6] = (uint8_t)((inSample >> 8) & 0xFF) ;
+  outPacket[7] = (uint8_t)((inSample >> 16) & 0xFF) ;
+  outPacket[8] = (uint8_t)((inSample >> 24) & 0xFF) ;
 
-  return 8 ;
+  return 9 ;
 }
 
 //----------------------------------------------
 // Function: GatewayProtocol_BuildFlashDeleteCommand
 //----------------------------------------------
 int GatewayProtocol_BuildFlashDeleteCommand(
+  uint8_t inTargetRocketId,
   uint8_t inSlot,
   uint8_t * outPacket,
   int inMaxLen)
@@ -811,9 +830,9 @@ int GatewayProtocol_BuildFlashDeleteCommand(
 
   outPacket[0] = kLoRaMagic ;
   outPacket[1] = kLoRaPacketCommand ;
-  outPacket[2] = kCmdFlashDelete ;
-  outPacket[3] = inSlot ;  // 0-6 for specific slot, 255 (0xFF) for all
-  outPacket[4] = 0 ;  // Reserved
+  outPacket[2] = inTargetRocketId ;
+  outPacket[3] = kCmdFlashDelete ;
+  outPacket[4] = inSlot ;  // 0-6 for specific slot, 255 (0xFF) for all
 
   return 5 ;
 }
