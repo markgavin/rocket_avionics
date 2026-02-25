@@ -48,6 +48,35 @@ Begin MobileScreen Screen_Main
       Width           =   335
       _ClosingFired   =   False
    End
+   Begin MobileButton ButtonConnect
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      AutoLayout      =   ButtonConnect, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   ButtonConnect, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   ButtonConnect, 3, LabelStatus, 4, False, +1.00, 1, 1, 10, , True
+      AutoLayout      =   ButtonConnect, 8, , 0, False, +1.00, 1, 1, 44, , True
+      BackgroundColor =
+      BorderColor     =
+      BorderWidth     =   0
+      Caption         =   "Connect"
+      CaptionColor    =   &c000000
+      ControlCount    =   0
+      CornerSize      =   0
+      Enabled         =   True
+      Height          =   44
+      Icon            =   0
+      Left            =   20
+      LockedInPosition=   False
+      Scope           =   2
+      TextFont        =   ""
+      TextSize        =   0
+      TintColor       =   &c0066CC
+      Top             =   151
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
    Begin MobileLabel LabelAltitude
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
@@ -55,7 +84,7 @@ Begin MobileScreen Screen_Main
       Alignment       =   1
       AutoLayout      =   LabelAltitude, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelAltitude, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelAltitude, 3, LabelStatus, 4, False, +1.00, 1, 1, 15, , True
+      AutoLayout      =   LabelAltitude, 3, ButtonConnect, 4, False, +1.00, 1, 1, 10, , True
       AutoLayout      =   LabelAltitude, 8, , 0, False, +1.00, 1, 1, 50, , True
       ControlCount    =   0
       Enabled         =   True
@@ -383,6 +412,7 @@ End
 		  If App.pConnection <> Nil Then
 		    RemoveHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
 		    RemoveHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		    RemoveHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
 		  End If
 		End Sub
 	#tag EndEvent
@@ -392,6 +422,7 @@ End
 		  If App.pConnection <> Nil Then
 		    AddHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
 		    AddHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		    AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
 		  End If
 		End Sub
 	#tag EndEvent
@@ -403,11 +434,17 @@ End
 		  If inConnected Then
 		    LabelStatus.Text = "Connected"
 		    LabelStatus.TextColor = &c00AA00
+		    ButtonConnect.Caption = "Disconnect"
+		    ButtonConnect.TintColor = &cFF3300
+		    ButtonConnect.Enabled = True
 		    ButtonArm.Enabled = True
 		    ButtonDisarm.Enabled = True
 		  Else
 		    LabelStatus.Text = "Disconnected"
 		    LabelStatus.TextColor = &cCC0000
+		    ButtonConnect.Caption = "Connect"
+		    ButtonConnect.TintColor = &c0066CC
+		    ButtonConnect.Enabled = True
 		    ButtonArm.Enabled = False
 		    ButtonDisarm.Enabled = False
 		  End If
@@ -415,9 +452,26 @@ End
 	#tag EndMethod
 
 	#tag Method, Flags = &h21
+		Private Sub HandleErrorReceived(inSender As FlightConnection, inCode As String, inMessage As String)
+		  #Pragma Unused inSender
+		  #Pragma Unused inCode
+		  LabelStatus.Text = inMessage
+		  LabelStatus.TextColor = &cCC0000
+		  ButtonConnect.Caption = "Connect"
+		  ButtonConnect.TintColor = &c0066CC
+		  ButtonConnect.Enabled = True
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
 		Private Sub HandleTelemetryReceived(inSender As FlightConnection, inSample As TelemetrySample)
 		  #Pragma Unused inSender
-		  
+
+		  // Auto-select first rocket we hear from
+		  If App.pSelectedRocketId < 0 Then
+		    App.pSelectedRocketId = inSample.pRocketId
+		  End If
+
 		  LabelAltitude.Text = Str(Round(inSample.pAltitudeM * 10) / 10) + " m"
 		  LabelVelocity.Text = Str(Round(inSample.pVelocityMps * 10) / 10) + " m/s"
 		  
@@ -442,11 +496,35 @@ End
 
 #tag EndWindowCode
 
+#tag Events ButtonConnect
+	#tag Event
+		Sub Pressed()
+		  If App.pConnection = Nil Then
+		    Return
+		  End If
+
+		  If App.pConnection.IsConnected Then
+		    App.pConnection.Disconnect
+		  Else
+		    Var theHost As String = App.GetPreferenceString("gateway_host", "RocketGateway.local")
+		    Var thePort As Integer = Val(App.GetPreferenceString("gateway_port", "5000"))
+		    If thePort <= 0 Then thePort = 5000
+
+		    LabelStatus.Text = "Connecting..."
+		    LabelStatus.TextColor = &cFF9900
+		    ButtonConnect.Caption = "Connecting..."
+		    ButtonConnect.Enabled = False
+
+		    App.pConnection.Connect(theHost, thePort)
+		  End If
+		End Sub
+	#tag EndEvent
+#tag EndEvents
 #tag Events ButtonArm
 	#tag Event
 		Sub Pressed()
 		  If App.pConnection <> Nil Then
-		    App.pConnection.SendArm()
+		    App.pConnection.SendArm(App.pSelectedRocketId)
 		  End If
 		End Sub
 	#tag EndEvent
@@ -455,7 +533,7 @@ End
 	#tag Event
 		Sub Pressed()
 		  If App.pConnection <> Nil Then
-		    App.pConnection.SendDisarm()
+		    App.pConnection.SendDisarm(App.pSelectedRocketId)
 		  End If
 		End Sub
 	#tag EndEvent

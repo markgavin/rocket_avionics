@@ -248,7 +248,7 @@ End
 		  End If
 		  
 		  LabelProgress.Text = "Requesting flight list..."
-		  App.pConnection.SendFlashList
+		  App.pConnection.SendFlashList(App.pSelectedRocketId)
 		End Sub
 	#tag EndEvent
 #tag EndEvents

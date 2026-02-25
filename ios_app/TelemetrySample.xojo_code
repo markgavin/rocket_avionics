@@ -102,6 +102,74 @@ Protected Class TelemetrySample
 		pRocketId As Integer = 0
 	#tag EndProperty
 
+	#tag Property, Flags = &h0
+		pMaxAltitudeM As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pMaxVelocityMps As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pAccelMagnitude As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPyro1 As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPyro2 As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pDifferentialAltitudeM As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGroundPressurePa As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGroundAltitudeM As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGyroX As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGyroY As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pGyroZ As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pMagX As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pMagY As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pMagZ As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pPitch As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pRoll As Double = 0.0
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pHeading As Double = 0.0
+	#tag EndProperty
+
 
 End Class
 #tag EndClass

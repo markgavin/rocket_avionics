@@ -64,7 +64,7 @@ Begin MobileScreen Screen_Settings
       ControlCount    =   0
       Enabled         =   True
       Height          =   44
-      Hint            =   "192.168.4.1"
+      Hint            =   "RocketGateway.local"
       HintColor       =   
       InputType       =   0
       Left            =   20
@@ -133,7 +133,7 @@ Begin MobileScreen Screen_Settings
       ControlCount    =   0
       Enabled         =   True
       Height          =   44
-      Hint            =   "8080"
+      Hint            =   "5000"
       HintColor       =   
       InputType       =   0
       Left            =   20
@@ -146,7 +146,7 @@ Begin MobileScreen Screen_Settings
       SelectedText    =   ""
       SelectionLength =   0
       SelectionStart  =   0
-      Text            =   "8080"
+      Text            =   "5000"
       TextColor       =   &c000000
       TextFont        =   ""
       TextSize        =   17
@@ -176,7 +176,7 @@ Begin MobileScreen Screen_Settings
       SelectedText    =   ""
       SelectionLength =   0
       SelectionStart  =   0
-      Text            =   "Connect to 'RocketGateway' WiFi, then use 192.168.4.1:8080"
+      Text            =   "Connect to 'RocketGateway' WiFi, then tap Connect"
       TextColor       =   &c666666
       TextFont        =   ""
       TextSize        =   12
@@ -252,12 +252,44 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Opening()
-		  FieldHost.Text = App.GetPreferenceString("gateway_host", "192.168.4.1")
-		  FieldPort.Text = App.GetPreferenceString("gateway_port", "8080")
+		  FieldHost.Text = App.GetPreferenceString("gateway_host", "RocketGateway.local")
+		  FieldPort.Text = App.GetPreferenceString("gateway_port", "5000")
 		  UpdateConnectButton
+		  pWasConnected = App.pConnection <> Nil And App.pConnection.IsConnected
+
+		  // Poll connection state (can't use AddHandler — Screen_Main already handles the event)
+		  pPollTimer = New Timer
+		  pPollTimer.Period = 500
+		  pPollTimer.RunMode = Timer.RunModes.Multiple
+		  AddHandler pPollTimer.Run, AddressOf HandlePollTimer
+		  pPollTimer.Enabled = True
 		End Sub
 	#tag EndEvent
 
+	#tag Event
+		Sub Closing()
+		  If pPollTimer <> Nil Then
+		    pPollTimer.Enabled = False
+		    RemoveHandler pPollTimer.Run, AddressOf HandlePollTimer
+		    pPollTimer = Nil
+		  End If
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub HandlePollTimer(inSender As Timer)
+		  #Pragma Unused inSender
+		  Var theConnected As Boolean = App.pConnection <> Nil And App.pConnection.IsConnected
+		  If theConnected <> pWasConnected Then
+		    pWasConnected = theConnected
+		    UpdateConnectButton
+		    If theConnected Then
+		      LabelError.Text = ""
+		    End If
+		  End If
+		End Sub
+	#tag EndMethod
 
 	#tag Method, Flags = &h21
 		Private Sub UpdateConnectButton()
@@ -271,9 +303,16 @@ End
 		End Sub
 	#tag EndMethod
 
+	#tag Property, Flags = &h21
+		Private pWasConnected As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pPollTimer As Timer
+	#tag EndProperty
+
 
 #tag EndWindowCode
-
 #tag Events ButtonConnect
 	#tag Event
 		Sub Pressed()

@@ -99,6 +99,10 @@ Inherits MobileApplication
 	#tag EndProperty
 
 	#tag Property, Flags = &h0
+		pSelectedRocketId As Integer = -1
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
 		Shared pPrefs As Dictionary
 	#tag EndProperty
 
