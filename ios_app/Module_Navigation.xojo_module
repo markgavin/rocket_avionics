@@ -144,5 +144,181 @@ Protected Module Module_Navigation
 	#tag EndMethod
 
 
+	#tag DelegateDeclaration, Flags = &h21
+		Private Delegate Sub MenuActionDelegate(inAction As Ptr)
+	#tag EndDelegateDeclaration
+
+	#tag Method, Flags = &h0
+		Sub SetupMenuButton(inScreen As MobileScreen)
+		  // Creates a native iOS pull-down UIMenu on the navigation bar "..." button
+		  // Strategy: Use Xojo API to add the toolbar button, then use declares to
+		  // attach a UIMenu to it and clear its action so the menu shows on single tap.
+
+		  If inScreen = Nil Then Return
+
+		  pMenuScreen = inScreen
+
+		  // Step 1: Add toolbar button via Xojo API (avoids needing UIViewController handle)
+		  Var theButton As New MobileToolbarButton(MobileToolbarButton.Types.Custom)
+		  theButton.Icon = Picture.SystemImage("ellipsis.circle", 24, Picture.SystemImageWeights.Regular)
+		  inScreen.RightNavigationToolbar.AddButton(theButton)
+
+		  // Save handle for deferred action clearing
+		  pMenuButtonHandle = theButton.Handle
+		  If pMenuButtonHandle = Nil Then Return
+
+		  // Step 2: Build UIMenu via declares
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+
+		  Var theUIImageClass As Ptr = NSClassFromString("UIImage")
+		  Var theUIActionClass As Ptr = NSClassFromString("UIAction")
+		  Var theUIMenuClass As Ptr = NSClassFromString("UIMenu")
+		  Var theNSArrayClass As Ptr = NSClassFromString("NSArray")
+
+		  // Create SF Symbol images
+		  Declare Function systemImageNamed Lib "UIKit" Selector "systemImageNamed:" (cls As Ptr, name As CFStringRef) As Ptr
+
+		  Var theConnected As Boolean = App.pConnection <> Nil And App.pConnection.IsConnected
+		  Var theConnectIconName As String
+		  Var theConnectTitle As String
+		  If theConnected Then
+		    theConnectIconName = "wifi.slash"
+		    theConnectTitle = "Disconnect"
+		  Else
+		    theConnectIconName = "wifi"
+		    theConnectTitle = "Connect"
+		  End If
+
+		  Var theHomeIcon As Ptr = systemImageNamed(theUIImageClass, "house")
+		  Var theConnectIcon As Ptr = systemImageNamed(theUIImageClass, theConnectIconName)
+		  Var theSettingsIcon As Ptr = systemImageNamed(theUIImageClass, "gearshape")
+		  Var theRecoveryIcon As Ptr = systemImageNamed(theUIImageClass, "location.fill")
+		  Var theFlightDataIcon As Ptr = systemImageNamed(theUIImageClass, "externaldrive")
+		  Var theAboutIcon As Ptr = systemImageNamed(theUIImageClass, "info.circle")
+
+		  // Create handler block — one block handles all actions, routing by title
+		  Var theDelegate As MenuActionDelegate = AddressOf HandleMenuAction
+		  pActionBlock = New ObjCBlock(theDelegate)
+
+		  // Create UIAction items
+		  Declare Function actionWithTitle Lib "UIKit" Selector "actionWithTitle:image:identifier:handler:" (cls As Ptr, title As CFStringRef, image As Ptr, identifier As Ptr, handler As Ptr) As Ptr
+
+		  Var theAction0 As Ptr = actionWithTitle(theUIActionClass, "Home", theHomeIcon, Nil, pActionBlock.Handle)
+		  Var theAction1 As Ptr = actionWithTitle(theUIActionClass, theConnectTitle, theConnectIcon, Nil, pActionBlock.Handle)
+		  Var theAction2 As Ptr = actionWithTitle(theUIActionClass, "Settings", theSettingsIcon, Nil, pActionBlock.Handle)
+		  Var theAction3 As Ptr = actionWithTitle(theUIActionClass, "Recovery", theRecoveryIcon, Nil, pActionBlock.Handle)
+		  Var theAction4 As Ptr = actionWithTitle(theUIActionClass, "Flight Data", theFlightDataIcon, Nil, pActionBlock.Handle)
+		  Var theAction5 As Ptr = actionWithTitle(theUIActionClass, "About", theAboutIcon, Nil, pActionBlock.Handle)
+
+		  // Create NSArray of actions
+		  Var thePtrs As New MemoryBlock(6 * 8)
+		  thePtrs.Ptr(0) = theAction0
+		  thePtrs.Ptr(8) = theAction1
+		  thePtrs.Ptr(16) = theAction2
+		  thePtrs.Ptr(24) = theAction3
+		  thePtrs.Ptr(32) = theAction4
+		  thePtrs.Ptr(40) = theAction5
+
+		  Declare Function arrayWithObjects Lib "Foundation" Selector "arrayWithObjects:count:" (cls As Ptr, objects As Ptr, count As UInteger) As Ptr
+		  Var theActions As Ptr = arrayWithObjects(theNSArrayClass, thePtrs, 6)
+
+		  // Create UIMenu (empty title = no header)
+		  Declare Function menuWithTitle Lib "UIKit" Selector "menuWithTitle:children:" (cls As Ptr, title As CFStringRef, children As Ptr) As Ptr
+		  Var theMenu As Ptr = menuWithTitle(theUIMenuClass, "", theActions)
+
+		  // Step 3: Attach UIMenu to the toolbar button's UIBarButtonItem
+		  Declare Sub setMenu Lib "UIKit" Selector "setMenu:" (obj As Ptr, menu As Ptr)
+		  setMenu(pMenuButtonHandle, theMenu)
+
+		  // Step 4: Defer clearing the action so menu shows on single tap
+		  // (setAction must happen AFTER the Opening event completes)
+		  Var theTimer As New Timer
+		  theTimer.Period = 50
+		  theTimer.RunMode = Timer.RunModes.Single
+		  AddHandler theTimer.Run, AddressOf HandleClearAction
+		  pDeferTimer = theTimer
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleClearAction(inSender As Timer)
+		  // Clear the button's action so tapping shows the menu immediately
+		  RemoveHandler inSender.Run, AddressOf HandleClearAction
+		  pDeferTimer = Nil
+
+		  If pMenuButtonHandle <> Nil Then
+		    Declare Sub setAction Lib "UIKit" Selector "setAction:" (obj As Ptr, action As Ptr)
+		    setAction(pMenuButtonHandle, Nil)
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub HandleMenuAction(inAction As Ptr)
+		  // Route menu selection by reading the UIAction's title
+		  If inAction = Nil Then Return
+
+		  Declare Function title Lib "UIKit" Selector "title" (obj As Ptr) As CFStringRef
+		  Var theTitle As String = title(inAction)
+
+		  If pMenuScreen = Nil Then Return
+
+		  Select Case theTitle
+		  Case "Home"
+		    If Not (pMenuScreen IsA Screen_Main) Then
+		      pMenuScreen.Close
+		    End If
+
+		  Case "Connect"
+		    If App.pConnection <> Nil Then
+		      Var theHost As String = App.GetPreferenceString("gateway_host", "RocketGateway.local")
+		      Var thePort As Integer = Val(App.GetPreferenceString("gateway_port", "5000"))
+		      App.pConnection.Connect(theHost, thePort)
+		    End If
+
+		  Case "Disconnect"
+		    If App.pConnection <> Nil Then
+		      App.pConnection.Disconnect
+		    End If
+
+		  Case "Settings"
+		    pMenuScreen.PushTo(New Screen_Settings)
+
+		  Case "Recovery"
+		    pMenuScreen.PushTo(New Screen_Recovery)
+
+		  Case "Flight Data"
+		    If pFlashStorageScreen = Nil Then
+		      pFlashStorageScreen = New Screen_FlashStorage
+		    End If
+		    pMenuScreen.PushTo(pFlashStorageScreen)
+
+		  Case "About"
+		    pMenuScreen.PushTo(New Screen_About)
+		  End Select
+		End Sub
+	#tag EndMethod
+
+	#tag Property, Flags = &h21
+		Private pMenuScreen As MobileScreen
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pActionBlock As ObjCBlock
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pMenuButtonHandle As Ptr
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pDeferTimer As Timer
+	#tag EndProperty
+
+	#tag Property, Flags = &h0
+		pFlashStorageScreen As Screen_FlashStorage
+	#tag EndProperty
+
+
 End Module
 #tag EndModule

@@ -1,0 +1,184 @@
+#tag MobileScreen
+Begin MobileScreen Screen_Rockets
+   BackButtonCaption=   ""
+   BackgroundColor =   &cF2F2F7
+   Compatibility   =   ""
+   ControlCount    =   0
+   Device = 7
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   2
+   Left            =   0
+   NavigationBarColor=
+   NavigationBarTextColor=
+   Orientation = 0
+   ScaleFactor     =   0.0
+   TabBarVisible   =   True
+   TabIcon         =   0
+   TintColor       =
+   Title           =   "Rockets"
+   Top             =   0
+   _mTabBarVisible =   False
+   Begin iOSMobileTable TableRockets
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   TableRockets, 1, <Parent>, 1, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   TableRockets, 2, <Parent>, 2, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   TableRockets, 3, <Parent>, 3, False, +1.00, 1, 1, 100, , True
+      AutoLayout      =   TableRockets, 4, ButtonSettings, 3, False, +1.00, 1, 1, -10, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Format          =   2
+      Height          =   400
+      Left            =   0
+      LockedInPosition=   False
+      Scope           =   2
+      TintColor       =
+      Top             =   100
+      Visible         =   True
+      Width           =   375
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelInfo
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelInfo, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelInfo, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelInfo, 3, TableRockets, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelInfo, 8, , 0, False, +1.00, 1, 1, 20, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Tap a rocket to select it"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =
+      Top             =   510
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileButton ButtonSettings
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      AutoLayout      =   ButtonSettings, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   ButtonSettings, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   ButtonSettings, 3, LabelInfo, 4, False, +1.00, 1, 1, 10, , True
+      AutoLayout      =   ButtonSettings, 8, , 0, False, +1.00, 1, 1, 44, , True
+      BackgroundColor =   &cE5E5EA
+      BorderColor     =
+      BorderWidth     =   0
+      Caption         =   "Settings"
+      CaptionColor    =   &c007AFF
+      ControlCount    =   0
+      CornerSize      =   12
+      Enabled         =   True
+      Height          =   50
+      Icon            =   0
+      Left            =   20
+      LockedInPosition=   False
+      Scope           =   2
+      TextFont        =   ""
+      TextSize        =   17
+      TintColor       =   &c007AFF
+      Top             =   548
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+End
+#tag EndMobileScreen
+
+#tag WindowCode
+	#tag Event
+		Sub Opening()
+		  // Populate table from active rockets tracked by Screen_Main
+		  RefreshTable
+		  Module_Navigation.SetupMenuButton(Self)
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub RefreshTable()
+		  // RemoveAllRows also removes sections, so always re-add
+		  If pTableInitialized Then
+		    TableRockets.RemoveAllRows
+		  End If
+		  TableRockets.AddSection("")
+		  pTableInitialized = True
+
+		  // Add rockets from telemetry tracking
+		  If pActiveRocketData <> Nil Then
+		    Var theKeys() As Variant = pActiveRocketData.Keys
+		    For Each theKey As Variant In theKeys
+		      Var theId As Integer = theKey.IntegerValue
+		      Var theInfo As Dictionary = pActiveRocketData.Value(theKey)
+		      Var theState As String = theInfo.Value("state").StringValue.Uppercase
+		      Var theRssi As Integer = theInfo.Value("rssi").IntegerValue
+
+		      Var theText As String = "Rocket #" + Str(theId)
+		      Var theDetail As String = theState + "  RSSI: " + Str(theRssi) + " dBm"
+
+		      Var theCell As MobileTableCellData = TableRockets.CreateCell(theText, theDetail)
+		      theCell.Tag = theId
+		      If theId = App.pSelectedRocketId Then
+		        theCell.AccessoryType = MobileTableCellData.AccessoryTypes.Checkmark
+		      End If
+		      TableRockets.AddRow(0, theCell)
+		    Next
+		  End If
+
+		  // Show message if no rockets
+		  If TableRockets.RowCount(0) = 0 Then
+		    LabelInfo.Text = "No rockets detected"
+		  Else
+		    LabelInfo.Text = "Tap a rocket to select it"
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Property, Flags = &h0
+		pActiveRocketData As Dictionary
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pTableInitialized As Boolean = False
+	#tag EndProperty
+
+
+#tag EndWindowCode
+
+#tag Events TableRockets
+	#tag Event
+		Sub SelectionChanged(section As Integer, row As Integer)
+		  // Get the selected rocket ID from the cell tag
+		  Var theCell As MobileTableCellData = TableRockets.RowCellData(section, row)
+		  If theCell <> Nil Then
+		    App.pSelectedRocketId = theCell.Tag.IntegerValue
+
+		    // Pop back to main screen
+		    Self.Close
+		  End If
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Events ButtonSettings
+	#tag Event
+		Sub Pressed()
+		  Var theScreen As New Screen_Settings
+		  Self.PushTo(theScreen)
+		End Sub
+	#tag EndEvent
+#tag EndEvents

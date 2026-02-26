@@ -1,20 +1,20 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Main
    BackButtonCaption=   ""
-   BackgroundColor =   
+   BackgroundColor =   &cF2F2F7
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
    HasNavigationBar=   True
    LargeTitleDisplayMode=   2
    Left            =   0
-   NavigationBarColor=   
-   NavigationBarTextColor=   
+   NavigationBarColor=
+   NavigationBarTextColor=
    Orientation = 0
    ScaleFactor     =   0.0
    TabBarVisible   =   True
    TabIcon         =   0
-   TintColor       =   
+   TintColor       =
    Title           =   "Rocket Avionics"
    Top             =   0
    _mTabBarVisible =   False
@@ -22,14 +22,14 @@ Begin MobileScreen Screen_Main
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
       AdjustTextSizeToFit=   False
-      Alignment       =   1
+      Alignment       =   0
       AutoLayout      =   LabelStatus, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelStatus, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelStatus, 3, <Parent>, 3, False, +1.00, 1, 1, 116, , True
-      AutoLayout      =   LabelStatus, 8, , 0, False, +1.00, 1, 1, 25, , True
+      AutoLayout      =   LabelStatus, 3, <Parent>, 3, False, +1.00, 1, 1, 104, , True
+      AutoLayout      =   LabelStatus, 8, , 0, False, +1.00, 1, 1, 28, , True
       ControlCount    =   0
       Enabled         =   True
-      Height          =   25
+      Height          =   28
       Left            =   20
       LineBreakMode   =   4
       LockedInPosition=   False
@@ -39,13 +39,13 @@ Begin MobileScreen Screen_Main
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Disconnected"
-      TextColor       =   &cCC0000
+      TextColor       =   &cFF3B30
       TextFont        =   ""
       TextSize        =   14
-      TintColor       =   
-      Top             =   116
+      TintColor       =
+      Top             =   104
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
    Begin MobileButton ButtonConnect
@@ -54,27 +54,47 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       AutoLayout      =   ButtonConnect, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   ButtonConnect, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonConnect, 3, LabelStatus, 4, False, +1.00, 1, 1, 10, , True
-      AutoLayout      =   ButtonConnect, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =
+      AutoLayout      =   ButtonConnect, 3, LabelStatus, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   ButtonConnect, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   &c007AFF
       BorderColor     =
       BorderWidth     =   0
       Caption         =   "Connect"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &cFFFFFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   True
-      Height          =   44
+      Height          =   50
       Icon            =   0
       Left            =   20
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &c0066CC
-      Top             =   151
+      TextSize        =   17
+      TintColor       =   &c007AFF
+      Top             =   140
       Visible         =   True
-      Width           =   335
+      Width           =   390
+      _ClosingFired   =   False
+   End
+   Begin iOSMobileTable TableRockets
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   TableRockets, 1, <Parent>, 1, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   TableRockets, 2, <Parent>, 2, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   TableRockets, 3, ButtonConnect, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   TableRockets, 8, , 0, False, +1.00, 1, 1, 140, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Format          =   2
+      Height          =   140
+      Left            =   0
+      LockedInPosition=   False
+      Scope           =   2
+      TintColor       =
+      Top             =   198
+      Visible         =   True
+      Width           =   430
       _ClosingFired   =   False
    End
    Begin MobileLabel LabelAltitude
@@ -83,12 +103,12 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       Alignment       =   1
       AutoLayout      =   LabelAltitude, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   LabelAltitude, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelAltitude, 3, ButtonConnect, 4, False, +1.00, 1, 1, 10, , True
-      AutoLayout      =   LabelAltitude, 8, , 0, False, +1.00, 1, 1, 50, , True
+      AutoLayout      =   LabelAltitude, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelAltitude, 3, TableRockets, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelAltitude, 8, , 0, False, +1.00, 1, 1, 36, , True
       ControlCount    =   0
       Enabled         =   True
-      Height          =   50
+      Height          =   36
       Left            =   20
       LineBreakMode   =   4
       LockedInPosition=   False
@@ -100,11 +120,11 @@ Begin MobileScreen Screen_Main
       Text            =   "--- m"
       TextColor       =   &c000000
       TextFont        =   ""
-      TextSize        =   42
-      TintColor       =   
-      Top             =   156
+      TextSize        =   28
+      TintColor       =
+      Top             =   340
       Visible         =   True
-      Width           =   335
+      Width           =   185
       _ClosingFired   =   False
    End
    Begin MobileLabel LabelAltitudeCaption
@@ -113,8 +133,8 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       Alignment       =   1
       AutoLayout      =   LabelAltitudeCaption, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   LabelAltitudeCaption, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelAltitudeCaption, 3, LabelAltitude, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelAltitudeCaption, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelAltitudeCaption, 3, LabelAltitude, 4, False, +1.00, 1, 1, 0, , True
       AutoLayout      =   LabelAltitudeCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
       ControlCount    =   0
       Enabled         =   True
@@ -128,13 +148,13 @@ Begin MobileScreen Screen_Main
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "ALTITUDE"
-      TextColor       =   &c666666
+      TextColor       =   &c8E8E93
       TextFont        =   ""
-      TextSize        =   11
-      TintColor       =   
-      Top             =   208
+      TextSize        =   13
+      TintColor       =
+      Top             =   376
       Visible         =   True
-      Width           =   335
+      Width           =   185
       _ClosingFired   =   False
    End
    Begin MobileLabel LabelVelocity
@@ -142,14 +162,14 @@ Begin MobileScreen Screen_Main
       AccessibilityLabel=   ""
       AdjustTextSizeToFit=   False
       Alignment       =   1
-      AutoLayout      =   LabelVelocity, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelVelocity, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelVelocity, 3, LabelAltitudeCaption, 4, False, +1.00, 1, 1, 15, , True
-      AutoLayout      =   LabelVelocity, 8, , 0, False, +1.00, 1, 1, 35, , True
+      AutoLayout      =   LabelVelocity, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelVelocity, 3, TableRockets, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelVelocity, 8, , 0, False, +1.00, 1, 1, 36, , True
       ControlCount    =   0
       Enabled         =   True
-      Height          =   35
-      Left            =   20
+      Height          =   36
+      Left            =   225
       LineBreakMode   =   4
       LockedInPosition=   False
       MaximumCharactersAllowed=   0
@@ -161,10 +181,10 @@ Begin MobileScreen Screen_Main
       TextColor       =   &c000000
       TextFont        =   ""
       TextSize        =   28
-      TintColor       =   
-      Top             =   239
+      TintColor       =
+      Top             =   340
       Visible         =   True
-      Width           =   335
+      Width           =   185
       _ClosingFired   =   False
    End
    Begin MobileLabel LabelVelocityCaption
@@ -172,10 +192,70 @@ Begin MobileScreen Screen_Main
       AccessibilityLabel=   ""
       AdjustTextSizeToFit=   False
       Alignment       =   1
-      AutoLayout      =   LabelVelocityCaption, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelVelocityCaption, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelVelocityCaption, 3, LabelVelocity, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelVelocityCaption, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelVelocityCaption, 3, LabelVelocity, 4, False, +1.00, 1, 1, 0, , True
       AutoLayout      =   LabelVelocityCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   225
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "VELOCITY"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =
+      Top             =   376
+      Visible         =   True
+      Width           =   185
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelState
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelState, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelState, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelState, 3, LabelAltitudeCaption, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelState, 8, , 0, False, +1.00, 1, 1, 32, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   32
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "IDLE"
+      TextColor       =   &c34C759
+      TextFont        =   ""
+      TextSize        =   24
+      TintColor       =
+      Top             =   484
+      Visible         =   True
+      Width           =   390
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelRssi
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelRssi, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelRssi, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelRssi, 3, LabelState, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelRssi, 8, , 0, False, +1.00, 1, 1, 16, , True
       ControlCount    =   0
       Enabled         =   True
       Height          =   16
@@ -187,28 +267,28 @@ Begin MobileScreen Screen_Main
       SelectedText    =   ""
       SelectionLength =   0
       SelectionStart  =   0
-      Text            =   "VELOCITY"
-      TextColor       =   &c666666
+      Text            =   "RSSI: --- dBm  SNR: --- dB"
+      TextColor       =   &c8E8E93
       TextFont        =   ""
-      TextSize        =   11
-      TintColor       =   
-      Top             =   276
+      TextSize        =   13
+      TintColor       =
+      Top             =   518
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
-   Begin MobileLabel LabelState
+   Begin MobileLabel LabelGps
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
       AdjustTextSizeToFit=   False
       Alignment       =   1
-      AutoLayout      =   LabelState, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   LabelState, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelState, 3, LabelVelocityCaption, 4, False, +1.00, 1, 1, 15, , True
-      AutoLayout      =   LabelState, 8, , 0, False, +1.00, 1, 1, 30, , True
+      AutoLayout      =   LabelGps, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelGps, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelGps, 3, LabelRssi, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelGps, 8, , 0, False, +1.00, 1, 1, 16, , True
       ControlCount    =   0
       Enabled         =   True
-      Height          =   30
+      Height          =   16
       Left            =   20
       LineBreakMode   =   4
       LockedInPosition=   False
@@ -217,14 +297,14 @@ Begin MobileScreen Screen_Main
       SelectedText    =   ""
       SelectionLength =   0
       SelectionStart  =   0
-      Text            =   "IDLE"
-      TextColor       =   &c006600
+      Text            =   "GPS: No fix  Sats: 0"
+      TextColor       =   &c8E8E93
       TextFont        =   ""
-      TextSize        =   24
-      TintColor       =   
-      Top             =   307
+      TextSize        =   13
+      TintColor       =
+      Top             =   536
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
    Begin MobileButton ButtonArm
@@ -233,27 +313,27 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       AutoLayout      =   ButtonArm, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   ButtonArm, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonArm, 3, LabelRssi, 4, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   ButtonArm, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =   
-      BorderColor     =   
+      AutoLayout      =   ButtonArm, 3, LabelGps, 4, False, +1.00, 1, 1, 16, , True
+      AutoLayout      =   ButtonArm, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   &cFF9500
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "ARM"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &cFFFFFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   False
-      Height          =   44
+      Height          =   50
       Icon            =   0
       Left            =   20
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &cFF6600
-      Top             =   381
+      TextSize        =   17
+      TintColor       =   &cFF9500
+      Top             =   570
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
    Begin MobileButton ButtonDisarm
@@ -262,87 +342,27 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       AutoLayout      =   ButtonDisarm, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   ButtonDisarm, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonDisarm, 3, ButtonArm, 4, False, +1.00, 1, 1, 10, , True
-      AutoLayout      =   ButtonDisarm, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =   
-      BorderColor     =   
+      AutoLayout      =   ButtonDisarm, 3, ButtonArm, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   ButtonDisarm, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   &c34C759
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "DISARM"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &cFFFFFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   False
-      Height          =   44
+      Height          =   50
       Icon            =   0
       Left            =   20
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &c00AA00
-      Top             =   435
+      TextSize        =   17
+      TintColor       =   &c34C759
+      Top             =   628
       Visible         =   True
-      Width           =   335
-      _ClosingFired   =   False
-      Begin MobileLabel LabelRssi
-         AccessibilityHint=   ""
-         AccessibilityLabel=   ""
-         AdjustTextSizeToFit=   False
-         Alignment       =   1
-         AutoLayout      =   LabelRssi, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-         AutoLayout      =   LabelRssi, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-         AutoLayout      =   LabelRssi, 3, LabelState, 4, False, +1.00, 1, 1, 8, , True
-         AutoLayout      =   LabelRssi, 8, , 0, False, +1.00, 1, 1, 16, , True
-         ControlCount    =   0
-         Enabled         =   True
-         Height          =   16
-         Left            =   20
-         LineBreakMode   =   4
-         LockedInPosition=   False
-         MaximumCharactersAllowed=   0
-         Parent          =   "ButtonDisarm"
-         Scope           =   2
-         SelectedText    =   ""
-         SelectionLength =   0
-         SelectionStart  =   0
-         Text            =   "RSSI: --- dBm  SNR: --- dB"
-         TextColor       =   &c999999
-         TextFont        =   ""
-         TextSize        =   11
-         TintColor       =   
-         Top             =   345
-         Visible         =   True
-         Width           =   335
-         _ClosingFired   =   False
-      End
-   End
-   Begin MobileButton ButtonSettings
-      AccessibilityHint=   ""
-      AccessibilityLabel=   ""
-      AdjustTextSizeToFit=   False
-      AutoLayout      =   ButtonSettings, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   ButtonSettings, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonSettings, 3, ButtonDisarm, 4, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   ButtonSettings, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =   
-      BorderColor     =   
-      BorderWidth     =   0
-      Caption         =   "Settings"
-      CaptionColor    =   &c000000
-      ControlCount    =   0
-      CornerSize      =   0
-      Enabled         =   True
-      Height          =   44
-      Icon            =   0
-      Left            =   20
-      LockedInPosition=   False
-      Scope           =   2
-      TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &cE5E5EA
-      Top             =   499
-      Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
    Begin MobileButton ButtonRecovery
@@ -351,27 +371,27 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       AutoLayout      =   ButtonRecovery, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   ButtonRecovery, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonRecovery, 3, ButtonSettings, 4, False, +1.00, 1, 1, 10, , True
-      AutoLayout      =   ButtonRecovery, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =   
-      BorderColor     =   
+      AutoLayout      =   ButtonRecovery, 3, ButtonDisarm, 4, False, +1.00, 1, 1, 16, , True
+      AutoLayout      =   ButtonRecovery, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   &cE5E5EA
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "Recovery"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &c007AFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   True
-      Height          =   44
+      Height          =   50
       Icon            =   0
       Left            =   20
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &cE5E5EA
-      Top             =   553
+      TextSize        =   17
+      TintColor       =   &c007AFF
+      Top             =   694
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
    Begin MobileButton ButtonFlashStorage
@@ -380,33 +400,47 @@ Begin MobileScreen Screen_Main
       AdjustTextSizeToFit=   False
       AutoLayout      =   ButtonFlashStorage, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   ButtonFlashStorage, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonFlashStorage, 3, ButtonRecovery, 4, False, +1.00, 1, 1, 10, , True
-      AutoLayout      =   ButtonFlashStorage, 8, , 0, False, +1.00, 1, 1, 44, , True
-      BackgroundColor =   
-      BorderColor     =   
+      AutoLayout      =   ButtonFlashStorage, 3, ButtonRecovery, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   ButtonFlashStorage, 8, , 0, False, +1.00, 1, 1, 50, , True
+      BackgroundColor =   &cE5E5EA
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "Flight Data"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &c007AFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   True
-      Height          =   44
+      Height          =   50
       Icon            =   0
       Left            =   20
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &cE5E5EA
-      Top             =   607
+      TextSize        =   17
+      TintColor       =   &c007AFF
+      Top             =   752
       Visible         =   True
-      Width           =   335
+      Width           =   390
       _ClosingFired   =   False
    End
 End
 #tag EndMobileScreen
 
 #tag WindowCode
+	#tag Event
+		Sub Opening()
+		  If App.pConnection <> Nil Then
+		    AddHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
+		    AddHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		    AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		  End If
+		  UpdateConnectButton
+
+		  // Add "..." pull-down menu to navigation bar
+		  Module_Navigation.SetupMenuButton(Self)
+		End Sub
+	#tag EndEvent
+
 	#tag Event
 		Sub Closing()
 		  If App.pConnection <> Nil Then
@@ -417,36 +451,33 @@ End
 		End Sub
 	#tag EndEvent
 
-	#tag Event
-		Sub Opening()
-		  If App.pConnection <> Nil Then
-		    AddHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
-		    AddHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
-		    AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
-		  End If
-		End Sub
-	#tag EndEvent
-
 
 	#tag Method, Flags = &h21
 		Private Sub HandleConnectionChanged(inSender As FlightConnection, inConnected As Boolean)
 		  #Pragma Unused inSender
 		  If inConnected Then
 		    LabelStatus.Text = "Connected"
-		    LabelStatus.TextColor = &c00AA00
-		    ButtonConnect.Caption = "Disconnect"
-		    ButtonConnect.TintColor = &cFF3300
-		    ButtonConnect.Enabled = True
+		    LabelStatus.TextColor = &c34C759
 		    ButtonArm.Enabled = True
 		    ButtonDisarm.Enabled = True
 		  Else
 		    LabelStatus.Text = "Disconnected"
-		    LabelStatus.TextColor = &cCC0000
-		    ButtonConnect.Caption = "Connect"
-		    ButtonConnect.TintColor = &c0066CC
-		    ButtonConnect.Enabled = True
+		    LabelStatus.TextColor = &cFF3B30
 		    ButtonArm.Enabled = False
 		    ButtonDisarm.Enabled = False
+		  End If
+		  UpdateConnectButton
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub UpdateConnectButton()
+		  If App.pConnection <> Nil And App.pConnection.IsConnected Then
+		    ButtonConnect.Caption = "Disconnect"
+		    ButtonConnect.BackgroundColor = &cFF3B30
+		  Else
+		    ButtonConnect.Caption = "Connect"
+		    ButtonConnect.BackgroundColor = &c007AFF
 		  End If
 		End Sub
 	#tag EndMethod
@@ -456,10 +487,7 @@ End
 		  #Pragma Unused inSender
 		  #Pragma Unused inCode
 		  LabelStatus.Text = inMessage
-		  LabelStatus.TextColor = &cCC0000
-		  ButtonConnect.Caption = "Connect"
-		  ButtonConnect.TintColor = &c0066CC
-		  ButtonConnect.Enabled = True
+		  LabelStatus.TextColor = &cFF3B30
 		End Sub
 	#tag EndMethod
 
@@ -472,26 +500,117 @@ End
 		    App.pSelectedRocketId = inSample.pRocketId
 		  End If
 
+		  // Track active rockets
+		  If pActiveRockets = Nil Then pActiveRockets = New Dictionary
+		  Var theInfo As New Dictionary
+		  theInfo.Value("state") = inSample.pState
+		  theInfo.Value("rssi") = inSample.pRssi
+		  theInfo.Value("snr") = inSample.pSnr
+		  theInfo.Value("sats") = inSample.pGpsSatellites
+		  theInfo.Value("fix") = inSample.pGpsFix
+		  theInfo.Value("time") = DateTime.Now.SecondsFrom1970
+		  pActiveRockets.Value(inSample.pRocketId) = theInfo
+
+		  // Remove stale rockets (not seen in 10 seconds)
+		  Var theNow As Double = DateTime.Now.SecondsFrom1970
+		  Var theKeys() As Variant = pActiveRockets.Keys
+		  For Each theKey As Variant In theKeys
+		    Var theRocket As Dictionary = pActiveRockets.Value(theKey)
+		    If theNow - theRocket.Value("time").DoubleValue > 10 Then
+		      pActiveRockets.Remove(theKey)
+		    End If
+		  Next
+
+		  // Build ID string to detect when rocket set changes
+		  Var theIdStr As String = ""
+		  Var theKeys2() As Variant = pActiveRockets.Keys
+		  For Each k As Variant In theKeys2
+		    theIdStr = theIdStr + Str(k.IntegerValue) + ","
+		  Next
+
+		  // Only rebuild table when the set of active rocket IDs changes
+		  If theIdStr <> pLastRocketIds Then
+		    pLastRocketIds = theIdStr
+		    RefreshRocketTable
+		  End If
+
+		  // Only update display for selected rocket
+		  If inSample.pRocketId <> App.pSelectedRocketId Then
+		    Return
+		  End If
+
 		  LabelAltitude.Text = Str(Round(inSample.pAltitudeM * 10) / 10) + " m"
 		  LabelVelocity.Text = Str(Round(inSample.pVelocityMps * 10) / 10) + " m/s"
-		  
+
 		  LabelState.Text = inSample.pState.Uppercase
 		  Select Case inSample.pState.Lowercase
 		  Case "idle"
-		    LabelState.TextColor = &c006600
+		    LabelState.TextColor = &c34C759
 		  Case "armed"
-		    LabelState.TextColor = &cFF6600
+		    LabelState.TextColor = &cFF9500
 		  Case "boost", "coast"
-		    LabelState.TextColor = &cCC0000
+		    LabelState.TextColor = &cFF3B30
 		  Case "apogee", "descent", "landed"
-		    LabelState.TextColor = &c0066CC
+		    LabelState.TextColor = &c007AFF
 		  Else
 		    LabelState.TextColor = &c000000
 		  End Select
-		  
+
 		  LabelRssi.Text = "RSSI: " + Str(inSample.pRssi) + " dBm  SNR: " + Str(inSample.pSnr) + " dB"
+
+		  If inSample.pGpsFix Then
+		    LabelGps.Text = "GPS: Fix  Sats: " + Str(inSample.pGpsSatellites)
+		    LabelGps.TextColor = &c34C759
+		  Else
+		    LabelGps.Text = "GPS: No fix  Sats: " + Str(inSample.pGpsSatellites)
+		    LabelGps.TextColor = &c8E8E93
+		  End If
 		End Sub
 	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub RefreshRocketTable()
+		  // RemoveAllRows also removes sections, so always re-add
+		  If pTableInitialized Then
+		    TableRockets.RemoveAllRows
+		  End If
+		  TableRockets.AddSection("")
+		  pTableInitialized = True
+
+		  If pActiveRockets = Nil Then Return
+
+		  Var theKeys() As Variant = pActiveRockets.Keys
+		  For Each theKey As Variant In theKeys
+		    Var theId As Integer = theKey.IntegerValue
+		    Var theInfo As Dictionary = pActiveRockets.Value(theKey)
+		    Var theState As String = theInfo.Value("state").StringValue.Uppercase
+		    Var theRssi As Integer = theInfo.Value("rssi").IntegerValue
+
+		    Var theText As String = "Rocket #" + Str(theId)
+		    Var theDetail As String = theState + "  RSSI: " + Str(theRssi) + " dBm"
+
+		    Var theCell As MobileTableCellData = TableRockets.CreateCell(theText, theDetail)
+		    theCell.Tag = theId
+		    If theId = App.pSelectedRocketId Then
+		      theCell.AccessoryType = MobileTableCellData.AccessoryTypes.Checkmark
+		    End If
+		    TableRockets.AddRow(0, theCell)
+		  Next
+		End Sub
+	#tag EndMethod
+
+	#tag Property, Flags = &h0
+		pActiveRockets As Dictionary
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pTableInitialized As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pLastRocketIds As String = ""
+	#tag EndProperty
+
 
 
 #tag EndWindowCode
@@ -500,6 +619,8 @@ End
 	#tag Event
 		Sub Pressed()
 		  If App.pConnection = Nil Then
+		    LabelStatus.Text = "Connection not initialized"
+		    LabelStatus.TextColor = &cFF3B30
 		    Return
 		  End If
 
@@ -508,14 +629,19 @@ End
 		  Else
 		    Var theHost As String = App.GetPreferenceString("gateway_host", "RocketGateway.local")
 		    Var thePort As Integer = Val(App.GetPreferenceString("gateway_port", "5000"))
-		    If thePort <= 0 Then thePort = 5000
-
-		    LabelStatus.Text = "Connecting..."
-		    LabelStatus.TextColor = &cFF9900
-		    ButtonConnect.Caption = "Connecting..."
-		    ButtonConnect.Enabled = False
-
 		    App.pConnection.Connect(theHost, thePort)
+		  End If
+		  UpdateConnectButton
+		End Sub
+	#tag EndEvent
+#tag EndEvents
+#tag Events TableRockets
+	#tag Event
+		Sub SelectionChanged(section As Integer, row As Integer)
+		  Var theCell As MobileTableCellData = TableRockets.RowCellData(section, row)
+		  If theCell <> Nil Then
+		    App.pSelectedRocketId = theCell.Tag.IntegerValue
+		    RefreshRocketTable
 		  End If
 		End Sub
 	#tag EndEvent
@@ -538,14 +664,6 @@ End
 		End Sub
 	#tag EndEvent
 #tag EndEvents
-#tag Events ButtonSettings
-	#tag Event
-		Sub Pressed()
-		  Var theScreen As New Screen_Settings
-		  Self.PushTo(theScreen)
-		End Sub
-	#tag EndEvent
-#tag EndEvents
 #tag Events ButtonRecovery
 	#tag Event
 		Sub Pressed()
@@ -557,8 +675,10 @@ End
 #tag Events ButtonFlashStorage
 	#tag Event
 		Sub Pressed()
-		  Var theScreen As New Screen_FlashStorage
-		  Self.PushTo(theScreen)
+		  If Module_Navigation.pFlashStorageScreen = Nil Then
+		    Module_Navigation.pFlashStorageScreen = New Screen_FlashStorage
+		  End If
+		  Self.PushTo(Module_Navigation.pFlashStorageScreen)
 		End Sub
 	#tag EndEvent
 #tag EndEvents

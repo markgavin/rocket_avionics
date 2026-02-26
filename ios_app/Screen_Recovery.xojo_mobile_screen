@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Recovery
    BackButtonCaption=   ""
-   BackgroundColor =   
+   BackgroundColor =   &cF2F2F7
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -39,7 +39,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Waiting for GPS..."
-      TextColor       =   &c666666
+      TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   14
       TintColor       =   
@@ -99,7 +99,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "DISTANCE TO ROCKET"
-      TextColor       =   &c666666
+      TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   11
       TintColor       =   
@@ -159,7 +159,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "BEARING"
-      TextColor       =   &c666666
+      TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   11
       TintColor       =   
@@ -189,7 +189,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Rocket Position:"
-      TextColor       =   &c333333
+      TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   14
       TintColor       =   
@@ -266,13 +266,13 @@ Begin MobileScreen Screen_Recovery
       AutoLayout      =   ButtonOpenMaps, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
       AutoLayout      =   ButtonOpenMaps, 3, LabelPhoneCoords, 4, False, +1.00, 1, 1, 30, , True
       AutoLayout      =   ButtonOpenMaps, 8, , 0, False, +1.00, 1, 1, 50, , True
-      BackgroundColor =   
-      BorderColor     =   
+      BackgroundColor =   &c007AFF
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "Open in Maps"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &cFFFFFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   True
       Height          =   50
       Icon            =   0
@@ -280,8 +280,8 @@ Begin MobileScreen Screen_Recovery
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &c0066CC
+      TextSize        =   17
+      TintColor       =   &c007AFF
       Top             =   548
       Visible         =   True
       Width           =   335
@@ -308,7 +308,7 @@ Begin MobileScreen Screen_Recovery
          SelectionLength =   0
          SelectionStart  =   0
          Text            =   "Your Position:"
-         TextColor       =   &c333333
+         TextColor       =   &c8E8E93
          TextFont        =   ""
          TextSize        =   14
          TintColor       =   
@@ -327,6 +327,7 @@ End
 		  pRocketLocation = App.pRocketLocation
 		  Module_Location.StartUpdating
 		  UpdateDisplay
+		  Module_Navigation.SetupMenuButton(Self)
 		End Sub
 	#tag EndEvent
 
@@ -361,7 +362,7 @@ End
 		    LabelDistance.Text = "--- m"
 		    LabelBearing.Text = "---"
 		    LabelStatus.Text = "No rocket GPS"
-		    LabelStatus.TextColor = &cCC0000
+		    LabelStatus.TextColor = &cFF3B30
 		  Else
 		    LabelRocketCoords.Text = Str(pRocketLocation.pLatitude, "0.000000") + ", " + Str(pRocketLocation.pLongitude, "0.000000")
 		    
@@ -383,12 +384,12 @@ End
 		      
 		      LabelBearing.Text = Str(Round(theBearing)) + Chr(&hB0) + " " + GetCardinalDirection(theBearing)
 		      LabelStatus.Text = "Navigate to rocket"
-		      LabelStatus.TextColor = &c009900
+		      LabelStatus.TextColor = &c34C759
 		    Else
 		      LabelDistance.Text = "--- m"
 		      LabelBearing.Text = "---"
 		      LabelStatus.Text = "Waiting for phone GPS..."
-		      LabelStatus.TextColor = &c666666
+		      LabelStatus.TextColor = &c8E8E93
 		    End If
 		  End If
 		  
@@ -414,7 +415,7 @@ End
 		Sub Pressed()
 		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid Then
 		    LabelStatus.Text = "No valid rocket coordinates"
-		    LabelStatus.TextColor = &cFF0000
+		    LabelStatus.TextColor = &cFF3B30
 		    Return
 		  End If
 		  

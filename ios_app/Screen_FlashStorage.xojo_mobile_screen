@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_FlashStorage
    BackButtonCaption=   ""
-   BackgroundColor =   
+   BackgroundColor =   &cF2F2F7
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -69,7 +69,7 @@ Begin MobileScreen Screen_FlashStorage
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Tap Refresh to load flight list from the rocket"
-      TextColor       =   &c666666
+      TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   13
       TintColor       =   
@@ -93,13 +93,14 @@ Begin MobileScreen Screen_FlashStorage
          LineBreakMode   =   4
          LockedInPosition=   False
          MaximumCharactersAllowed=   0
+         PanelIndex      =   0
          Parent          =   "LabelFlightInfo"
          Scope           =   2
          SelectedText    =   ""
          SelectionLength =   0
          SelectionStart  =   0
          Text            =   "Not connected"
-         TextColor       =   &c666666
+         TextColor       =   &c8E8E93
          TextFont        =   ""
          TextSize        =   14
          TintColor       =   
@@ -117,13 +118,13 @@ Begin MobileScreen Screen_FlashStorage
       AutoLayout      =   ButtonRefresh, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
       AutoLayout      =   ButtonRefresh, 3, LabelFlightInfo, 4, False, +1.00, 1, 1, 30, , True
       AutoLayout      =   ButtonRefresh, 8, , 0, False, +1.00, 1, 1, 50, , True
-      BackgroundColor =   
-      BorderColor     =   
+      BackgroundColor =   &c007AFF
+      BorderColor     =
       BorderWidth     =   0
       Caption         =   "Refresh Flight List"
-      CaptionColor    =   &c000000
+      CaptionColor    =   &cFFFFFF
       ControlCount    =   0
-      CornerSize      =   0
+      CornerSize      =   12
       Enabled         =   True
       Height          =   50
       Icon            =   0
@@ -131,8 +132,8 @@ Begin MobileScreen Screen_FlashStorage
       LockedInPosition=   False
       Scope           =   2
       TextFont        =   ""
-      TextSize        =   0
-      TintColor       =   &c0066CC
+      TextSize        =   17
+      TintColor       =   &c007AFF
       Top             =   326
       Visible         =   True
       Width           =   335
@@ -159,7 +160,7 @@ Begin MobileScreen Screen_FlashStorage
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   ""
-      TextColor       =   &c0066CC
+      TextColor       =   &c007AFF
       TextFont        =   ""
       TextSize        =   14
       TintColor       =   
@@ -183,10 +184,12 @@ End
 	#tag Event
 		Sub Opening()
 		  UpdateConnectionStatus
-		  
+
 		  If App.pConnection <> Nil Then
 		    AddHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
 		  End If
+
+		  Module_Navigation.SetupMenuButton(Self)
 		End Sub
 	#tag EndEvent
 
@@ -225,15 +228,16 @@ End
 		Private Sub UpdateConnectionStatus()
 		  If App.pConnection <> Nil And App.pConnection.IsConnected Then
 		    LabelStatus.Text = "Connected"
-		    LabelStatus.TextColor = &c009900
+		    LabelStatus.TextColor = &c34C759
 		    ButtonRefresh.Enabled = True
 		  Else
 		    LabelStatus.Text = "Not connected - go to Settings to connect"
-		    LabelStatus.TextColor = &c666666
+		    LabelStatus.TextColor = &c8E8E93
 		    ButtonRefresh.Enabled = False
 		  End If
 		End Sub
 	#tag EndMethod
+
 
 
 #tag EndWindowCode
@@ -243,7 +247,7 @@ End
 		Sub Pressed()
 		  If App.pConnection = Nil Or Not App.pConnection.IsConnected Then
 		    LabelStatus.Text = "Not connected"
-		    LabelStatus.TextColor = &cCC0000
+		    LabelStatus.TextColor = &cFF3B30
 		    Return
 		  End If
 		  
@@ -252,3 +256,154 @@ End
 		End Sub
 	#tag EndEvent
 #tag EndEvents
+#tag ViewBehavior
+	#tag ViewProperty
+		Name="Index"
+		Visible=true
+		Group="ID"
+		InitialValue="-2147483648"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Name"
+		Visible=true
+		Group="ID"
+		InitialValue=""
+		Type="String"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Super"
+		Visible=true
+		Group="ID"
+		InitialValue=""
+		Type="String"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Left"
+		Visible=true
+		Group="Position"
+		InitialValue="0"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Top"
+		Visible=true
+		Group="Position"
+		InitialValue="0"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="BackButtonCaption"
+		Visible=true
+		Group="Behavior"
+		InitialValue=""
+		Type="String"
+		EditorType="MultiLineEditor"
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="HasNavigationBar"
+		Visible=true
+		Group="Behavior"
+		InitialValue="True"
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TabIcon"
+		Visible=true
+		Group="Behavior"
+		InitialValue=""
+		Type="Picture"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Title"
+		Visible=true
+		Group="Behavior"
+		InitialValue="Untitled"
+		Type="String"
+		EditorType="MultiLineEditor"
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="LargeTitleDisplayMode"
+		Visible=true
+		Group="Behavior"
+		InitialValue="2"
+		Type="MobileScreen.LargeTitleDisplayModes"
+		EditorType="Enum"
+		#tag EnumValues
+			"0 - Automatic"
+			"1 - Always"
+			"2 - Never"
+		#tag EndEnumValues
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TabBarVisible"
+		Visible=true
+		Group="Behavior"
+		InitialValue="True"
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TintColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="ControlCount"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="ScaleFactor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Double"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="_mTabBarVisible"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="BackgroundColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="NavigationBarColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="NavigationBarTextColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+#tag EndViewBehavior

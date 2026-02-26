@@ -1,0 +1,183 @@
+#tag MobileScreen
+Begin MobileScreen Screen_About
+   BackButtonCaption=   ""
+   BackgroundColor =   &cF2F2F7
+   Compatibility   =   ""
+   ControlCount    =   0
+   Device = 7
+   HasNavigationBar=   True
+   LargeTitleDisplayMode=   2
+   Left            =   0
+   NavigationBarColor=
+   NavigationBarTextColor=
+   Orientation = 0
+   ScaleFactor     =   0.0
+   TabBarVisible   =   True
+   TabIcon         =   0
+   TintColor       =
+   Title           =   "About"
+   Top             =   0
+   _mTabBarVisible =   False
+   Begin MobileCanvas CanvasIcon
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AutoLayout      =   CanvasIcon, 1, <Parent>, 1, False, +1.00, 1, 1, 88, , True
+      AutoLayout      =   CanvasIcon, 2, <Parent>, 2, False, +1.00, 1, 1, -88, , True
+      AutoLayout      =   CanvasIcon, 3, <Parent>, 3, False, +1.00, 1, 1, 140, , True
+      AutoLayout      =   CanvasIcon, 8, , 0, False, +1.00, 1, 1, 200, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   200
+      Left            =   88
+      LockedInPosition=   False
+      Scope           =   2
+      TintColor       =
+      Top             =   140
+      Visible         =   True
+      Width           =   200
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelAppName
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelAppName, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelAppName, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelAppName, 3, CanvasIcon, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelAppName, 8, , 0, False, +1.00, 1, 1, 32, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   32
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Rocket Avionics"
+      TextColor       =   &c000000
+      TextFont        =   ""
+      TextSize        =   24
+      TintColor       =
+      Top             =   360
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelVersion
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelVersion, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelVersion, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelVersion, 3, LabelAppName, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelVersion, 8, , 0, False, +1.00, 1, 1, 20, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Version 1.0.0"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   14
+      TintColor       =
+      Top             =   400
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelCopyright
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelCopyright, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelCopyright, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelCopyright, 3, LabelVersion, 4, False, +1.00, 1, 1, 4, , True
+      AutoLayout      =   LabelCopyright, 8, , 0, False, +1.00, 1, 1, 20, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   20
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "2026 by Mark Gavin"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   14
+      TintColor       =
+      Top             =   428
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
+End
+#tag EndMobileScreen
+
+#tag WindowCode
+	#tag Event
+		Sub Opening()
+		  LoadAppIcon
+		  Module_Navigation.SetupMenuButton(Self)
+		End Sub
+	#tag EndEvent
+
+
+	#tag Method, Flags = &h21
+		Private Sub LoadAppIcon()
+		  // Try to load app icon from bundle Resources
+		  // SpecialFolder.Resource throws InvalidArgumentException if not found
+		  Try
+		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt@2x.png")
+		    If theFile <> Nil And theFile.Exists Then
+		      pAppIcon = Picture.Open(theFile)
+		      Return
+		    End If
+		  Catch e As RuntimeException
+		    // File not in bundle, try fallback
+		  End Try
+
+		  Try
+		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt.png")
+		    If theFile <> Nil And theFile.Exists Then
+		      pAppIcon = Picture.Open(theFile)
+		      Return
+		    End If
+		  Catch e As RuntimeException
+		    // File not in bundle
+		  End Try
+		End Sub
+	#tag EndMethod
+
+	#tag Property, Flags = &h21
+		Private pAppIcon As Picture
+	#tag EndProperty
+
+
+#tag EndWindowCode
+
+#tag Events CanvasIcon
+	#tag Event
+		Sub Paint(g As Graphics)
+		  If pAppIcon <> Nil Then
+		    g.DrawPicture(pAppIcon, 0, 0, g.Width, g.Height, 0, 0, pAppIcon.Width, pAppIcon.Height)
+		  End If
+		End Sub
+	#tag EndEvent
+#tag EndEvents
