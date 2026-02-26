@@ -150,32 +150,49 @@ Protected Module Module_Navigation
 
 	#tag Method, Flags = &h0
 		Sub SetupMenuButton(inScreen As MobileScreen)
-		  // Creates a native iOS pull-down UIMenu on the navigation bar "..." button
-		  // Strategy: Use Xojo API to add the toolbar button, then use declares to
-		  // attach a UIMenu to it and clear its action so the menu shows on single tap.
+		  // Creates a native iOS pull-down UIMenu on the navigation bar "..." button.
+		  // Strategy: Create UIBarButtonItem entirely via declares with no target/action.
+		  // UIKit shows the menu on single tap when a bar button has a menu but no action.
+		  // This avoids Xojo's MobileToolbarButton which sets its own action handler
+		  // that interferes with menu display after navigation push/pop.
 
 		  If inScreen = Nil Then Return
 
 		  pMenuScreen = inScreen
+		  If inScreen IsA Screen_Main Then
+		    pMainScreen = inScreen
+		  End If
 
-		  // Step 1: Add toolbar button via Xojo API (avoids needing UIViewController handle)
-		  Var theButton As New MobileToolbarButton(MobileToolbarButton.Types.Custom)
-		  theButton.Icon = Picture.SystemImage("ellipsis.circle", 24, Picture.SystemImageWeights.Regular)
-		  inScreen.RightNavigationToolbar.AddButton(theButton)
+		  // Step 1: Walk responder chain from UIView to find UIViewController
+		  Var theViewHandle As Ptr = inScreen.Handle
+		  If theViewHandle = Nil Then Return
 
-		  // Save handle for deferred action clearing
-		  pMenuButtonHandle = theButton.Handle
-		  If pMenuButtonHandle = Nil Then Return
-
-		  // Step 2: Build UIMenu via declares
 		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function nextResponder Lib "UIKit" Selector "nextResponder" (obj As Ptr) As Ptr
+		  Declare Function isKindOfClass Lib "Foundation" Selector "isKindOfClass:" (obj As Ptr, cls As Ptr) As Boolean
 
+		  Var theUIVCClass As Ptr = NSClassFromString("UIViewController")
+		  Var theResponder As Ptr = nextResponder(theViewHandle)
+		  While theResponder <> Nil
+		    If isKindOfClass(theResponder, theUIVCClass) Then
+		      Exit
+		    End If
+		    theResponder = nextResponder(theResponder)
+		  Wend
+		  If theResponder = Nil Then Return
+
+		  // Step 2: Get navigationItem from the UIViewController
+		  Declare Function navigationItem Lib "UIKit" Selector "navigationItem" (obj As Ptr) As Ptr
+		  Var theNavItem As Ptr = navigationItem(theResponder)
+		  If theNavItem = Nil Then Return
+
+		  // Step 3: Build UIMenu via declares
 		  Var theUIImageClass As Ptr = NSClassFromString("UIImage")
 		  Var theUIActionClass As Ptr = NSClassFromString("UIAction")
 		  Var theUIMenuClass As Ptr = NSClassFromString("UIMenu")
 		  Var theNSArrayClass As Ptr = NSClassFromString("NSArray")
+		  Var theUIBarButtonItemClass As Ptr = NSClassFromString("UIBarButtonItem")
 
-		  // Create SF Symbol images
 		  Declare Function systemImageNamed Lib "UIKit" Selector "systemImageNamed:" (cls As Ptr, name As CFStringRef) As Ptr
 
 		  Var theConnected As Boolean = App.pConnection <> Nil And App.pConnection.IsConnected
@@ -196,9 +213,12 @@ Protected Module Module_Navigation
 		  Var theFlightDataIcon As Ptr = systemImageNamed(theUIImageClass, "externaldrive")
 		  Var theAboutIcon As Ptr = systemImageNamed(theUIImageClass, "info.circle")
 
-		  // Create handler block — one block handles all actions, routing by title
-		  Var theDelegate As MenuActionDelegate = AddressOf HandleMenuAction
-		  pActionBlock = New ObjCBlock(theDelegate)
+		  // Create handler block once and reuse — if replaced, the old block gets GC'd
+		  // which invalidates menu handlers on previously-setup screens
+		  If pActionBlock = Nil Then
+		    Var theDelegate As MenuActionDelegate = AddressOf HandleMenuAction
+		    pActionBlock = New ObjCBlock(theDelegate)
+		  End If
 
 		  // Create UIAction items
 		  Declare Function actionWithTitle Lib "UIKit" Selector "actionWithTitle:image:identifier:handler:" (cls As Ptr, title As CFStringRef, image As Ptr, identifier As Ptr, handler As Ptr) As Ptr
@@ -210,46 +230,40 @@ Protected Module Module_Navigation
 		  Var theAction4 As Ptr = actionWithTitle(theUIActionClass, "Flight Data", theFlightDataIcon, Nil, pActionBlock.Handle)
 		  Var theAction5 As Ptr = actionWithTitle(theUIActionClass, "About", theAboutIcon, Nil, pActionBlock.Handle)
 
-		  // Create NSArray of actions
-		  Var thePtrs As New MemoryBlock(6 * 8)
-		  thePtrs.Ptr(0) = theAction0
-		  thePtrs.Ptr(8) = theAction1
-		  thePtrs.Ptr(16) = theAction2
-		  thePtrs.Ptr(24) = theAction3
-		  thePtrs.Ptr(32) = theAction4
-		  thePtrs.Ptr(40) = theAction5
-
 		  Declare Function arrayWithObjects Lib "Foundation" Selector "arrayWithObjects:count:" (cls As Ptr, objects As Ptr, count As UInteger) As Ptr
-		  Var theActions As Ptr = arrayWithObjects(theNSArrayClass, thePtrs, 6)
+		  Var theActionPtrs As New MemoryBlock(6 * 8)
+		  theActionPtrs.Ptr(0) = theAction0
+		  theActionPtrs.Ptr(8) = theAction1
+		  theActionPtrs.Ptr(16) = theAction2
+		  theActionPtrs.Ptr(24) = theAction3
+		  theActionPtrs.Ptr(32) = theAction4
+		  theActionPtrs.Ptr(40) = theAction5
+		  Var theActions As Ptr = arrayWithObjects(theNSArrayClass, theActionPtrs, 6)
 
-		  // Create UIMenu (empty title = no header)
+		  // Create UIMenu
 		  Declare Function menuWithTitle Lib "UIKit" Selector "menuWithTitle:children:" (cls As Ptr, title As CFStringRef, children As Ptr) As Ptr
 		  Var theMenu As Ptr = menuWithTitle(theUIMenuClass, "", theActions)
 
-		  // Step 3: Attach UIMenu to the toolbar button's UIBarButtonItem
+		  // Step 4: Create UIBarButtonItem via declares with NO target/action
+		  // UIKit shows the menu on single tap when there is no action set
+		  Var theEllipsisImage As Ptr = systemImageNamed(theUIImageClass, "ellipsis.circle")
+
+		  Declare Function alloc Lib "Foundation" Selector "alloc" (cls As Ptr) As Ptr
+		  Declare Function initWithImageStyleTargetAction Lib "UIKit" Selector "initWithImage:style:target:action:" (obj As Ptr, image As Ptr, style As Integer, target As Ptr, action As Ptr) As Ptr
+
+		  Var theBarButton As Ptr = initWithImageStyleTargetAction(alloc(theUIBarButtonItemClass), theEllipsisImage, 0, Nil, Nil)
+
+		  // Attach menu to the button
 		  Declare Sub setMenu Lib "UIKit" Selector "setMenu:" (obj As Ptr, menu As Ptr)
-		  setMenu(pMenuButtonHandle, theMenu)
+		  setMenu(theBarButton, theMenu)
 
-		  // Step 4: Defer clearing the action so menu shows on single tap
-		  // (setAction must happen AFTER the Opening event completes)
-		  Var theTimer As New Timer
-		  theTimer.Period = 50
-		  theTimer.RunMode = Timer.RunModes.Single
-		  AddHandler theTimer.Run, AddressOf HandleClearAction
-		  pDeferTimer = theTimer
-		End Sub
-	#tag EndMethod
+		  // Step 5: Set as right bar button item on the navigation item
+		  Var theButtonPtrs As New MemoryBlock(8)
+		  theButtonPtrs.Ptr(0) = theBarButton
+		  Var theButtonArray As Ptr = arrayWithObjects(theNSArrayClass, theButtonPtrs, 1)
 
-	#tag Method, Flags = &h21
-		Private Sub HandleClearAction(inSender As Timer)
-		  // Clear the button's action so tapping shows the menu immediately
-		  RemoveHandler inSender.Run, AddressOf HandleClearAction
-		  pDeferTimer = Nil
-
-		  If pMenuButtonHandle <> Nil Then
-		    Declare Sub setAction Lib "UIKit" Selector "setAction:" (obj As Ptr, action As Ptr)
-		    setAction(pMenuButtonHandle, Nil)
-		  End If
+		  Declare Sub setRightBarButtonItems Lib "UIKit" Selector "setRightBarButtonItems:" (obj As Ptr, items As Ptr)
+		  setRightBarButtonItems(theNavItem, theButtonArray)
 		End Sub
 	#tag EndMethod
 
@@ -261,12 +275,41 @@ Protected Module Module_Navigation
 		  Declare Function title Lib "UIKit" Selector "title" (obj As Ptr) As CFStringRef
 		  Var theTitle As String = title(inAction)
 
-		  If pMenuScreen = Nil Then Return
+		  // Use pMenuScreen if set, otherwise fall back to pMainScreen
+		  Var theScreen As MobileScreen = pMenuScreen
+		  If theScreen = Nil Then theScreen = pMainScreen
+		  If theScreen = Nil Then Return
 
 		  Select Case theTitle
 		  Case "Home"
-		    If Not (pMenuScreen IsA Screen_Main) Then
-		      pMenuScreen.Close
+		    If Not (theScreen IsA Screen_Main) Then
+		      // Pop all pushed screens back to root (Main) via UINavigationController
+		      Var theViewHandle As Ptr = theScreen.Handle
+		      If theViewHandle <> Nil Then
+		        Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		        Declare Function nextResponder Lib "UIKit" Selector "nextResponder" (obj As Ptr) As Ptr
+		        Declare Function isKindOfClass Lib "Foundation" Selector "isKindOfClass:" (obj As Ptr, cls As Ptr) As Boolean
+		        Declare Function navigationController Lib "UIKit" Selector "navigationController" (obj As Ptr) As Ptr
+		        Declare Sub popToRootViewControllerAnimated Lib "UIKit" Selector "popToRootViewControllerAnimated:" (obj As Ptr, animated As Boolean)
+
+		        // Walk responder chain to find UIViewController
+		        Var theUIVCClass As Ptr = NSClassFromString("UIViewController")
+		        Var theResponder As Ptr = nextResponder(theViewHandle)
+		        While theResponder <> Nil
+		          If isKindOfClass(theResponder, theUIVCClass) Then
+		            Exit
+		          End If
+		          theResponder = nextResponder(theResponder)
+		        Wend
+
+		        If theResponder <> Nil Then
+		          Var theNavController As Ptr = navigationController(theResponder)
+		          If theNavController <> Nil Then
+		            popToRootViewControllerAnimated(theNavController, True)
+		          End If
+		        End If
+		      End If
+		      pMenuScreen = pMainScreen
 		    End If
 
 		  Case "Connect"
@@ -282,19 +325,19 @@ Protected Module Module_Navigation
 		    End If
 
 		  Case "Settings"
-		    pMenuScreen.PushTo(New Screen_Settings)
+		    theScreen.PushTo(New Screen_Settings)
 
 		  Case "Recovery"
-		    pMenuScreen.PushTo(New Screen_Recovery)
+		    theScreen.PushTo(New Screen_Recovery)
 
 		  Case "Flight Data"
 		    If pFlashStorageScreen = Nil Then
 		      pFlashStorageScreen = New Screen_FlashStorage
 		    End If
-		    pMenuScreen.PushTo(pFlashStorageScreen)
+		    theScreen.PushTo(pFlashStorageScreen)
 
 		  Case "About"
-		    pMenuScreen.PushTo(New Screen_About)
+		    theScreen.PushTo(New Screen_About)
 		  End Select
 		End Sub
 	#tag EndMethod
@@ -304,16 +347,13 @@ Protected Module Module_Navigation
 	#tag EndProperty
 
 	#tag Property, Flags = &h21
+		Private pMainScreen As MobileScreen
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
 		Private pActionBlock As ObjCBlock
 	#tag EndProperty
 
-	#tag Property, Flags = &h21
-		Private pMenuButtonHandle As Ptr
-	#tag EndProperty
-
-	#tag Property, Flags = &h21
-		Private pDeferTimer As Timer
-	#tag EndProperty
 
 	#tag Property, Flags = &h0
 		pFlashStorageScreen As Screen_FlashStorage
