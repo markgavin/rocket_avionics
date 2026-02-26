@@ -328,6 +328,21 @@ End
 		  Module_Location.StartUpdating
 		  UpdateDisplay
 		  Module_Navigation.SetupMenuButton(Self)
+
+		  // Refresh display every second for live updates
+		  pUpdateTimer = New Timer
+		  pUpdateTimer.Period = 1000
+		  pUpdateTimer.RunMode = Timer.RunModes.Multiple
+		  AddHandler pUpdateTimer.Run, AddressOf HandleUpdateTimer
+		End Sub
+	#tag EndEvent
+
+	#tag Event
+		Sub Closing()
+		  If pUpdateTimer <> Nil Then
+		    RemoveHandler pUpdateTimer.Run, AddressOf HandleUpdateTimer
+		    pUpdateTimer = Nil
+		  End If
 		End Sub
 	#tag EndEvent
 
@@ -402,9 +417,23 @@ End
 		End Sub
 	#tag EndMethod
 
+	#tag Method, Flags = &h21
+		Private Sub HandleUpdateTimer(inSender As Timer)
+		  #Pragma Unused inSender
+
+		  // Re-read latest rocket location from App (updated by telemetry)
+		  pRocketLocation = App.pRocketLocation
+		  UpdateDisplay
+		End Sub
+	#tag EndMethod
+
 
 	#tag Property, Flags = &h21
 		Private pRocketLocation As RocketLocation
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pUpdateTimer As Timer
 	#tag EndProperty
 
 

@@ -8,6 +8,9 @@ Inherits MobileApplication
 
 		  // Initialize connection handler
 		  pConnection = New FlightConnection
+
+		  // Load persisted rocket location (for offline recovery)
+		  pRocketLocation = RocketLocation.Load(0)
 		End Sub
 	#tag EndEvent
 

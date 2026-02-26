@@ -121,8 +121,8 @@ Protected Class FlightData
 		        theSample.pGpsLongitude = theSampleJson.Lookup("lon", 0.0)
 		        theSample.pGpsSpeedMps = theSampleJson.Lookup("gspd", 0.0)
 		        theSample.pGpsHeadingDeg = theSampleJson.Lookup("hdg", 0.0)
-		        theSample.pGpsSatellites = theSampleJson.Lookup("sat", 0)
-		        theSample.pGpsFix = theSampleJson.Lookup("gps", False)
+		        theSample.pGpsSatellites = theSampleJson.Lookup("sats", 0)
+		        theSample.pGpsFix = (theSample.pGpsSatellites >= 1)
 
 		        // IMU data
 		        theSample.pAccelX = theSampleJson.Lookup("ax", 0)

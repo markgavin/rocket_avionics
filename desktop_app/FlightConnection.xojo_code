@@ -528,8 +528,8 @@ Protected Class FlightConnection
 		      theSample.pGpsLongitude = theJson.Lookup("lon", 0.0)
 		      theSample.pGpsSpeedMps = theJson.Lookup("gspd", 0.0)
 		      theSample.pGpsHeadingDeg = theJson.Lookup("hdg", 0.0)
-		      theSample.pGpsSatellites = theJson.Lookup("sat", 0)
-		      theSample.pGpsFix = theJson.Lookup("gps", False)
+		      theSample.pGpsSatellites = theJson.Lookup("sats", 0)
+		      theSample.pGpsFix = (theSample.pGpsSatellites >= 1)
 
 		      // Accelerometer data - gateway sends in g's (floats), convert to milli-g for storage
 		      Var theAccelXg As Double = theJson.Lookup("ax", 0.0)
