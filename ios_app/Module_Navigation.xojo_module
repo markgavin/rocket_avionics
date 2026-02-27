@@ -336,76 +336,117 @@ Protected Module Module_Navigation
 
 	#tag Method, Flags = &h21
 		Private Sub HandleMenuAction(inAction As Ptr)
-		  // Route menu selection by reading the UIAction's title
+		  // Route menu selection by reading the UIAction's title.
+		  // Defers the actual navigation to the Xojo event loop via Timer.CallLater
+		  // because PushTo may not work reliably from an ObjC block callback.
 		  If inAction = Nil Then Return
 
-		  Declare Function title Lib "UIKit" Selector "title" (obj As Ptr) As CFStringRef
-		  Var theTitle As String = title(inAction)
+		  Try
+		    Declare Function title Lib "UIKit" Selector "title" (obj As Ptr) As CFStringRef
+		    pPendingMenuAction = title(inAction)
+		    Timer.CallLater(0, AddressOf ExecuteMenuAction)
+		  Catch theError As RuntimeException
+		    System.DebugLog("HandleMenuAction error: " + theError.Message)
+		  End Try
+		End Sub
+	#tag EndMethod
 
-		  // Use pMenuScreen if set, otherwise fall back to pMainScreen
-		  Var theScreen As MobileScreen = pMenuScreen
-		  If theScreen = Nil Then theScreen = pMainScreen
-		  If theScreen = Nil Then Return
+	#tag Method, Flags = &h21
+		Private Sub ExecuteMenuAction()
+		  // Execute the deferred menu action on the Xojo event loop.
+		  // Always pops to root first before pushing a new screen. This ensures
+		  // previous screens get their Closing events and clean up AddHandler
+		  // registrations. Without this, stacked screens with AddHandler on
+		  // shared objects (App.pConnection) cause "already handled" crashes
+		  // when a second instance of the same screen type is pushed.
+		  Var theTitle As String = pPendingMenuAction
+		  pPendingMenuAction = ""
 
-		  Select Case theTitle
-		  Case "Home"
-		    If Not (theScreen IsA Screen_Main) Then
-		      // Pop all pushed screens back to root (Main) via UINavigationController
-		      Var theViewHandle As Ptr = theScreen.Handle
-		      If theViewHandle <> Nil Then
-		        Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
-		        Declare Function nextResponder Lib "UIKit" Selector "nextResponder" (obj As Ptr) As Ptr
-		        Declare Function isKindOfClass Lib "Foundation" Selector "isKindOfClass:" (obj As Ptr, cls As Ptr) As Boolean
-		        Declare Function navigationController Lib "UIKit" Selector "navigationController" (obj As Ptr) As Ptr
-		        Declare Sub popToRootViewControllerAnimated Lib "UIKit" Selector "popToRootViewControllerAnimated:" (obj As Ptr, animated As Boolean)
+		  If theTitle = "" Then Return
+		  If pMainScreen = Nil Then Return
 
-		        // Walk responder chain to find UIViewController
-		        Var theUIVCClass As Ptr = NSClassFromString("UIViewController")
-		        Var theResponder As Ptr = nextResponder(theViewHandle)
-		        While theResponder <> Nil
-		          If isKindOfClass(theResponder, theUIVCClass) Then
-		            Exit
-		          End If
-		          theResponder = nextResponder(theResponder)
-		        Wend
+		  Try
+		    // For screen navigation, pop to root first (without animation) to
+		    // clean up the stack and fire Closing events on pushed screens
+		    Select Case theTitle
+		    Case "Connect", "Disconnect"
+		      // Non-navigation actions — don't pop
 
-		        If theResponder <> Nil Then
-		          Var theNavController As Ptr = navigationController(theResponder)
-		          If theNavController <> Nil Then
-		            popToRootViewControllerAnimated(theNavController, True)
-		          End If
-		        End If
-		      End If
+		    Else
+		      // Pop to root without animation so Closing fires on stacked screens
+		      PopToRoot(theTitle = "Home")
 		      pMenuScreen = pMainScreen
+		    End Select
+
+		    Select Case theTitle
+		    Case "Home"
+		      // Already popped to root above (with animation)
+
+		    Case "Connect"
+		      If App.pConnection <> Nil Then
+		        Var theHost As String = App.GetPreferenceString("gateway_host", "RocketGateway.local")
+		        Var thePort As Integer = Val(App.GetPreferenceString("gateway_port", "5000"))
+		        App.pConnection.Connect(theHost, thePort)
+		      End If
+
+		    Case "Disconnect"
+		      If App.pConnection <> Nil Then
+		        App.pConnection.Disconnect
+		      End If
+
+		    Case "Settings"
+		      pMainScreen.PushTo(New Screen_Settings)
+
+		    Case "Recovery"
+		      pMainScreen.PushTo(New Screen_Recovery)
+
+		    Case "Flight Data"
+		      If pFlashStorageScreen = Nil Then
+		        pFlashStorageScreen = New Screen_FlashStorage
+		      End If
+		      pMainScreen.PushTo(pFlashStorageScreen)
+
+		    Case "About"
+		      pMainScreen.PushTo(New Screen_About)
+		    End Select
+
+		  Catch theError As RuntimeException
+		    System.DebugLog("ExecuteMenuAction error: " + theError.Message)
+		  End Try
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
+		Private Sub PopToRoot(inAnimated As Boolean)
+		  // Pop all pushed screens back to root (Main) via UINavigationController.
+		  // When inAnimated is False, the pop is instant (used before pushing a new screen).
+		  If pMainScreen = Nil Then Return
+
+		  Var theViewHandle As Ptr = pMainScreen.Handle
+		  If theViewHandle = Nil Then Return
+
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function nextResponder Lib "UIKit" Selector "nextResponder" (obj As Ptr) As Ptr
+		  Declare Function isKindOfClass Lib "Foundation" Selector "isKindOfClass:" (obj As Ptr, cls As Ptr) As Boolean
+		  Declare Function navigationController Lib "UIKit" Selector "navigationController" (obj As Ptr) As Ptr
+		  Declare Sub popToRootViewControllerAnimated Lib "UIKit" Selector "popToRootViewControllerAnimated:" (obj As Ptr, animated As Boolean)
+
+		  // Walk responder chain to find UIViewController
+		  Var theUIVCClass As Ptr = NSClassFromString("UIViewController")
+		  Var theResponder As Ptr = nextResponder(theViewHandle)
+		  While theResponder <> Nil
+		    If isKindOfClass(theResponder, theUIVCClass) Then
+		      Exit
 		    End If
+		    theResponder = nextResponder(theResponder)
+		  Wend
 
-		  Case "Connect"
-		    If App.pConnection <> Nil Then
-		      Var theHost As String = App.GetPreferenceString("gateway_host", "RocketGateway.local")
-		      Var thePort As Integer = Val(App.GetPreferenceString("gateway_port", "5000"))
-		      App.pConnection.Connect(theHost, thePort)
+		  If theResponder <> Nil Then
+		    Var theNavController As Ptr = navigationController(theResponder)
+		    If theNavController <> Nil Then
+		      popToRootViewControllerAnimated(theNavController, inAnimated)
 		    End If
-
-		  Case "Disconnect"
-		    If App.pConnection <> Nil Then
-		      App.pConnection.Disconnect
-		    End If
-
-		  Case "Settings"
-		    theScreen.PushTo(New Screen_Settings)
-
-		  Case "Recovery"
-		    theScreen.PushTo(New Screen_Recovery)
-
-		  Case "Flight Data"
-		    If pFlashStorageScreen = Nil Then
-		      pFlashStorageScreen = New Screen_FlashStorage
-		    End If
-		    theScreen.PushTo(pFlashStorageScreen)
-
-		  Case "About"
-		    theScreen.PushTo(New Screen_About)
-		  End Select
+		  End If
 		End Sub
 	#tag EndMethod
 
@@ -421,6 +462,9 @@ Protected Module Module_Navigation
 		Private pActionBlock As ObjCBlock
 	#tag EndProperty
 
+	#tag Property, Flags = &h21
+		Private pPendingMenuAction As String = ""
+	#tag EndProperty
 
 	#tag Property, Flags = &h0
 		pFlashStorageScreen As Screen_FlashStorage
