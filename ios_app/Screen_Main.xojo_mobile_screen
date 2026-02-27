@@ -114,7 +114,7 @@ Begin MobileScreen Screen_Main
       Alignment       =   1
       AutoLayout      =   LabelAltitude, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelAltitude, 7, , 0, False, +1.00, 1, 1, 185, , True
-      AutoLayout      =   LabelAltitude, 4, <Parent>, 4, False, +1.00, 1, 1, -360, , True
+      AutoLayout      =   LabelAltitude, 4, <Parent>, 4, False, +1.00, 1, 1, -310, , True
       AutoLayout      =   LabelAltitude, 8, , 0, False, +1.00, 1, 1, 36, , True
       ControlCount    =   0
       Enabled         =   True
@@ -174,7 +174,7 @@ Begin MobileScreen Screen_Main
       Alignment       =   1
       AutoLayout      =   LabelVelocity, 7, , 0, False, +1.00, 1, 1, 185, , True
       AutoLayout      =   LabelVelocity, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelVelocity, 4, <Parent>, 4, False, +1.00, 1, 1, -360, , True
+      AutoLayout      =   LabelVelocity, 4, <Parent>, 4, False, +1.00, 1, 1, -310, , True
       AutoLayout      =   LabelVelocity, 8, , 0, False, +1.00, 1, 1, 36, , True
       ControlCount    =   0
       Enabled         =   True
@@ -227,6 +227,126 @@ Begin MobileScreen Screen_Main
       Width           =   185
       _ClosingFired   =   False
    End
+   Begin MobileLabel LabelMaxAltitude
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelMaxAltitude, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelMaxAltitude, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelMaxAltitude, 3, LabelAltitudeCaption, 4, False, +1.00, 1, 1, 4, , True
+      AutoLayout      =   LabelMaxAltitude, 8, , 0, False, +1.00, 1, 1, 36, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   36
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "--- m"
+      TextColor       =
+      TextFont        =   ""
+      TextSize        =   28
+      TintColor       =
+      Top             =   472
+      Visible         =   True
+      Width           =   185
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelMaxAltitudeCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelMaxAltitudeCaption, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelMaxAltitudeCaption, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelMaxAltitudeCaption, 3, LabelMaxAltitude, 4, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   LabelMaxAltitudeCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "MAX ALTITUDE"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =
+      Top             =   508
+      Visible         =   True
+      Width           =   185
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelMaxVelocity
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelMaxVelocity, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelMaxVelocity, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelMaxVelocity, 3, LabelVelocityCaption, 4, False, +1.00, 1, 1, 4, , True
+      AutoLayout      =   LabelMaxVelocity, 8, , 0, False, +1.00, 1, 1, 36, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   36
+      Left            =   170
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "--- m/s"
+      TextColor       =
+      TextFont        =   ""
+      TextSize        =   28
+      TintColor       =
+      Top             =   472
+      Visible         =   True
+      Width           =   185
+      _ClosingFired   =   False
+   End
+   Begin MobileLabel LabelMaxVelocityCaption
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelMaxVelocityCaption, 7, , 0, False, +1.00, 1, 1, 185, , True
+      AutoLayout      =   LabelMaxVelocityCaption, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelMaxVelocityCaption, 3, LabelMaxVelocity, 4, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   LabelMaxVelocityCaption, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   170
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "MAX VELOCITY"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =
+      Top             =   508
+      Visible         =   True
+      Width           =   185
+      _ClosingFired   =   False
+   End
    Begin MobileLabel LabelState
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
@@ -234,7 +354,7 @@ Begin MobileScreen Screen_Main
       Alignment       =   1
       AutoLayout      =   LabelState, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelState, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelState, 3, LabelAltitudeCaption, 4, False, +1.00, 1, 1, 8, , True
+      AutoLayout      =   LabelState, 3, LabelMaxAltitudeCaption, 4, False, +1.00, 1, 1, 8, , True
       AutoLayout      =   LabelState, 8, , 0, False, +1.00, 1, 1, 32, , True
       ControlCount    =   0
       Enabled         =   True
@@ -257,6 +377,36 @@ Begin MobileScreen Screen_Main
       Width           =   335
       _ClosingFired   =   False
    End
+   Begin MobileLabel LabelAccelTemp
+      AccessibilityHint=   ""
+      AccessibilityLabel=   ""
+      AdjustTextSizeToFit=   False
+      Alignment       =   1
+      AutoLayout      =   LabelAccelTemp, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelAccelTemp, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
+      AutoLayout      =   LabelAccelTemp, 3, LabelRssi, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelAccelTemp, 8, , 0, False, +1.00, 1, 1, 16, , True
+      ControlCount    =   0
+      Enabled         =   True
+      Height          =   16
+      Left            =   20
+      LineBreakMode   =   4
+      LockedInPosition=   False
+      MaximumCharactersAllowed=   0
+      Scope           =   2
+      SelectedText    =   ""
+      SelectionLength =   0
+      SelectionStart  =   0
+      Text            =   "Accel: --- G  Temp: ---°C"
+      TextColor       =   &c8E8E93
+      TextFont        =   ""
+      TextSize        =   13
+      TintColor       =
+      Top             =   528
+      Visible         =   True
+      Width           =   335
+      _ClosingFired   =   False
+   End
    Begin MobileLabel LabelGps
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
@@ -264,7 +414,7 @@ Begin MobileScreen Screen_Main
       Alignment       =   1
       AutoLayout      =   LabelGps, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelGps, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelGps, 3, LabelRssi, 4, False, +1.00, 1, 1, 2, , True
+      AutoLayout      =   LabelGps, 3, LabelAccelTemp, 4, False, +1.00, 1, 1, 2, , True
       AutoLayout      =   LabelGps, 8, , 0, False, +1.00, 1, 1, 16, , True
       ControlCount    =   0
       Enabled         =   True
@@ -376,64 +526,6 @@ Begin MobileScreen Screen_Main
       Width           =   335
       _ClosingFired   =   False
    End
-   Begin MobileButton ButtonRecovery
-      AccessibilityHint=   ""
-      AccessibilityLabel=   ""
-      AdjustTextSizeToFit=   False
-      AutoLayout      =   ButtonRecovery, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   ButtonRecovery, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonRecovery, 3, ButtonDisarm, 4, False, +1.00, 1, 1, 16, , True
-      AutoLayout      =   ButtonRecovery, 8, , 0, False, +1.00, 1, 1, 50, , True
-      BackgroundColor =   &cE5E5EA
-      BorderColor     =   
-      BorderWidth     =   0
-      Caption         =   "Recovery"
-      CaptionColor    =   &c007AFF
-      ControlCount    =   0
-      CornerSize      =   12
-      Enabled         =   True
-      Height          =   50
-      Icon            =   0
-      Left            =   20
-      LockedInPosition=   False
-      Scope           =   2
-      TextFont        =   ""
-      TextSize        =   17
-      TintColor       =   &c007AFF
-      Top             =   684
-      Visible         =   True
-      Width           =   335
-      _ClosingFired   =   False
-   End
-   Begin MobileButton ButtonFlashStorage
-      AccessibilityHint=   ""
-      AccessibilityLabel=   ""
-      AdjustTextSizeToFit=   False
-      AutoLayout      =   ButtonFlashStorage, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
-      AutoLayout      =   ButtonFlashStorage, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   ButtonFlashStorage, 3, ButtonRecovery, 4, False, +1.00, 1, 1, 8, , True
-      AutoLayout      =   ButtonFlashStorage, 8, , 0, False, +1.00, 1, 1, 50, , True
-      BackgroundColor =   &cE5E5EA
-      BorderColor     =   
-      BorderWidth     =   0
-      Caption         =   "Flight Data"
-      CaptionColor    =   &c007AFF
-      ControlCount    =   0
-      CornerSize      =   12
-      Enabled         =   True
-      Height          =   50
-      Icon            =   0
-      Left            =   20
-      LockedInPosition=   False
-      Scope           =   2
-      TextFont        =   ""
-      TextSize        =   17
-      TintColor       =   &c007AFF
-      Top             =   742
-      Visible         =   True
-      Width           =   335
-      _ClosingFired   =   False
-   End
 End
 #tag EndMobileScreen
 
@@ -466,6 +558,11 @@ End
 		  Module_Navigation.SetLabelSystemColor(LabelStatus.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelAltitudeCaption.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelVelocityCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelMaxAltitude.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelMaxVelocity.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelMaxAltitudeCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelMaxVelocityCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelAccelTemp.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelRssi.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelGps.Handle, True)
 		End Sub
@@ -561,6 +658,9 @@ End
 		  
 		  LabelAltitude.Text = Str(inSample.pAltitudeM, "#,##0.0") + " m"
 		  LabelVelocity.Text = Str(inSample.pVelocityMps, "#,##0.0") + " m/s"
+		  LabelMaxAltitude.Text = Str(inSample.pMaxAltitudeM, "#,##0.0") + " m"
+		  LabelMaxVelocity.Text = Str(inSample.pMaxVelocityMps, "#,##0.0") + " m/s"
+		  LabelAccelTemp.Text = "Accel: " + Str(inSample.pAccelMagnitude, "#,##0.0") + " G  Temp: " + Str(inSample.pTemperatureC, "#,##0.0") + "°C"
 		  
 		  LabelState.Text = inSample.pState.Uppercase
 		  Select Case inSample.pState.Lowercase
@@ -734,24 +834,6 @@ End
 		  If App.pConnection <> Nil Then
 		    App.pConnection.SendDisarm(App.pSelectedRocketId)
 		  End If
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events ButtonRecovery
-	#tag Event
-		Sub Pressed()
-		  Var theScreen As New Screen_Recovery
-		  Self.PushTo(theScreen)
-		End Sub
-	#tag EndEvent
-#tag EndEvents
-#tag Events ButtonFlashStorage
-	#tag Event
-		Sub Pressed()
-		  If Module_Navigation.pFlashStorageScreen = Nil Then
-		    Module_Navigation.pFlashStorageScreen = New Screen_FlashStorage
-		  End If
-		  Self.PushTo(Module_Navigation.pFlashStorageScreen)
 		End Sub
 	#tag EndEvent
 #tag EndEvents
