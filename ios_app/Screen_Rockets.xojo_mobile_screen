@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Rockets
    BackButtonCaption=   ""
-   BackgroundColor =   &cF2F2F7
+   BackgroundColor =
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -106,6 +106,9 @@ End
 		  // Populate table from active rockets tracked by Screen_Main
 		  RefreshTable
 		  Module_Navigation.SetupMenuButton(Self)
+
+		  // Apply system label colors for dark mode
+		  Module_Navigation.SetLabelSystemColor(LabelInfo.Handle, True)
 		End Sub
 	#tag EndEvent
 

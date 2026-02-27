@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Recovery
    BackButtonCaption=   ""
-   BackgroundColor =   &cF2F2F7
+   BackgroundColor =
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -69,7 +69,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "--- m"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   48
       TintColor       =   
@@ -129,7 +129,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "---"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   32
       TintColor       =   
@@ -219,7 +219,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "No GPS data"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   13
       TintColor       =   
@@ -249,7 +249,7 @@ Begin MobileScreen Screen_Recovery
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Waiting for GPS..."
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   13
       TintColor       =   
@@ -329,6 +329,16 @@ End
 		  UpdateDisplay
 		  Module_Navigation.SetupMenuButton(Self)
 
+		  // Apply system label colors for dark mode
+		  Module_Navigation.SetLabelSystemColor(LabelDistance.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelBearing.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelRocketCoords.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelPhoneCoords.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelDistanceCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelBearingCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelRocketHeader.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelPhoneHeader.Handle, True)
+
 		  // Refresh display every second for live updates
 		  pUpdateTimer = New Timer
 		  pUpdateTimer.Period = 1000
@@ -373,46 +383,59 @@ End
 		Private Sub UpdateDisplay()
 		  // Update rocket position display
 		  If pRocketLocation = Nil Or Not pRocketLocation.IsValid Then
-		    LabelRocketCoords.Text = "No GPS data received"
+		    LabelRocketCoords.Text = "No GPS data from rocket"
 		    LabelDistance.Text = "--- m"
 		    LabelBearing.Text = "---"
-		    LabelStatus.Text = "No rocket GPS"
-		    LabelStatus.TextColor = &cFF3B30
+		    LabelStatus.Text = "Waiting for rocket GPS fix..."
+		    LabelStatus.TextColor = &cFF9500
+		    ButtonOpenMaps.Enabled = False
 		  Else
-		    LabelRocketCoords.Text = Str(pRocketLocation.pLatitude, "0.000000") + ", " + Str(pRocketLocation.pLongitude, "0.000000")
-		    
+		    LabelRocketCoords.Text = Str(pRocketLocation.pLatitude, "0.000000") + ", " + _
+		    Str(pRocketLocation.pLongitude, "0.000000") + " (" + pRocketLocation.GetAgeString + ")"
+		    ButtonOpenMaps.Enabled = True
+
 		    // Calculate distance and bearing if we have phone location
 		    If Module_Location.pHasLocation Then
 		      Var theDistance As Double = Module_Navigation.CalculateDistanceM( _
 		      Module_Location.pPhoneLatitude, Module_Location.pPhoneLongitude, _
 		      pRocketLocation.pLatitude, pRocketLocation.pLongitude)
-		      
+
 		      Var theBearing As Double = Module_Navigation.CalculateBearingDeg( _
 		      Module_Location.pPhoneLatitude, Module_Location.pPhoneLongitude, _
 		      pRocketLocation.pLatitude, pRocketLocation.pLongitude)
-		      
+
 		      If theDistance >= 1000 Then
 		        LabelDistance.Text = Str(Round(theDistance / 10) / 100) + " km"
 		      Else
 		        LabelDistance.Text = Str(Round(theDistance)) + " m"
 		      End If
-		      
+
 		      LabelBearing.Text = Str(Round(theBearing)) + Chr(&hB0) + " " + GetCardinalDirection(theBearing)
 		      LabelStatus.Text = "Navigate to rocket"
 		      LabelStatus.TextColor = &c34C759
 		    Else
 		      LabelDistance.Text = "--- m"
 		      LabelBearing.Text = "---"
-		      LabelStatus.Text = "Waiting for phone GPS..."
-		      LabelStatus.TextColor = &c8E8E93
+		      If Module_Location.pLastError <> "" Then
+		        LabelStatus.Text = Module_Location.pLastError
+		        LabelStatus.TextColor = &cFF3B30
+		      Else
+		        LabelStatus.Text = "Rocket located - enable Location Services"
+		        LabelStatus.TextColor = &cFF9500
+		      End If
 		    End If
 		  End If
-		  
+
 		  // Update phone position display
 		  If Module_Location.pHasLocation Then
-		    LabelPhoneCoords.Text = Str(Module_Location.pPhoneLatitude, "0.000000") + ", " + Str(Module_Location.pPhoneLongitude, "0.000000")
+		    LabelPhoneCoords.Text = Str(Module_Location.pPhoneLatitude, "0.000000") + ", " + _
+		    Str(Module_Location.pPhoneLongitude, "0.000000")
 		  Else
-		    LabelPhoneCoords.Text = "Waiting for GPS..."
+		    If Module_Location.pLastError <> "" Then
+		      LabelPhoneCoords.Text = Module_Location.pLastError
+		    Else
+		      LabelPhoneCoords.Text = "Waiting for phone location..."
+		    End If
 		  End If
 		End Sub
 	#tag EndMethod

@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Main
    BackButtonCaption=   ""
-   BackgroundColor =   &cF2F2F7
+   BackgroundColor =
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -128,7 +128,7 @@ Begin MobileScreen Screen_Main
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "--- m"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   28
       TintColor       =   
@@ -188,7 +188,7 @@ Begin MobileScreen Screen_Main
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "--- m/s"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   28
       TintColor       =   
@@ -456,9 +456,18 @@ End
 		    AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
 		  End If
 		  UpdateConnectButton
-		  
-		  // Add "..." pull-down menu to navigation bar
+
+		  // Add "..." pull-down menu to navigation bar (also applies dark mode background)
 		  Module_Navigation.SetupMenuButton(Self)
+
+		  // Apply system label colors for dark mode
+		  Module_Navigation.SetLabelSystemColor(LabelAltitude.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelVelocity.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelStatus.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelAltitudeCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelVelocityCaption.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelRssi.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelGps.Handle, True)
 		End Sub
 	#tag EndEvent
 

@@ -149,6 +149,70 @@ Protected Module Module_Navigation
 	#tag EndDelegateDeclaration
 
 	#tag Method, Flags = &h0
+		Sub ApplyDarkModeColors(inScreen As MobileScreen)
+		  // Set screen and subview backgrounds to iOS system colors that adapt to dark mode.
+		  // Without this, hardcoded colors don't adapt to the current appearance.
+
+		  If inScreen = Nil Then Return
+
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function systemGroupedBackgroundColor Lib "UIKit" Selector "systemGroupedBackgroundColor" (cls As Ptr) As Ptr
+		  Declare Function clearColor Lib "UIKit" Selector "clearColor" (cls As Ptr) As Ptr
+		  Declare Sub setBackgroundColor Lib "UIKit" Selector "setBackgroundColor:" (obj As Ptr, color As Ptr)
+		  Declare Function isKindOfClass Lib "Foundation" Selector "isKindOfClass:" (obj As Ptr, cls As Ptr) As Boolean
+		  Declare Function subviews Lib "UIKit" Selector "subviews" (obj As Ptr) As Ptr
+		  Declare Function count Lib "Foundation" Selector "count" (obj As Ptr) As UInteger
+		  Declare Function objectAtIndex Lib "Foundation" Selector "objectAtIndex:" (obj As Ptr, index As UInteger) As Ptr
+
+		  Var theUIColorClass As Ptr = NSClassFromString("UIColor")
+		  If theUIColorClass = Nil Then Return
+
+		  Var theBgColor As Ptr = systemGroupedBackgroundColor(theUIColorClass)
+		  Var theClearColor As Ptr = clearColor(theUIColorClass)
+
+		  // Set screen background
+		  setBackgroundColor(inScreen.Handle, theBgColor)
+
+		  // Walk immediate subviews and fix UITableView backgrounds
+		  Var theUITableViewClass As Ptr = NSClassFromString("UITableView")
+		  Var theSubviews As Ptr = subviews(inScreen.Handle)
+		  If theSubviews = Nil Then Return
+
+		  Var theCount As UInteger = count(theSubviews)
+		  For i As UInteger = 0 To theCount - 1
+		    Var theSubview As Ptr = objectAtIndex(theSubviews, i)
+		    If isKindOfClass(theSubview, theUITableViewClass) Then
+		      setBackgroundColor(theSubview, theClearColor)
+		    End If
+		  Next
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
+		Sub SetLabelSystemColor(inLabelHandle As Ptr, inIsSecondary As Boolean)
+		  // Set a UILabel's text color to the iOS system adaptive label color.
+		  // Primary = labelColor (black in light, white in dark)
+		  // Secondary = secondaryLabelColor (dimmer in both modes)
+
+		  If inLabelHandle = Nil Then Return
+
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function labelColor Lib "UIKit" Selector "labelColor" (cls As Ptr) As Ptr
+		  Declare Function secondaryLabelColor Lib "UIKit" Selector "secondaryLabelColor" (cls As Ptr) As Ptr
+		  Declare Sub setTextColor Lib "UIKit" Selector "setTextColor:" (obj As Ptr, color As Ptr)
+
+		  Var theUIColorClass As Ptr = NSClassFromString("UIColor")
+		  If theUIColorClass = Nil Then Return
+
+		  If inIsSecondary Then
+		    setTextColor(inLabelHandle, secondaryLabelColor(theUIColorClass))
+		  Else
+		    setTextColor(inLabelHandle, labelColor(theUIColorClass))
+		  End If
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h0
 		Sub SetupMenuButton(inScreen As MobileScreen)
 		  // Creates a native iOS pull-down UIMenu on the navigation bar "..." button.
 		  // Strategy: Create UIBarButtonItem entirely via declares with no target/action.
@@ -157,6 +221,9 @@ Protected Module Module_Navigation
 		  // that interferes with menu display after navigation push/pop.
 
 		  If inScreen = Nil Then Return
+
+		  // Apply dark mode system colors to screen background
+		  ApplyDarkModeColors(inScreen)
 
 		  pMenuScreen = inScreen
 		  If inScreen IsA Screen_Main Then

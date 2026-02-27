@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_FlashStorage
    BackButtonCaption=   ""
-   BackgroundColor =   &cF2F2F7
+   BackgroundColor =
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -39,7 +39,7 @@ Begin MobileScreen Screen_FlashStorage
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "No flights stored"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   18
       TintColor       =   
@@ -190,6 +190,11 @@ End
 		  End If
 
 		  Module_Navigation.SetupMenuButton(Self)
+
+		  // Apply system label colors for dark mode
+		  Module_Navigation.SetLabelSystemColor(LabelFlightCount.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelFlightInfo.Handle, True)
+		  Module_Navigation.SetLabelSystemColor(LabelStatus.Handle, True)
 		End Sub
 	#tag EndEvent
 

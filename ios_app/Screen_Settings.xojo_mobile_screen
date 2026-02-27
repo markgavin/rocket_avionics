@@ -1,7 +1,7 @@
 #tag MobileScreen
 Begin MobileScreen Screen_Settings
    BackButtonCaption=   ""
-   BackgroundColor =   &cF2F2F7
+   BackgroundColor =
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
@@ -39,7 +39,7 @@ Begin MobileScreen Screen_Settings
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Gateway Server"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   16
       TintColor       =   
@@ -78,7 +78,7 @@ Begin MobileScreen Screen_Settings
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   ""
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   17
       TintColor       =   
@@ -108,7 +108,7 @@ Begin MobileScreen Screen_Settings
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Port"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   16
       TintColor       =   
@@ -147,7 +147,7 @@ Begin MobileScreen Screen_Settings
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "5000"
-      TextColor       =   &c000000
+      TextColor       =
       TextFont        =   ""
       TextSize        =   17
       TintColor       =   
@@ -265,6 +265,11 @@ End
 		  pPollTimer.Enabled = True
 
 		  Module_Navigation.SetupMenuButton(Self)
+
+		  // Apply system label colors for dark mode
+		  Module_Navigation.SetLabelSystemColor(LabelServer.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelPort.Handle, False)
+		  Module_Navigation.SetLabelSystemColor(LabelInfo.Handle, True)
 		End Sub
 	#tag EndEvent
 
