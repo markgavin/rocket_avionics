@@ -175,8 +175,12 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Closing()
-		  If App.pConnection <> Nil Then
-		    RemoveHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		  If pHandlersAdded And App.pConnection <> Nil Then
+		    Try
+		      RemoveHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		    Catch
+		    End Try
+		    pHandlersAdded = False
 		  End If
 		End Sub
 	#tag EndEvent
@@ -185,8 +189,17 @@ End
 		Sub Opening()
 		  UpdateConnectionStatus
 
+		  // Remove-before-add pattern: safe with singleton screen instances
+		  If pHandlersAdded And App.pConnection <> Nil Then
+		    Try
+		      RemoveHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		    Catch
+		    End Try
+		    pHandlersAdded = False
+		  End If
 		  If App.pConnection <> Nil Then
 		    AddHandler App.pConnection.FlashListReceived, AddressOf HandleFlashListReceived
+		    pHandlersAdded = True
 		  End If
 
 		  Module_Navigation.SetupMenuButton(Self)
@@ -243,6 +256,9 @@ End
 		End Sub
 	#tag EndMethod
 
+	#tag Property, Flags = &h21
+		Private pHandlersAdded As Boolean = False
+	#tag EndProperty
 
 
 #tag EndWindowCode

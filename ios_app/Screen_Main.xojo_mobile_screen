@@ -532,20 +532,47 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Closing()
-		  If App.pConnection <> Nil Then
-		    RemoveHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
-		    RemoveHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
-		    RemoveHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		  If pHandlersAdded And App.pConnection <> Nil Then
+		    Try
+		      RemoveHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
+		    Catch
+		    End Try
+		    Try
+		      RemoveHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		    Catch
+		    End Try
+		    Try
+		      RemoveHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		    Catch
+		    End Try
+		    pHandlersAdded = False
 		  End If
 		End Sub
 	#tag EndEvent
 
 	#tag Event
 		Sub Opening()
+		  // Remove-before-add pattern: safe with singleton screen instances
+		  If pHandlersAdded And App.pConnection <> Nil Then
+		    Try
+		      RemoveHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
+		    Catch
+		    End Try
+		    Try
+		      RemoveHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
+		    Catch
+		    End Try
+		    Try
+		      RemoveHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		    Catch
+		    End Try
+		    pHandlersAdded = False
+		  End If
 		  If App.pConnection <> Nil Then
 		    AddHandler App.pConnection.ConnectionChanged, AddressOf HandleConnectionChanged
 		    AddHandler App.pConnection.TelemetryReceived, AddressOf HandleTelemetryReceived
 		    AddHandler App.pConnection.ErrorReceived, AddressOf HandleErrorReceived
+		    pHandlersAdded = True
 		  End If
 		  UpdateConnectButton
 
@@ -783,6 +810,10 @@ End
 
 	#tag Property, Flags = &h21
 		Private pTableInitialized As Boolean = False
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pHandlersAdded As Boolean = False
 	#tag EndProperty
 
 

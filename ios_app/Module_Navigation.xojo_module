@@ -395,19 +395,20 @@ Protected Module Module_Navigation
 		      End If
 
 		    Case "Settings"
-		      pMainScreen.PushTo(New Screen_Settings)
+		      If pSettingsScreen = Nil Then pSettingsScreen = New Screen_Settings
+		      pMainScreen.PushTo(pSettingsScreen)
 
 		    Case "Recovery"
-		      pMainScreen.PushTo(New Screen_Recovery)
+		      If pRecoveryScreen = Nil Then pRecoveryScreen = New Screen_Recovery
+		      pMainScreen.PushTo(pRecoveryScreen)
 
 		    Case "Flight Data"
-		      If pFlashStorageScreen = Nil Then
-		        pFlashStorageScreen = New Screen_FlashStorage
-		      End If
+		      If pFlashStorageScreen = Nil Then pFlashStorageScreen = New Screen_FlashStorage
 		      pMainScreen.PushTo(pFlashStorageScreen)
 
 		    Case "About"
-		      pMainScreen.PushTo(New Screen_About)
+		      If pAboutScreen = Nil Then pAboutScreen = New Screen_About
+		      pMainScreen.PushTo(pAboutScreen)
 		    End Select
 
 		  Catch theError As RuntimeException
@@ -466,8 +467,20 @@ Protected Module Module_Navigation
 		Private pPendingMenuAction As String = ""
 	#tag EndProperty
 
-	#tag Property, Flags = &h0
-		pFlashStorageScreen As Screen_FlashStorage
+	#tag Property, Flags = &h21
+		Private pFlashStorageScreen As Screen_FlashStorage
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pSettingsScreen As Screen_Settings
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pRecoveryScreen As Screen_Recovery
+	#tag EndProperty
+
+	#tag Property, Flags = &h21
+		Private pAboutScreen As Screen_About
 	#tag EndProperty
 
 
