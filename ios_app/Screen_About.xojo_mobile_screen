@@ -1,37 +1,39 @@
 #tag MobileScreen
 Begin MobileScreen Screen_About
    BackButtonCaption=   ""
-   BackgroundColor =
+   BackgroundColor =   
    Compatibility   =   ""
    ControlCount    =   0
    Device = 7
    HasNavigationBar=   True
    LargeTitleDisplayMode=   2
    Left            =   0
-   NavigationBarColor=
-   NavigationBarTextColor=
+   NavigationBarColor=   
+   NavigationBarTextColor=   
    Orientation = 0
    ScaleFactor     =   0.0
    TabBarVisible   =   True
    TabIcon         =   0
-   TintColor       =
+   TintColor       =   
    Title           =   "About"
    Top             =   0
    _mTabBarVisible =   False
    Begin MobileCanvas CanvasIcon
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
+      AllowKeyEvents  =   False
+      AutoLayout      =   CanvasIcon, 8, , 0, False, +1.00, 1, 1, 200, , True
       AutoLayout      =   CanvasIcon, 1, <Parent>, 1, False, +1.00, 1, 1, 88, , True
       AutoLayout      =   CanvasIcon, 2, <Parent>, 2, False, +1.00, 1, 1, -88, , True
       AutoLayout      =   CanvasIcon, 3, <Parent>, 3, False, +1.00, 1, 1, 140, , True
-      AutoLayout      =   CanvasIcon, 8, , 0, False, +1.00, 1, 1, 200, , True
+      AutoLayout      =   CanvasIcon, 7, , 0, False, +1.00, 4, 1, 200, 200, True
       ControlCount    =   0
       Enabled         =   True
       Height          =   200
-      Left            =   88
+      Left            =   87
       LockedInPosition=   False
       Scope           =   2
-      TintColor       =
+      TintColor       =   
       Top             =   140
       Visible         =   True
       Width           =   200
@@ -58,10 +60,10 @@ Begin MobileScreen Screen_About
       SelectionLength =   0
       SelectionStart  =   0
       Text            =   "Rocket Avionics"
-      TextColor       =
+      TextColor       =   &c000000
       TextFont        =   ""
       TextSize        =   24
-      TintColor       =
+      TintColor       =   
       Top             =   360
       Visible         =   True
       Width           =   335
@@ -91,7 +93,7 @@ Begin MobileScreen Screen_About
       TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   14
-      TintColor       =
+      TintColor       =   
       Top             =   400
       Visible         =   True
       Width           =   335
@@ -121,8 +123,8 @@ Begin MobileScreen Screen_About
       TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   14
-      TintColor       =
-      Top             =   428
+      TintColor       =   
+      Top             =   424
       Visible         =   True
       Width           =   335
       _ClosingFired   =   False
@@ -135,7 +137,7 @@ End
 		Sub Opening()
 		  LoadAppIcon
 		  Module_Navigation.SetupMenuButton(Self)
-
+		  
 		  // Apply system label colors for dark mode
 		  Module_Navigation.SetLabelSystemColor(LabelAppName.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelVersion.Handle, True)
@@ -146,8 +148,7 @@ End
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
-		  // Try to load app icon from bundle Resources
-		  // SpecialFolder.Resource throws InvalidArgumentException if not found
+		  // Load icon from bundle Resources (prefer non-@2x to avoid HiDPI scaling issues)
 		  Try
 		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt@2x.png")
 		    If theFile <> Nil And theFile.Exists Then
@@ -155,20 +156,18 @@ End
 		      Return
 		    End If
 		  Catch e As RuntimeException
-		    // File not in bundle, try fallback
 		  End Try
-
+		  
 		  Try
-		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt.png")
+		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt@2x.png")
 		    If theFile <> Nil And theFile.Exists Then
 		      pAppIcon = Picture.Open(theFile)
-		      Return
 		    End If
 		  Catch e As RuntimeException
-		    // File not in bundle
 		  End Try
 		End Sub
 	#tag EndMethod
+
 
 	#tag Property, Flags = &h21
 		Private pAppIcon As Picture
@@ -181,8 +180,162 @@ End
 	#tag Event
 		Sub Paint(g As Graphics)
 		  If pAppIcon <> Nil Then
-		    g.DrawPicture(pAppIcon, 0, 0, g.Width, g.Height, 0, 0, pAppIcon.Width, pAppIcon.Height)
+		    // Scale dest by g.ScaleX/Y to account for Retina backing store
+		    Var theDestW As Double = g.Width * 2 //g.ScaleX
+		    Var theDestH As Double = g.Height * 2// g.ScaleY
+		    g.DrawPicture(pAppIcon, 0, 0, theDestW, theDestH, 0, 0, pAppIcon.Width, pAppIcon.Height)
 		  End If
 		End Sub
 	#tag EndEvent
 #tag EndEvents
+#tag ViewBehavior
+	#tag ViewProperty
+		Name="Index"
+		Visible=true
+		Group="ID"
+		InitialValue="-2147483648"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Name"
+		Visible=true
+		Group="ID"
+		InitialValue=""
+		Type="String"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Super"
+		Visible=true
+		Group="ID"
+		InitialValue=""
+		Type="String"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Left"
+		Visible=true
+		Group="Position"
+		InitialValue="0"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Top"
+		Visible=true
+		Group="Position"
+		InitialValue="0"
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="BackButtonCaption"
+		Visible=true
+		Group="Behavior"
+		InitialValue=""
+		Type="String"
+		EditorType="MultiLineEditor"
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="HasNavigationBar"
+		Visible=true
+		Group="Behavior"
+		InitialValue="True"
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TabIcon"
+		Visible=true
+		Group="Behavior"
+		InitialValue=""
+		Type="Picture"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="Title"
+		Visible=true
+		Group="Behavior"
+		InitialValue="Untitled"
+		Type="String"
+		EditorType="MultiLineEditor"
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="LargeTitleDisplayMode"
+		Visible=true
+		Group="Behavior"
+		InitialValue="2"
+		Type="MobileScreen.LargeTitleDisplayModes"
+		EditorType="Enum"
+		#tag EnumValues
+			"0 - Automatic"
+			"1 - Always"
+			"2 - Never"
+		#tag EndEnumValues
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TabBarVisible"
+		Visible=true
+		Group="Behavior"
+		InitialValue="True"
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="TintColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="ControlCount"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Integer"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="ScaleFactor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Double"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="_mTabBarVisible"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="Boolean"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="BackgroundColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="NavigationBarColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+	#tag ViewProperty
+		Name="NavigationBarTextColor"
+		Visible=false
+		Group="Behavior"
+		InitialValue=""
+		Type="ColorGroup"
+		EditorType=""
+	#tag EndViewProperty
+#tag EndViewBehavior
