@@ -137,10 +137,10 @@ Begin MobileScreen Screen_About
       AutoLayout      =   LabelDescription, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelDescription, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
       AutoLayout      =   LabelDescription, 3, LabelCopyright, 4, False, +1.00, 1, 1, 30, , True
-      AutoLayout      =   LabelDescription, 8, , 0, False, +1.00, 1, 1, 60, , True
+      AutoLayout      =   LabelDescription, 8, , 0, False, +1.00, 1, 1, 80, , True
       ControlCount    =   0
       Enabled         =   True
-      Height          =   60
+      Height          =   80
       Left            =   20
       LineBreakMode   =   0
       LockedInPosition=   False
