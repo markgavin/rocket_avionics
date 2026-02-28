@@ -25,16 +25,17 @@ Begin MobileScreen Screen_About
       AutoLayout      =   AppIconImage, 3, <Parent>, 3, False, +1.00, 1, 1, 140, , True
       AutoLayout      =   AppIconImage, 7, , 0, False, +1.00, 1, 1, 200, , True
       AutoLayout      =   AppIconImage, 8, , 0, False, +1.00, 1, 1, 200, , True
-      ContentMode     =   1
       ControlCount    =   0
+      DisplayMode     =   0
       Enabled         =   True
       Height          =   200
       Image           =   0
       Left            =   87
       LockedInPosition=   False
       Scope           =   2
-      TintColor       =
+      TintColor       =   
       Top             =   140
+      URL             =   ""
       Visible         =   True
       Width           =   200
       _ClosingFired   =   False
@@ -153,7 +154,7 @@ Begin MobileScreen Screen_About
       TextColor       =   &c8E8E93
       TextFont        =   ""
       TextSize        =   14
-      TintColor       =
+      TintColor       =   
       Top             =   474
       Visible         =   True
       Width           =   335
@@ -166,32 +167,18 @@ End
 	#tag Event
 		Sub Opening()
 		  Module_Navigation.SetupMenuButton(Self)
-
+		  
 		  // Load app icon from asset catalog
 		  LoadAppIcon
-
+		  
 		  // Apply system label colors for dark mode
 		  Module_Navigation.SetLabelSystemColor(LabelAppName.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelVersion.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelCopyright.Handle, True)
-		  // Don't call SetLabelSystemColor on LabelDescription — ObjC declares
-		  // trigger Xojo layout re-sync which resets numberOfLines to 1.
-		  // The hardcoded &c8E8E93 works in both light and dark modes.
-
-		  // Force multiline after all layout passes complete
-		  Timer.CallLater(1000, AddressOf ApplyMultilineDescription)
+		  // LabelDescription is natively multiline via LineBreakMode=0 in the IDE.
+		  // Do NOT touch it with any ObjC declares — that triggers Xojo re-sync.
 		End Sub
 	#tag EndEvent
-
-
-	#tag Method, Flags = &h21
-		Private Sub ApplyMultilineDescription()
-		  Declare Sub setNumberOfLines Lib "UIKit" Selector "setNumberOfLines:" (obj As Ptr, lines As Integer)
-		  Declare Sub setLineBreakMode Lib "UIKit" Selector "setLineBreakMode:" (obj As Ptr, mode As Integer)
-		  setNumberOfLines(LabelDescription.Handle, 0)
-		  setLineBreakMode(LabelDescription.Handle, 0)  // NSLineBreakByWordWrapping
-		End Sub
-	#tag EndMethod
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
@@ -202,12 +189,12 @@ End
 		  Declare Function layer Lib "QuartzCore" Selector "layer" (obj As Ptr) As Ptr
 		  Declare Sub setCornerRadius Lib "QuartzCore" Selector "setCornerRadius:" (obj As Ptr, radius As Double)
 		  Declare Sub setMasksToBounds Lib "QuartzCore" Selector "setMasksToBounds:" (obj As Ptr, masks As Boolean)
-
+		  
 		  Var theUIImageClass As Ptr = NSClassFromString("UIImage")
 		  Var theImage As Ptr = imageNamed(theUIImageClass, "AppIcon60x60")
 		  If theImage <> Nil Then
 		    setImage(AppIconImage.Handle, theImage)
-
+		    
 		    // Apply iOS-style rounded corners (22% of icon size)
 		    Var theLayer As Ptr = layer(AppIconImage.Handle)
 		    setCornerRadius(theLayer, 44)
@@ -218,6 +205,7 @@ End
 
 
 #tag EndWindowCode
+
 #tag ViewBehavior
 	#tag ViewProperty
 		Name="Index"
