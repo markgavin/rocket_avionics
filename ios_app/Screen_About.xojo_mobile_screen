@@ -176,12 +176,19 @@ End
 		  Module_Navigation.SetLabelSystemColor(LabelCopyright.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelDescription.Handle, True)
 
-		  // Allow description to wrap to multiple lines
-		  Declare Sub setNumberOfLines Lib "UIKit" Selector "setNumberOfLines:" (obj As Ptr, lines As Integer)
-		  setNumberOfLines(LabelDescription.Handle, 0)
+		  // Defer multiline setup — Xojo may reset numberOfLines after Opening
+		  Timer.CallLater(0, AddressOf ApplyMultilineDescription)
 		End Sub
 	#tag EndEvent
 
+
+	#tag Method, Flags = &h21
+		Private Sub ApplyMultilineDescription()
+		  // Set numberOfLines to 0 (unlimited) so description text wraps
+		  Declare Sub setNumberOfLines Lib "UIKit" Selector "setNumberOfLines:" (obj As Ptr, lines As Integer)
+		  setNumberOfLines(LabelDescription.Handle, 0)
+		End Sub
+	#tag EndMethod
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
