@@ -174,23 +174,10 @@ End
 		  Module_Navigation.SetLabelSystemColor(LabelAppName.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelVersion.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelCopyright.Handle, True)
-		  Module_Navigation.SetLabelSystemColor(LabelDescription.Handle, True)
-
-		  // Defer multiline setup — Xojo resets numberOfLines during layout
-		  Timer.CallLater(250, AddressOf ApplyMultilineDescription)
+		  // LabelDescription keeps hardcoded &c8E8E93 — readable in both modes
+		  // and avoids ObjC declare triggering Xojo's numberOfLines reset
 		End Sub
 	#tag EndEvent
-
-
-	#tag Method, Flags = &h21
-		Private Sub ApplyMultilineDescription()
-		  // Set numberOfLines to 0 (unlimited) and lineBreakMode to word wrap
-		  Declare Sub setNumberOfLines Lib "UIKit" Selector "setNumberOfLines:" (obj As Ptr, lines As Integer)
-		  Declare Sub setLineBreakMode Lib "UIKit" Selector "setLineBreakMode:" (obj As Ptr, mode As Integer)
-		  setNumberOfLines(LabelDescription.Handle, 0)
-		  setLineBreakMode(LabelDescription.Handle, 0)  // NSLineBreakByWordWrapping
-		End Sub
-	#tag EndMethod
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
