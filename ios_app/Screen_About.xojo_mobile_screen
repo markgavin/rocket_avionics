@@ -129,11 +129,9 @@ Begin MobileScreen Screen_About
       Width           =   335
       _ClosingFired   =   False
    End
-   Begin MobileLabel LabelDescription
+   Begin MobileTextArea LabelDescription
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
-      AdjustTextSizeToFit=   False
-      Alignment       =   1
       AutoLayout      =   LabelDescription, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelDescription, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
       AutoLayout      =   LabelDescription, 3, LabelCopyright, 4, False, +1.00, 1, 1, 30, , True
@@ -142,13 +140,9 @@ Begin MobileScreen Screen_About
       Enabled         =   True
       Height          =   80
       Left            =   20
-      LineBreakMode   =   0
       LockedInPosition=   False
-      MaximumCharactersAllowed=   0
+      ReadOnly        =   True
       Scope           =   2
-      SelectedText    =   ""
-      SelectionLength =   0
-      SelectionStart  =   0
       Text            =   "Flight computer companion app for model and high-power rocketry. Real-time telemetry, GPS tracking, and rocket recovery."
       TextColor       =   &c8E8E93
       TextFont        =   ""
@@ -174,10 +168,36 @@ End
 		  Module_Navigation.SetLabelSystemColor(LabelAppName.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelVersion.Handle, True)
 		  Module_Navigation.SetLabelSystemColor(LabelCopyright.Handle, True)
-		  // LabelDescription keeps hardcoded &c8E8E93 — readable in both modes
-		  // and avoids ObjC declare triggering Xojo's numberOfLines reset
+
+		  // Style MobileTextArea to look like a read-only label
+		  StyleDescriptionAsLabel
 		End Sub
 	#tag EndEvent
+
+	#tag Method, Flags = &h21
+		Private Sub StyleDescriptionAsLabel()
+		  // Configure MobileTextArea (UITextView) to look like a non-interactive label
+		  Declare Sub setEditable Lib "UIKit" Selector "setEditable:" (obj As Ptr, editable As Boolean)
+		  Declare Sub setSelectable Lib "UIKit" Selector "setSelectable:" (obj As Ptr, selectable As Boolean)
+		  Declare Sub setScrollEnabled Lib "UIKit" Selector "setScrollEnabled:" (obj As Ptr, enabled As Boolean)
+		  Declare Sub setTextAlignment Lib "UIKit" Selector "setTextAlignment:" (obj As Ptr, alignment As Integer)
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function clearColor Lib "UIKit" Selector "clearColor" (cls As Ptr) As Ptr
+		  Declare Sub setBackgroundColor Lib "UIKit" Selector "setBackgroundColor:" (obj As Ptr, color As Ptr)
+
+		  Var h As Ptr = LabelDescription.Handle
+		  setEditable(h, False)
+		  setSelectable(h, False)
+		  setScrollEnabled(h, False)
+		  setTextAlignment(h, 1)  // NSTextAlignmentCenter
+
+		  Var theUIColorClass As Ptr = NSClassFromString("UIColor")
+		  setBackgroundColor(h, clearColor(theUIColorClass))
+
+		  // Apply system secondary label color for dark mode
+		  Module_Navigation.SetLabelSystemColor(h, True)
+		End Sub
+	#tag EndMethod
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
