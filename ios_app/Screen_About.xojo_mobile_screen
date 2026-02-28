@@ -129,7 +129,7 @@ Begin MobileScreen Screen_About
       Width           =   335
       _ClosingFired   =   False
    End
-   Begin MobileTextArea LabelDescription
+   Begin MobileTextEditor LabelDescription
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
       AutoLayout      =   LabelDescription, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
