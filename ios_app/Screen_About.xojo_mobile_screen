@@ -18,22 +18,22 @@ Begin MobileScreen Screen_About
    Title           =   "About"
    Top             =   0
    _mTabBarVisible =   False
-   Begin MobileCanvas CanvasIcon
+   Begin MobileImageViewer AppIconImage
       AccessibilityHint=   ""
       AccessibilityLabel=   ""
-      AllowKeyEvents  =   False
-      AutoLayout      =   CanvasIcon, 8, , 0, False, +1.00, 1, 1, 200, , True
-      AutoLayout      =   CanvasIcon, 1, <Parent>, 1, False, +1.00, 1, 1, 88, , True
-      AutoLayout      =   CanvasIcon, 2, <Parent>, 2, False, +1.00, 1, 1, -88, , True
-      AutoLayout      =   CanvasIcon, 3, <Parent>, 3, False, +1.00, 1, 1, 140, , True
-      AutoLayout      =   CanvasIcon, 7, , 0, False, +1.00, 4, 1, 200, 200, True
+      AutoLayout      =   AppIconImage, 9, <Parent>, 9, False, +1.00, 1, 1, 0, , True
+      AutoLayout      =   AppIconImage, 3, <Parent>, 3, False, +1.00, 1, 1, 140, , True
+      AutoLayout      =   AppIconImage, 7, , 0, False, +1.00, 1, 1, 200, , True
+      AutoLayout      =   AppIconImage, 8, , 0, False, +1.00, 1, 1, 200, , True
+      ContentMode     =   1
       ControlCount    =   0
       Enabled         =   True
       Height          =   200
+      Image           =   0
       Left            =   87
       LockedInPosition=   False
       Scope           =   2
-      TintColor       =   
+      TintColor       =
       Top             =   140
       Visible         =   True
       Width           =   200
@@ -46,7 +46,7 @@ Begin MobileScreen Screen_About
       Alignment       =   1
       AutoLayout      =   LabelAppName, 1, <Parent>, 1, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelAppName, 2, <Parent>, 2, False, +1.00, 1, 1, -20, , True
-      AutoLayout      =   LabelAppName, 3, CanvasIcon, 4, False, +1.00, 1, 1, 20, , True
+      AutoLayout      =   LabelAppName, 3, AppIconImage, 4, False, +1.00, 1, 1, 20, , True
       AutoLayout      =   LabelAppName, 8, , 0, False, +1.00, 1, 1, 32, , True
       ControlCount    =   0
       Enabled         =   True
@@ -135,9 +135,11 @@ End
 #tag WindowCode
 	#tag Event
 		Sub Opening()
-		  LoadAppIcon
 		  Module_Navigation.SetupMenuButton(Self)
-		  
+
+		  // Load app icon from asset catalog
+		  LoadAppIcon
+
 		  // Apply system label colors for dark mode
 		  Module_Navigation.SetLabelSystemColor(LabelAppName.Handle, False)
 		  Module_Navigation.SetLabelSystemColor(LabelVersion.Handle, True)
@@ -148,46 +150,29 @@ End
 
 	#tag Method, Flags = &h21
 		Private Sub LoadAppIcon()
-		  // Load icon from bundle Resources (prefer non-@2x to avoid HiDPI scaling issues)
-		  Try
-		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt@2x.png")
-		    If theFile <> Nil And theFile.Exists Then
-		      pAppIcon = Picture.Open(theFile)
-		      Return
-		    End If
-		  Catch e As RuntimeException
-		  End Try
-		  
-		  Try
-		    Var theFile As FolderItem = SpecialFolder.Resource("ModelRocketAvionic512pt@2x.png")
-		    If theFile <> Nil And theFile.Exists Then
-		      pAppIcon = Picture.Open(theFile)
-		    End If
-		  Catch e As RuntimeException
-		  End Try
+		  // Load app icon from iOS asset catalog and display with rounded corners
+		  Declare Function NSClassFromString Lib "Foundation" (name As CFStringRef) As Ptr
+		  Declare Function imageNamed Lib "UIKit" Selector "imageNamed:" (cls As Ptr, name As CFStringRef) As Ptr
+		  Declare Sub setImage Lib "UIKit" Selector "setImage:" (obj As Ptr, image As Ptr)
+		  Declare Function layer Lib "QuartzCore" Selector "layer" (obj As Ptr) As Ptr
+		  Declare Sub setCornerRadius Lib "QuartzCore" Selector "setCornerRadius:" (obj As Ptr, radius As Double)
+		  Declare Sub setMasksToBounds Lib "QuartzCore" Selector "setMasksToBounds:" (obj As Ptr, masks As Boolean)
+
+		  Var theUIImageClass As Ptr = NSClassFromString("UIImage")
+		  Var theImage As Ptr = imageNamed(theUIImageClass, "AppIcon60x60")
+		  If theImage <> Nil Then
+		    setImage(AppIconImage.Handle, theImage)
+
+		    // Apply iOS-style rounded corners (22% of icon size)
+		    Var theLayer As Ptr = layer(AppIconImage.Handle)
+		    setCornerRadius(theLayer, 44)
+		    setMasksToBounds(theLayer, True)
+		  End If
 		End Sub
 	#tag EndMethod
 
 
-	#tag Property, Flags = &h21
-		Private pAppIcon As Picture
-	#tag EndProperty
-
-
 #tag EndWindowCode
-
-#tag Events CanvasIcon
-	#tag Event
-		Sub Paint(g As Graphics)
-		  If pAppIcon <> Nil Then
-		    // Scale dest by g.ScaleX/Y to account for Retina backing store
-		    Var theDestW As Double = g.Width * 2 //g.ScaleX
-		    Var theDestH As Double = g.Height * 2// g.ScaleY
-		    g.DrawPicture(pAppIcon, 0, 0, theDestW, theDestH, 0, 0, pAppIcon.Width, pAppIcon.Height)
-		  End If
-		End Sub
-	#tag EndEvent
-#tag EndEvents
 #tag ViewBehavior
 	#tag ViewProperty
 		Name="Index"
